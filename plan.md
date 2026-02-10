@@ -1,8 +1,8 @@
-# Plan: FlowState Web Application
+# Plan: JamState Web Application
 
-This plan outlines the development of **FlowState**, a web-based "Retrospective Riff Engine" inspired by the original C++/JUCE specification. It leverages modern web technologies to deliver a desktop-class audio experience in the browser.
+This plan outlines the development of **JamState**, a web-based "Retrospective Riff Engine" inspired by the original C++/JUCE specification. It leverages modern web technologies to deliver a desktop-class audio experience in the browser.
 
-> **Note:** This plan adapts the [Original Specification](./Spec_FlowState_Looper.md) for a web environment. All functional requirements (logic, behavior) are derived from the spec, while technical implementation details are adjusted for the Web Platform.
+> **Note:** This plan adapts the [Original Specification](./Spec_JamState_Looper.md) for a web environment. All functional requirements (logic, behavior) are derived from the spec, while technical implementation details are adjusted for the Web Platform.
 
 ## 1. Technical Stack (Web Adaptation)
 
