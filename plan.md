@@ -1,100 +1,165 @@
-# Plan: JamState Web Application
+# Plan: JamState JUCE Application
 
-This plan outlines the development of **JamState**, a web-based "Retrospective Riff Engine" inspired by the original C++/JUCE specification. It leverages modern web technologies to deliver a desktop-class audio experience in the browser.
+This plan outlines the development of **JamState**, a macOS desktop "Retrospective Riff Engine" built with JUCE (C++).
 
-> **Note:** This plan adapts the [Original Specification](./Spec_JamState_Looper.md) for a web environment. All functional requirements (logic, behavior) are derived from the spec, while technical implementation details are adjusted for the Web Platform.
+> **Note:** This plan follows the [Original Specification](./Spec_JamState_Looper.md) for a native C++/JUCE implementation targeting macOS (with potential iOS support later).
 
-## 1. Technical Stack (Web Adaptation)
+## 1. Technical Stack
 
-*   **Framework:** Next.js (React) or Vite (React) - *Recommendation: Vite for lower latency dev server, though Next.js works fine.*
-*   **Language:** TypeScript
-*   **Styling:** Tailwind CSS (for "Premium/High Spec" UI as per `agents.md`)
-*   **Audio Engine:** **Web Audio API** (Raw) + **Tone.js** (for scheduling/synths/effects).
-*   **State Management:** **Zustand** (for efficient, transient audio state updates) or **Jotai**.
-*   **Storage (Persistence):** **IndexedDB** (via `idb` or `localforage`) to store large audio blobs (FLAC/WAV) locally. *LocalStorage is insufficient for audio.*
-*   **Component Library:** Radix UI (for accessible primitives) + Lucide React (icons).
+*   **Framework:** JUCE 8.x (C++)
+*   **IDE:** Xcode (macOS)
+*   **Build System:** CMake (via Projucer or manual setup)
+*   **Audio Format:** FLAC (lossless, 24-bit/48kHz) + optional MP3 export
+*   **Data Storage:** JSON-based project files + audio file references
+*   **Version Control:** Git + GitHub
 
 ## 2. Core Architecture
 
-### 2.1 Audio Engine (The "Always-On" Buffer)
-*   **Circular Buffer Implementation:**
-    *   Use `AudioWorklet` for low-latency processing off the main thread.
-    *   Maintain a ~60s ring buffer (Float32Array) in the worklet.
-    *   *Reference Spec §3.1: "Always-On Buffer"*
-*   **Commit Logic:**
-    *   Slice the buffer from `Active Time - Loop Length` when "Commit" is triggered.
-    *   Crossfade edges (5-10ms) in the AudioWorklet or main thread post-processing.
-    *   *Reference Spec §3.1: "Commit Logic"*
+### 2.1 Audio Engine Components
+*   **Circular Buffer:** `juce::AbstractFifo` for lock-free 60-second ring buffer
+*   **Audio I/O:** `juce::AudioDeviceManager` for input/output
+*   **Transport:** `juce::AudioTransportSource` for playback synchronization
+*   **DSP Chain:** `juce::dsp` modules for FX (Reverb, Delay, Filters)
+*   **File I/O:** `juce::FlacAudioFormat` for lossless recording
 
-### 2.2 Slot System
-*   **State:** Array of `Slot` objects (BufferSource nodes).
-*   **Merging (Summing Event):**
-    *   OfflineAudioContext to render multiple buffers into one new buffer (The "Bounce").
-    *   *Reference Spec §3.2: "The Summing Event"*
+### 2.2 Data Model
+*   **Slot Manager:** Manages 8 stereo loop slots
+*   **Riff History:** Timeline-based snapshot system (JSON metadata + audio files)
+*   **Project Structure:**
+    ```
+    JamStateProject/
+    ├── project.json          # Metadata, tempo, key, riff history
+    └── audio/
+        ├── riff_001_slot_0.flac
+        ├── riff_001_slot_1.flac
+        └── ...
+    ```
+
+### 2.3 UI Architecture (JUCE Components)
+*   **Main Window:** `juce::DocumentWindow`
+*   **Slot Rack:** Custom `juce::Component` with 8 waveform displays
+*   **Transport Controls:** Play/Stop, Tempo, Commit buttons (1/2/4/8/16 bars)
+*   **History Browser:** `juce::ListBox` with timeline navigation
+*   **Settings Panel:** Audio I/O, microtuning, FX routing
 
 ## 3. Development Phases
 
-### Phase 1: Foundation & "Hello Sound"
-1.  **Project Initialization:**
-    *   Setup Vite/Next.js with TypeScript & Tailwind.
-    *   Configure ESLint/Prettier (AirBnb or standard).
-    *   Setup `agents.md` guidelines enforcement (e.g. husky hooks).
-2.  **Audio Context Setup:**
-    *   Initialize `Tone.Context` or raw `AudioContext`.
-    *   Create a basic microphone input stream (`navigator.mediaDevices.getUserMedia`).
-    *   Visual feedback: Simple VU meter to confirm input.
+### Phase 1: Project Setup & Audio I/O
+1.  **JUCE Installation:**
+    *   Download JUCE from [juce.com](https://juce.com)
+    *   Install Projucer
+    *   Create new Audio Application project
+2.  **Basic Audio Setup:**
+    *   Configure `AudioDeviceManager`
+    *   Implement basic audio input passthrough
+    *   Add VU meter for input monitoring
+3.  **Git Integration:**
+    *   Commit initial Projucer project
+    *   Setup `.gitignore` for JUCE projects (ignore `Builds/`, `JuceLibraryCode/`)
 
-### Phase 2: The Retrospective Engine (Core Logic)
-1.  **Circular Buffer Worklet:**
-    *   Write `circular-buffer.worklet.ts` processor.
-    *   Implement `AudioWorkletNode` to communicate with UI.
-2.  **Commit Triggers:**
-    *   UI Buttons: 1, 2, 4, 8 Bars.
-    *   Logic to calculate sample length based on **BPM** (default 120).
-    *   Extraction: Pull data from the worklet and create an `AudioBuffer`.
+### Phase 2: Circular Buffer & Retrospective Capture
+1.  **Implement Ring Buffer:**
+    *   Create `CircularAudioBuffer` class using `juce::AbstractFifo`
+    *   Continuously write input to buffer (60s capacity)
+2.  **Commit Logic:**
+    *   Calculate bar lengths from BPM (default 120)
+    *   Extract N bars from buffer on button press
+    *   Apply crossfades (5-10ms) to prevent clicks
+3.  **Tempo System:**
+    *   Implement tap tempo for cold start
+    *   Add tempo slider/input field
 
-### Phase 3: The Rack & Playback
-1.  **Slot UI:**
-    *   Create 8 visual slots.
-    *   Waveform visualization (Canvas or SVG) for slot content.
+### Phase 3: 8-Slot Playback System
+1.  **Slot Architecture:**
+    *   Create `LoopSlot` class (holds `AudioBuffer`, gain, color metadata)
+    *   Implement "find first empty" slot assignment
 2.  **Playback Engine:**
-    *   Trigger all active slots in sync with the Transport (Global Transport).
-    *   Implement "Play/Stop" and "Loop" functionality.
-3.  **Slot Management:**
-    *   "Find First Empty" logic (*Spec §3.2*).
-    *   Mute/Solo/Clear controls per slot.
+    *   Sync all slots to global transport
+    *   Implement looping with phase-locked playback
+3.  **UI for Slots:**
+    *   8 waveform displays (using `juce::AudioThumbnail`)
+    *   Mute/Solo/Clear buttons per slot
+    *   Color coding (Purple/Cyan/Yellow/Scarlet)
 
-### Phase 4: History & Persistence
-1.  **IndexedDB Layer:**
-    *   Schema for `Riff`: `{ id, timestamp, bpm, slots: [blobs] }`.
-    *   Save `Riff` on every "Commit" event (*Spec §3.3*).
+### Phase 4: Summing Event (Auto-Merge)
+1.  **Bounce Logic:**
+    *   Detect when slots 1-7 are full
+    *   On 8th commit, render slots 1-7 to single stereo file
+    *   Clear slots 1-7, place bounce in slot 1, new loop in slot 2
+2.  **Offline Rendering:**
+    *   Use `juce::AudioFormatWriter` to write bounced audio
+    *   Ensure no audio thread blocking
+
+### Phase 5: Riff History & Persistence
+1.  **Riff Snapshot System:**
+    *   Create `RiffSnapshot` class (timestamp, BPM, slot states)
+    *   Save snapshots to JSON on every commit
 2.  **History Browser:**
-    *   Sidebar to list previous Riffs.
-    *   "Instant Recall": Load blobs from IDB into Audio Buffers.
+    *   Timeline UI with clickable riff entries
+    *   Instant recall: load audio files back into slots
+3.  **File Management:**
+    *   Save/Load project files
+    *   FLAC encoding/decoding
 
-### Phase 5: Synthesis & Effects (Creative Suite)
-1.  **Internal Synth:**
-    *   Tone.js `PolySynth` or `FMSynth` integration.
-    *   On-screen keyboard or Web MIDI support.
-2.  **FX Chains:**
-    *   Master Bus effects (Reverb, Delay) using Tone.js nodes.
-    *   Resampling workflow (*Spec §3.6*).
+### Phase 6: Internal Synth & Microtuning
+1.  **Synth Engine:**
+    *   Implement basic wavetable/subtractive synth
+    *   MIDI input support
+2.  **Microtuning:**
+    *   Load .scl/.kbm files (Scala format)
+    *   Implement frequency remapping
+    *   Presets: 12TET, Just Intonation, Pythagorean, etc.
 
-### Phase 6: Polish & Aesthetics
-1.  **Glassmorphism UI:**
-    *   Implement the "Premium" look inspired by the spec description.
-    *   Micro-interactions and animations (Framer Motion).
-2.  **Optimization:**
-    *   Ensure UI doesn't block Audio Thread.
-    *   Memory management (revoke object URLs, clean up buffers).
+### Phase 7: FX Chain & Resampling
+1.  **Master FX Bus:**
+    *   Reverb, Delay, Bitcrusher, Filters
+    *   Use `juce::dsp` modules
+2.  **FX Mode:**
+    *   Route selected slots through FX
+    *   Capture FX output as new loop (Scarlet color)
+
+### Phase 8: Polish & Export
+1.  **UI Refinement:**
+    *   Dark mode theme
+    *   Custom look-and-feel
+2.  **Export Features:**
+    *   MP3 export (using LAME or system encoder)
+    *   Stems export (individual slot files)
+3.  **Performance:**
+    *   Optimize audio thread
+    *   Latency compensation
 
 ## 4. Immediate Next Steps
 
-1.  **Initialize Git Repo:**
-    *   `git init`
-    *   `git add .`
-    *   `git commit -m "Initial commit"`
-2.  **Scaffold Application:**
-    *   Run `npm create vite@latest . -- --template react-ts` (or Next.js).
-3.  **Install Core Deps:**
-    *   `npm install tone zustand idb framer-motion lucide-react`
+1.  **Install JUCE:**
+    *   Download from [juce.com/get-juce](https://juce.com/get-juce)
+    *   Run Projucer
+2.  **Create Project:**
+    *   New Project → Audio Application
+    *   Name: JamState
+    *   Target: macOS (Xcode)
+3.  **Initial Commit:**
+    *   Add JUCE project files to git
+    *   Update `.gitignore` for JUCE-specific files
+
+## 5. JUCE-Specific .gitignore
+
+```gitignore
+# JUCE Build artifacts
+Builds/
+JuceLibraryCode/
+
+# Xcode
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+
+# macOS
+.DS_Store
+```
+
+## 6. Resources
+
+*   **JUCE Docs:** [docs.juce.com](https://docs.juce.com)
+*   **JUCE Forum:** [forum.juce.com](https://forum.juce.com)
+*   **JUCE Tutorials:** Focus on AudioDeviceManager, AbstractFifo, AudioTransportSource

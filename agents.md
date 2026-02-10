@@ -1,16 +1,40 @@
+## Project Context
 
-## Coding Guidelines 
-Iterative Development: Build one component at a time. Verify often.
-No Dead Code: If you write a helper function, use it or delete it.
-Visual Verification: UI must look high spec and premium. 
-Error Handling: APIs fail. Always wrap fetch calls in try/catch.
-Keep It Simple (KISS): Prefer simple, readable code over clever abstractions.
-Don't Repeat Yourself (DRY): Extract reusable logic into hooks or utility files.
-Modularity:
-Avoid "God Files". If a file exceeds 200 lines, break it down.
-Separate Logic (hooks/) from UI (components/).
-One component per file.
-When tasks are complete, ask the user if they want the new feature added to the extension-design-spec.md
+**JamState** is a **JUCE (C++) macOS desktop application**, not a web app.
+- **Framework:** JUCE 8.x
+- **Language:** C++
+- **IDE:** Xcode
+- **Platform:** macOS (with potential iOS support)
+- **Reference:** See `Spec_JamState_Looper.md` for full requirements
+
+## ⚠️ CRITICAL REMINDERS
+
+**DO NOT:**
+- ❌ Install npm, Vite, React, Next.js, or any web frameworks
+- ❌ Create package.json, tsconfig.json, or web-related config files
+- ❌ Use web terminology (hooks, components, JSX, etc.)
+- ❌ Suggest browser-based solutions
+
+**DO:**
+- ✅ Use JUCE framework and C++ exclusively
+- ✅ Work in Xcode for macOS development
+- ✅ Use JUCE terminology (Components, AudioProcessor, MessageManager)
+- ✅ Focus on native macOS audio application development
+
+## Coding Guidelines (JUCE/C++)
+Follow JUCE best practices and modern C++ conventions:
+- **JUCE Patterns:** Use JUCE idioms (Component hierarchy, MessageManager, AudioProcessor patterns)
+- **Audio Thread Safety:** Never allocate memory or block on the audio thread
+- **RAII:** Use smart pointers (`std::unique_ptr`, `juce::OwnedArray`) for resource management
+- Iterative Development: Build one component at a time. Verify often.
+- No Dead Code: If you write a helper function, use it or delete it.
+- Visual Verification: UI must look high spec and premium.
+- Keep It Simple (KISS): Prefer simple, readable code over clever abstractions.
+- Don't Repeat Yourself (DRY): Extract reusable logic into separate classes/files.
+- Modularity:
+  - Avoid "God Files". If a file exceeds 200 lines, break it down.
+  - Separate audio logic from UI components.
+  - One class per file (header + implementation).
 
 ## Landing the Plane (Session Completion)
 
