@@ -1,11 +1,11 @@
 ## Project Context
 
-**JamState** is a **JUCE (C++) macOS desktop application**, not a web app.
+**FlowZone** is a **JUCE (C++) macOS desktop application**, not a web app.
 - **Framework:** JUCE 8.x
 - **Language:** C++
 - **IDE:** Xcode
 - **Platform:** macOS (with potential iOS support)
-- **Reference:** See `Spec_JamState_Looper.md` for full requirements
+- **Reference:** See `Spec_FlowZone_Looper.md` for full requirements
 
 ## ⚠️ CRITICAL REMINDERS
 

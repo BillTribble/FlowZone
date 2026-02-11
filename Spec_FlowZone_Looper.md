@@ -1,4 +1,4 @@
-# **Product Requirements Document: JamState**
+# **Product Requirements Document: FlowZone**
 
 **Version:** 0.4
 
@@ -11,7 +11,7 @@ I'll be going from VS Code to Xcode
 
 ## **1\. Executive Summary**
 
-JamState is a "Retrospective Riff Engine" designed for flow-state composition. Inspired by Tim Exile’s “flow machine” and his later app Endlesss. Unlike traditional loopers that require pre-planning (hitting record/stop), JamState is always listening. It captures audio retroactively based on musical intervals, automatically layering and mixing tracks to prevent "loop paralysis." It features an infinite non-destructive history, allowing users to scroll back through time to retrieve any riff created during a session.
+FlowZone is a "Retrospective Riff Engine" designed for flow-state composition. Inspired by Tim Exile’s “flow machine” and his later app Endlesss. Unlike traditional loopers that require pre-planning (hitting record/stop), FlowZone is always listening. It captures audio retroactively based on musical intervals, automatically layering and mixing tracks to prevent "loop paralysis." It features an infinite non-destructive history, allowing users to scroll back through time to retrieve any riff created during a session.
 
 ## **2\. Core User Experience Principles**
 

@@ -1,8 +1,8 @@
-# Plan: JamState JUCE Application
+# Plan: FlowZone JUCE Application
 
-This plan outlines the development of **JamState**, a macOS desktop "Retrospective Riff Engine" built with JUCE (C++).
+This plan outlines the development of **FlowZone**, a macOS desktop "Retrospective Riff Engine" built with JUCE (C++).
 
-> **Note:** This plan follows the [Original Specification](./Spec_JamState_Looper.md) for a native C++/JUCE implementation targeting macOS (with potential iOS support later).
+> **Note:** This plan follows the [Original Specification](./Spec_FlowZone_Looper.md) for a native C++/JUCE implementation targeting macOS (with potential iOS support later).
 
 ## 1. Technical Stack
 
@@ -27,7 +27,7 @@ This plan outlines the development of **JamState**, a macOS desktop "Retrospecti
 *   **Riff History:** Timeline-based snapshot system (JSON metadata + audio files)
 *   **Project Structure:**
     ```
-    JamStateProject/
+    FlowZoneProject/
     ├── project.json          # Metadata, tempo, key, riff history
     └── audio/
         ├── riff_001_slot_0.flac
@@ -136,7 +136,7 @@ This plan outlines the development of **JamState**, a macOS desktop "Retrospecti
     *   Run Projucer
 2.  **Create Project:**
     *   New Project → Audio Application
-    *   Name: JamState
+    *   Name: FlowZone
     *   Target: macOS (Xcode)
 3.  **Initial Commit:**
     *   Add JUCE project files to git
