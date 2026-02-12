@@ -19,6 +19,7 @@
     *   **Local:** `juce::WebBrowserComponent` (embedded).
     *   **Remote:** Internal WebServer (Background Thread) for phone/tablet control.
     *   **Unified State:** All clients see the exact same session state, synced via WebSocket.
+*   **Multi-User Collaboration:** Optimized for 2-4+ simultaneous users. Each client (local or remote) receives a real-time control surface, enabling collective "jamming" over a local WiFi network.
 *   **Strict Decoupling:** 
     *   **Audio Priority:** The Audio Thread is sacred. It must never block on UI, Network, or Disk I/O.
     *   **Crash Resilience:** UI crashes do not stop audio. Plugin crashes do not kill the main engine.
@@ -193,12 +194,28 @@ graph TD
     7.  **Optional PIN auth:** If `config.json` has `"requirePin": true`, client must send `{ cmd: 'AUTH', pin: '…' }` before any other command is accepted. Prevents accidental LAN access during live performance.
 
 #### **M. Internal Audio Engines (Native C++)**
+
+> **Detailed Specifications:** See [Audio_Engine_Specifications.md](file:///Users/tribble/Sites/FlowZone/Spec%20versions/Audio_Engine_Specifications.md) for comprehensive implementation details of all effects, presets, and sound generators.
+
 *   **`InternalSynth`:**
-    *   **Engines:** Drums, Bass, Leads.
+    *   **Engines:** Drums, Bass, Leads (Notes).
+    *   **Notes Mode:** 12 starting presets (Sine Bell, Saw Lead, Square Bass, Triangle Pad, Pluck, Warm Pad, Bright Lead, Soft Keys, Organ, EP, Choir, Arp).
+    *   **Bass Mode:** 12 starting presets (Sub, Growl, Deep, Wobble, Punch, 808, Fuzz, Reese, Smooth, Rumble, Pluck Bass, Acid).
+    *   **Drum Mode:** 4 kit presets (Synthetic, Lo-Fi, Acoustic, Electronic) with 16 procedural drum sounds each.
     *   **Tuning:** Implementation of MTS-ESP or internal frequency mapping for `.scl` support.
-    *   **Presets:** Just Intonation, Pythagorean, Slendro, Pelog, 12TET (Default).
-*   **`InternalFX`:** Core & Keymasher banks.
-*   **`MicProcessor`:** Input chains.
+    *   **Preset Tunings:** Just Intonation, Pythagorean, Slendro, Pelog, 12TET (Default).
+*   **`InternalFX`:**
+    *   **Core FX (12):** Lowpass, Highpass, Reverb, Gate, Buzz, GoTo, Saturator, Delay, Comb, Distortion, Smudge, Channel.
+    *   **Infinite FX (11):** Keymasher, Ripper, Ringmod, Bitcrusher, Degrader, Pitchmod, Multicomb, Freezer, Zap Delay, Dub Delay, Compressor.
+    *   All effects support XY Pad mapping (except Keymasher which uses 3×4 button grid).
+*   **`SampleEngine`:**
+    *   **Sample Playback:** WAV, FLAC, MP3, AIFF support.
+    *   **Modes:** One-Shot, Gated, Looped, Sliced (16 pads).
+    *   **Parameters:** Pitch, Start Offset, Loop Points, ADSR, Filter, Reverse.
+    *   **Preset System:** JSON-based preset definitions for easy sample library management.
+*   **`MicProcessor`:**
+    *   **Input Chains:** Gain control, monitor modes, FX chain (pre-fader).
+    *   **Waveform Display:** Real-time visualization with peak detection.
 
 ### **2.3. Thread Priority Table**
 
@@ -582,6 +599,7 @@ Example: Adding `MUTE_SLOT`.
 #### **Tablet/Desktop Mode (`>= 768px`)**
 
 *   **Navigation:** Top Header / Sidebar.
+*   **Home Screen:** Jam Manager showing all saved sessions.
 *   **Dashboard:** Grid Layout.
 *   **Mixer:** Full 8-fader view.
 *   **Session History:** Persistent Right Sidebar. Displays chronological list of Riffs (Waveform + Metadata). Drag-and-drop to Slots.
@@ -641,6 +659,9 @@ The settings view is divided into four tabs. Changes made here sync to the Engin
     *   *Options:* Small | Medium (Default) | Large.
 *   **Reduce Motion:** Accessibility toggle.
     *   *Action:* Disables canvas visualizer animations and smooth scrolling.
+*   **Emoji Skin Tone:** Global preference for emoji modifiers.
+    *   *Options:* None (Yellow) | Light | Medium-Light | Medium | Medium-Dark | Dark.
+    *   *Implementation:* Applies Unicode skin tone modifiers (U+1F3FB to U+1F3FF) to supported emojis.
 
 #### **B. Audio (Engine Configuration)**
 
@@ -648,8 +669,8 @@ The settings view is divided into four tabs. Changes made here sync to the Engin
 *   **Input Device:** Dropdown selector for Hardware Input.
 *   **Output Device:** Dropdown selector for Hardware Output.
 *   **Sample Rate:** Dropdown [44.1kHz | 48kHz | 88.2kHz | 96kHz].
-*   **Buffer Size:** Dropdown [64 | 128 | 256 | 512 | 1024].
-    *   *Note:* Critical for latency management.
+*   **Buffer Size:** Dropdown [16 | 32 | 64 | 128 | 256 | 512 | 1024].
+    *   *Note:* Critical for latency management. Lower values = lower latency but higher CPU load.
 *   **Input Channels:** Checkbox matrix to enable/disable specific inputs from the interface (1-8).
 
 #### **C. MIDI & Sync**
@@ -707,8 +728,8 @@ This section defines the mobile-specific UI implementation details. For the comp
     *   Inactive tabs: Muted color
 
 #### **Riff History Indicators**
-*   **Display Format:** 
-    *   **(planned):** Oblong "layer cake" format
+*   **Display Format:** Oblong layer cake with rounded edges, layers stacked vertically.
+    *   **Color Logic:** Each color represents input source. Differentiation of same colors via +/- 30% brightness.
 *   **Arrangement:** Right-to-left (latest riff on right)
 *   **Position:** Below navigation tabs
 *   **Interaction:** 
@@ -927,7 +948,7 @@ This is a dedicated full-screen view (not a tab). Accessed by tapping "Expand" i
 *   **Metadata:** Time signature and BPM (e.g., "4/4 120.00 BPM")
 *   **Scale:** Key and scale name (e.g., "C Minor Pentatonic")
 *   **Avatar:** Circular user image
-*   **Riff Icon:** Large flower indicator or layer cake
+*   **Riff Icon:** Large oblong layer cake indicator
 
 #### **Actions Row**
 *   **Layout:** Horizontal row of 3 buttons
@@ -941,7 +962,7 @@ This is a dedicated full-screen view (not a tab). Accessed by tapping "Expand" i
 *   **Date Headers:** e.g., "11 Feb 2026", "7 Feb 2026"
 *   **Riff Items:**
     *   **Layout:** Grid (multiple items per row on larger screens)
-    *   **Display:** Flower icon (or layer cake) with user badge overlay
+    *   **Display:** Oblong layer cake with user badge overlay
     *   **User Badge:** Circular badge with user initial
     *   **Selection State:** Outlined border around currently selected riff
     *   **Interaction:** Tap to select and load riff details (does not switch playback)
@@ -1040,6 +1061,60 @@ Accessed via the "More" button in Mixer tab transport controls.
 *   Grids can be multi-column (e.g., preset selector can show 6 columns)
 *   Riff history persistent in right sidebar (always visible)
 *   Mixer shows all 8+ channels in scrollable grid view
+
+---
+
+## **7.7. Home Screen (Jam Manager)**
+
+The Home screen is the entry point for the application, allowing users to manage their "Jams" (sessions).
+
+### **7.7.1. Jam List**
+*   **Sorting:** chronological, with the **latest jam at the top**.
+*   **Search:** Real-time filter by jam name or date.
+*   **Jam Item Display:**
+    *   **Emoji:** A randomly assigned emoji from the master list (see below).
+    *   **Name:** Editable title (defaults to date string).
+    *   **Date:** Simple format (e.g., `12 Feb 2026`).
+*   **Actions per Jam:**
+    *   **Open:** Load the jam into the active session.
+    *   **Rename:** Inline editing of the jam name.
+    *   **Delete:** Remove the jam and its associated audio history (with "Are you sure?" confirmation).
+
+### **7.7.2. Creating a New Jam**
+*   **Trigger:** "New Jam" button.
+*   **Initial State:** 
+    *   **Emoji:** Randomly selected from the `emojis` array.
+    *   **Name:** `Jam [date_simple]` (e.g., "Jam 12 Feb 2026").
+    *   **Date Metadata:** Captured as part of the jam's record.
+
+### **7.7.3. Master Emoji Reference**
+The following emojis are used for random assignment to new Jams:
+
+```javascript
+[
+    '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇',
+    '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚',
+    '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩',
+    '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣',
+    '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬',
+    '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗',
+    '🤔', '🤭', '🤫', '🤥', '😶', '😐', '😑', '😬', '🙄', '😯',
+    '😦', '😧', '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐',
+    '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑', '🤠', '😈',
+    '👿', '👹', '👺', '🤡', '💩', '👻', '💀', '☠️', '👽', '👾',
+    '🤖', '🎃', '😺', '😸', '😹', '😻', '😼', '😽', '🙀', '😿',
+    '😾', '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨',
+    '🐯', '🦁', '🐮', '🐷', '🐽', '🐸', '🐵', '🙈', '🙉', '🙊',
+    '🐒', '🐔', '🐧', '🐦', '🐤', '🐣', '🐥', '🦆', '🦅', '🦉',
+    '🦇', '🐺', '🐗', '🐴', '🦄', '🐝', '🐛', '🦋', '🐌', '🐞',
+    '🐜', '🦗', '🕷️', '🦂', '🐢', '🐍', '🦎', '🦖', '🦕', '🐙',
+    '🦑', '🦐', '🦞', '🦀', '🐡', '🐠', '🐟', '🐬', '🐳', '🐋',
+    '🦈', '🐊', '🐇', '🐿️', '🦔', '🌸', '🌺',
+    '🌻', '🌷', '🌹', '🥀', '🌼', '🌿', '🍀', '🎋', '🎍', '🌱',
+    '🌲', '🌳', '🌴', '🌵', '🌾', '🌽', '🍄', '🌰', '🍞', '🥐',
+    '🥖', '🥨', '🥯', '🧀', '🥚'
+]
+```
 
 ## **8. Task Breakdown**
 

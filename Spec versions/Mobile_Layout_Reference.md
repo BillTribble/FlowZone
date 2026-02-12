@@ -8,7 +8,7 @@ Summarized from mobile design reference materials.
     "global_elements": {
       "header": {
         "context_label": {
-          "text": "YOUR SOLO JAM",
+          "content": "[random_emoji] [date_simple]",
           "position": "top_center"
         },
         "top_bar_controls": {
@@ -29,8 +29,8 @@ Summarized from mobile design reference materials.
       },
       "riff_history_indicators": {
         "description": "Riffs displayed right-to-left in history with latest on right",
-        "display_format": "circular_flowers",
-        "alternative_format": "oblong_layer_cake (planned)",
+        "display_format": "oblong_layer_cake",
+        "format_details": "Oblong layer cake with rounded edges, layers stacked vertically. Each color represents the input source. Multiple layers of same color differentiate with 30% brightness increase/decrease.",
         "interaction": "tappable to jump backwards in riff history",
         "behavior": {
           "playback_change": "configurable in settings",
@@ -275,7 +275,7 @@ Summarized from mobile design reference materials.
           "metadata": "4/4 120.00 BPM",
           "scale": "C Minor Pentatonic",
           "avatar": "circular_user_image",
-          "riff_icon": "flower_indicator_large"
+          "riff_icon": "oblong_layer_cake_large"
         },
         "actions": {
           "layout": "horizontal_row",
@@ -286,7 +286,7 @@ Summarized from mobile design reference materials.
           "date_headers": ["11 Feb 2026", "7 Feb 2026"],
           "riff_items": {
             "layout": "grid",
-            "display": "flower_icon_with_user_badge",
+            "display": "oblong_layer_cake_with_user_badge",
             "user_badge": "circular_badge_with_initial",
             "selection_state": "outlined_border",
             "interaction": "tappable_to_load_riff"
