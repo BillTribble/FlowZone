@@ -679,11 +679,367 @@ When the app enters Safe Mode (any level), the UI presents a specific "Recovery"
 
 ---
 
-## **7.6. Mobile Layout Reference (JSON)**
+## **7.6. Mobile Layout Specification**
 
-Summarized from mobile design reference materials.
+This section defines the mobile-specific UI implementation details. For the complete JSON structure, see [Mobile_Layout_Reference.md](file:///Users/tribble/Sites/FlowZone/Spec%20versions/Mobile_Layout_Reference.md).
 
-See [Mobile_Layout_Reference.md](file:///Users/tribble/Sites/FlowZone/Spec%20versions/Mobile_Layout_Reference.md) for the full JSON structure and layout details.
+### **7.6.1. Global UI Elements**
+
+#### **Header**
+*   **Context Label:** [random emoji] date in simple format (This will allow the user multiple sessions with multiple riff histories. )
+    *   Position: Top center
+    *   Typography: Small caps, secondary color
+*   **Top Bar Controls:** 3-section horizontal layout
+    *   **Left Section:** Home button, Help button
+    *   **Center Section:** Metronome toggle, Play/Pause toggle, Loop/Record toggle
+    *   **Right Section:** Share button, Add button
+
+#### **Navigation Tabs**
+*   **Layout:** Horizontal tab bar
+*   **Position:** Bottom of content area (above riff history indicators)
+*   **Tabs:** 4 tabs in fixed order
+    1.  **Instrument** — Grid icon
+    2.  **Sound** — Wave icon
+    3.  **Adjust** — Knob icon  
+    4.  **Mixer** — Sliders icon
+*   **Visual State:**
+    *   Active tab: Highlighted with accent color underline or fill
+    *   Inactive tabs: Muted color
+
+#### **Riff History Indicators**
+*   **Display Format:** 
+    *   **(planned):** Oblong "layer cake" format
+*   **Arrangement:** Right-to-left (latest riff on right)
+*   **Position:** Below navigation tabs
+*   **Interaction:** 
+    *   **Tap:** Jumps backwards in riff history to selected riff
+    *   **Playback Behavior:** Configurable in settings
+        *   `"instant"` — Playback switches immediately
+        *   `"swap_on_bar"` — Waits for bar boundary before switching
+*   **Visual:** User badge overlay (circular initial badge)
+
+#### **Timeline / Waveform Area**
+*   **Flow Direction:** Right-to-left
+*   **Section Layout:** 4 waveform sections with decreasing temporal resolution
+    1.  **1 Bar** (rightmost) — Most recent
+    2.  **2 Bars** (second from right)
+    3.  **4 Bars** (third from right)
+    4.  **8 Bars** (leftmost) — Oldest visible
+*   **Interaction:** Tap a waveform section to set loop length to that duration
+*   **Visual:** Waveform rendered as filled path with accent color
+
+#### **Loop Length Controls**
+*   **Layout:** Horizontal button row
+*   **Position:** Above pad grid (below timeline)
+*   **Buttons:** `[+ 8 BARS] [+ 4 BARS] [+ 2 BARS] [+ 1 BAR]`
+*   **Action:** Extends current loop by specified length
+
+#### **Toolbar**
+*   **Position:** Between navigation tabs and waveform display
+*   **Items:** 
+    *   **Undo** button (left)
+    *   **Riff History Indicators** (center, see above)
+    *   **Expand** button (right) — Expands timeline to fullscreen
+
+---
+
+### **7.6.2. Instrument Tab Layout**
+
+#### **Category Selector**
+*   **Layout:** 2×4 grid
+*   **Position:** Top section of tab
+*   **Categories:**
+    | Row | Col 1 | Col 2 | Col 3 | Col 4 |
+    |:---|:---|:---|:---|:---|
+    | 1 | **Drums** (drum icon) | **Notes** (note icon) | **Bass** (submarine icon) | **Ext Inst** (keyboard icon) |
+    | 2 | **Sampler** (dropper icon) | **FX** (box icon) | **Ext FX** (waveform icon) | **Microphone** (mic icon) |
+*   **Selection State:** Highlighted with rounded background fill
+
+#### **Active Preset Display**
+*   **Position:** Top right of tab (above preset selector)
+*   **Content:** 
+    *   Preset name (e.g., "Slicer")
+    *   Creator attribution (e.g., "by bill_tribble")
+
+#### **Preset Selector**
+*   **Layout:** 3×4 grid
+*   **Position:** Middle section
+*   **Visual State:**
+    *   **Selected:** Highlighted with rounded background
+    *   **Unselected:** Transparent or subtle background
+*   **Examples:** Slicer, Razzz, Acrylic, Ting, Hoard, Bumper, Amoeba, Girder, Demand, Prey, Stand, Lanes
+
+#### **Pad Grid**
+*   **Structure:** 4×4 grid (16 pads total)
+*   **Position:** Bottom section
+*   **Content Variations by Instrument:**
+    *   **Drums:** Icon-based pads
+        *   Icons: double_diamond, cylinder, tall_cylinder, tripod, hand, snare, lollipop
+        *   Each pad represents a specific drum sound
+    *   **Notes / Bass:** Colored pads
+        *   Pad color based on instrument theme (see §7.1 palette)
+        *   Each pad triggers a note in the selected scale
+
+#### **Add Plugin Modal**
+*   **Trigger:** Tapping a category with a `+` icon (e.g., "Plugin Effects", "Plugin Instrument")
+*   **Layout:** Centered card with border
+*   **Content:**
+    *   Plug icon (center)
+    *   Text: `"Add a new Plugin"`
+    *   Action: Opens VST browser
+
+---
+
+### **7.6.3. Sound / FX Tab Layout**
+
+#### **Preset Selector**
+*   **Layout:** 3×4 grid
+*   **Position:** Top section
+*   **Active Preset Display:** Top with attribution (same as Instrument tab)
+*   **Preset Banks:**
+    *   **Core FX:** Lowpass, Highpass, Reverb, Gate, Buzz, GoTo, Saturator, Delay, Comb, Distortion, Smudge, Channel
+    *   **Infinite FX:** Keymasher, Ripper, Ringmod, Bitcrusher, Degrader, Pitchmod, Multicomb, Freezer, Zap Delay, Dub Delay, Compressor
+
+#### **Effect Control Area**
+
+**Layout A: Button Grid (Keymasher and similar)**
+*   **Grid:** 3×4 button layout
+*   **Position:** Below timeline
+*   **Keymasher Buttons:**
+    | Row | Col 1 | Col 2 | Col 3 | Col 4 |
+    |:---|:---|:---|:---|:---|
+    | 1 | Repeat | Pitch Down | Pitch Rst | Pitch Up |
+    | 2 | Reverse | Gate | Scratch | Buzz |
+    | 3 | Stutter | Go To | Go To 2 | Buzz slip |
+*   **Interaction:** Tap to activate effect (behavior depends on effect — some toggle, some are momentary)
+
+**Layout B: XY Pad (All other FX)**
+*   **Control:** Large rectangular XY touch pad
+*   **Visual:** Dotted crosshair guides
+*   **Behavior:**
+    *   **Crosshair:** Appears ONLY when finger is held down
+    *   **Effect:** Active ONLY while finger is held down
+    *   **Design Intent:** Highly playable touch-and-hold performance control
+*   **Position:** Below timeline (replaces button grid)
+
+#### **Playback Controls** (Both Layouts)
+*   **Layout:** 2 rows × 4 circular buttons
+*   **Position:** Below effect control area (button grid or XY pad)
+*   **Visual:** Circular buttons with fill/arc indicators showing state
+
+---
+
+### **7.6.4. Adjust Tab Layout**
+
+#### **Knob Controls**
+*   **Layout:** 2 rows × 4 positions
+*   **Position:** Top section
+*   **Main Knobs:**
+    | Row | Col 1 | Col 2 | Col 3 | Col 4 |
+    |:---|:---|:---|:---|:---|
+    | 1 | Pitch | Length | Tone | Level |
+    | 2 | Bounce | Speed | *(reserved)* | Reverb |
+*   **Additional Reverb Controls:** (displayed when Reverb knob is touched)
+    *   Reverb Mix (knob)
+    *   Room Size (knob)
+    *   Layout: Same 2-row grid pattern below main controls
+
+#### **Pad Grid**
+*   **Structure:** 4×4 grid
+*   **Position:** Below knob controls
+*   **Content:** Instrument-specific pads (same as Instrument tab)
+
+---
+
+### **7.6.5. Mixer Tab Layout**
+
+#### **Transport Controls**
+*   **Layout:** 2×3 grid
+*   **Position:** Top section
+*   **Controls:**
+    | Row | Col 1 | Col 2 | Col 3 |
+    |:---|:---|:---|:---|
+    | 1 | **Quantise** (note icon, button) | **Looper Mode** (loop icon, toggle) | **More** (dots icon, button) |
+    | 2 | **Metronome** (metronome icon, toggle) | **Tempo** (`120.00`, display/button) | **Key** (`C Minor Pentatonic`, display/button) |
+*   **Button Types:**
+    *   Toggle: Two-state (on/off with visual feedback)
+    *   Display/Button: Shows value, tapping opens editor
+
+#### **Primary Actions**
+*   **Layout:** Horizontal row of 3 large buttons
+*   **Position:** Middle section
+*   **Buttons:**
+    1.  **Start New** (`+` icon) — Dark style
+    2.  **Commit** (checkmark icon) — Light prominent style (primary CTA)
+    3.  **Redo** (circular arrow icon) — Dark style
+
+#### **Channel Strips**
+*   **Layout:** Grid of circular faders (multiple rows as needed)
+*   **Arrangement:** Scrollable if > 8 channels
+*   **Fader Style:**
+    *   Large circular control
+    *   Arc indicator (fills clockwise from bottom to current value)
+    *   Center position = unity gain (0 dB)
+*   **Display Info (per channel):**
+    *   Instrument/preset name (e.g., "Keymasher")
+    *   User attribution (e.g., "bill_tribble")
+
+---
+
+### **7.6.6. Microphone Tab Layout**
+
+#### **Category Selector**
+*   Same 2×4 grid as Instrument tab (§7.6.2)
+*   **Microphone** category highlighted to indicate active state
+
+#### **Monitor Settings**
+*   **Layout:** Two toggle switches
+*   **Position:** Middle section
+*   **Toggles:**
+    1.  `"Monitor until looped"` — Default: OFF
+    2.  `"Monitor input"` — Default: OFF
+
+#### **Gain Control**
+*   **Type:** Large circular knob
+*   **Label:** `"Gain"`
+*   **Position:** Center bottom
+*   **Visual:** Prominent with arc indicator (same style as Mixer faders)
+
+#### **Timeline Display**
+*   **Content:** Live recording waveform
+*   **Behavior:** Displays audio input waveform in real-time during recording
+*   **Position:** Same timeline area as other tabs
+
+---
+
+### **7.6.7. Riff History View**
+
+This is a dedicated full-screen view (not a tab). Accessed by tapping "Expand" in the toolbar or a riff history indicator.
+
+#### **Header**
+*   **Back Button:** Top left (returns to main view)
+*   **Transport Controls:** Center (Metronome, Play/Pause, Loop/Record)
+*   **Share Button:** Top right
+
+#### **Riff Details (Selected Riff)**
+*   **User Info:** Username (e.g., "bill_tribble")
+*   **Timestamp:** Relative or absolute (e.g., "Yesterday", "11 Feb 2026")
+*   **Metadata:** Time signature and BPM (e.g., "4/4 120.00 BPM")
+*   **Scale:** Key and scale name (e.g., "C Minor Pentatonic")
+*   **Avatar:** Circular user image
+*   **Riff Icon:** Large flower indicator or layer cake
+
+#### **Actions Row**
+*   **Layout:** Horizontal row of 3 buttons
+*   **Buttons:**
+    1.  `Export Video`
+    2.  `Export Stems`
+    3.  `Delete Riff`
+
+#### **History List**
+*   **Grouping:** Chronological by date
+*   **Date Headers:** e.g., "11 Feb 2026", "7 Feb 2026"
+*   **Riff Items:**
+    *   **Layout:** Grid (multiple items per row on larger screens)
+    *   **Display:** Flower icon (or layer cake) with user badge overlay
+    *   **User Badge:** Circular badge with user initial
+    *   **Selection State:** Outlined border around currently selected riff
+    *   **Interaction:** Tap to select and load riff details (does not switch playback)
+*   **Load Control:**
+    *   **Type:** Button
+    *   **Label:** `"Load Older"`
+    *   **Position:** Bottom center
+    *   **Action:** Loads older riffs from history (pagination)
+
+---
+
+### **7.6.8. More Options Modal**
+
+Accessed via the "More" button in Mixer tab transport controls.
+
+#### **Header**
+*   **Title:** `"More Options"`
+*   **Close Button:** Top right (`×` icon)
+
+#### **Section 1: General Toggles**
+*   **Ableton Link** — Toggle (default: OFF)
+*   **Note Names** — Toggle (default: OFF) — Shows note names on pads
+
+#### **Section 2: Audio Settings**
+*   **Title:** `"Audio Settings"`
+*   **Divider:** Horizontal line above and below section
+*   **Controls:**
+    1.  **Device**
+        *   Type: Dropdown
+        *   Value: `"iOS Audio"` (or current device)
+        *   Additional: `Test` button (plays test tone)
+    2.  **Active output channels**
+        *   Type: Checkbox list
+        *   Options: `"Speaker 1 + 2"`, `"Left + Right"`
+        *   Default: `"Speaker 1 + 2"` selected
+    3.  **Active input channels**
+        *   Type: Checkbox list
+        *   Options: `"Left + Right"` (or device-specific)
+    4.  **Sample rate**
+        *   Type: Dropdown
+        *   Value: `"48000 Hz"` (or current)
+    5.  **Audio buffer size**
+        *   Type: Dropdown
+        *   Value: `"256 samples (5.3 ms)"` (shows latency)
+        *   Options: 64, 128, 256, 512, 1024 samples (with calculated latency)
+
+---
+
+### **7.6.9. Interaction Patterns**
+
+#### **Tap Behaviors**
+*   **Riff History Indicator:** Jump to that riff in history
+    *   Playback switch timing: `instant` or `swap_on_bar` (user setting)
+*   **Waveform Section:** Set loop length to that section's duration (1/2/4/8 bars)
+*   **Category Button:** Switch to that instrument category
+*   **Preset Button:** Load that preset
+*   **Pad:** Trigger sound (drums) or note (melodic instruments)
+*   **Effect Button:** Activate effect (toggle or momentary depending on effect)
+
+#### **Hold Behaviors**
+*   **XY Pad:** Crosshair and effect active ONLY while held
+    *   Release finger → effect stops, crosshair disappears
+*   **Knob/Fader:** Drag vertically or rotationally to adjust value
+
+#### **Selection States**
+*   **Selected Category/Preset:** Highlighted with rounded background fill (accent color)
+*   **Selected Riff (History View):** Outlined border around item
+*   **Active Tab:** Underline or fill in accent color
+*   **Toggle ON:** Filled with accent color
+*   **Toggle OFF:** Outlined or muted color
+
+#### **Visual Feedback**
+*   **Pad Tap:** Brief highlight/glow on press
+*   **Button Press:** Scale down slightly (0.95×) + opacity change
+*   **Fader/Knob:** Arc indicator fills to current value
+*   **Recording State:** Pulsing red indicator on record-enabled slots
+*   **Playback State:** Waveform animation (scrolling right-to-left)
+
+---
+
+### **7.6.10. Responsive Breakpoints**
+
+| Breakpoint | Width | Layout Changes |
+|:---|:---|:---|
+| **Phone** | < 768px | Bottom tab navigation, vertical stack, single-column grids, riff history in drawer |
+| **Tablet/Desktop** | ≥ 768px | Top/sidebar navigation, multi-column grids, persistent riff history sidebar |
+
+**Phone Mode Specifics:**
+*   Navigation tabs fixed to bottom
+*   All grids scale to fill width
+*   Riff history collapses to toolbar indicators + expandable drawer
+*   Mixer channel strips scroll horizontally
+
+**Tablet/Desktop Mode Specifics:**
+*   Navigation in header or left sidebar
+*   Grids can be multi-column (e.g., preset selector can show 6 columns)
+*   Riff history persistent in right sidebar (always visible)
+*   Mixer shows all 8+ channels in scrollable grid view
 
 ## **8. Task Breakdown**
 
