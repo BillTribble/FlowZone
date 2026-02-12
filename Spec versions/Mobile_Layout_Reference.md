@@ -1,0 +1,353 @@
+# Mobile Layout Reference (JSON)
+
+Summarized from mobile design reference materials.
+
+```json
+{
+  "mobile_layout_specification": {
+    "global_elements": {
+      "header": {
+        "context_label": {
+          "content": "[random_emoji] [date_simple]",
+          "position": "top_center"
+        },
+        "top_bar_controls": {
+          "left_section": ["Home", "Help"],
+          "center_section": ["Metronome", "Play/Pause", "Loop/Record"],
+          "right_section": ["Share", "Add"]
+        }
+      },
+      "navigation_tabs": {
+        "layout": "horizontal_bar",
+        "position": "bottom_of_content_area",
+        "tabs": [
+          { "id": "instrument", "icon": "grid", "label": "Instrument" },
+          { "id": "sound", "icon": "wave", "label": "Sound" },
+          { "id": "adjust", "icon": "knob", "label": "Adjust" },
+          { "id": "mixer", "icon": "sliders", "label": "Mixer" }
+        ]
+      },
+      "riff_history_indicators": {
+        "description": "Riffs displayed right-to-left in history with latest on right",
+        "display_format": "oblong_layer_cake",
+        "format_details": "Oblong layer cake with rounded edges, layers stacked vertically. Each color represents the input source. Multiple layers of same color differentiate with 30% brightness increase/decrease.",
+        "interaction": "tappable to jump backwards in riff history",
+        "behavior": {
+          "playback_change": "configurable in settings",
+          "options": ["instant", "swap_on_bar"]
+        },
+        "position": "below_navigation_tabs"
+      },
+      "timeline_area": {
+        "waveform_display": {
+          "flow_direction": "right_to_left",
+          "sections": [
+            { "length": "1_bar", "position": "rightmost" },
+            { "length": "2_bars", "position": "second" },
+            { "length": "4_bars", "position": "third" },
+            { "length": "8_bars", "position": "leftmost" }
+          ],
+          "interaction": "tap waveform section to loop that length"
+        },
+        "loop_length_controls": {
+          "layout": "horizontal_row",
+          "position": "above_pad_grid",
+          "buttons": ["+ 8 BARS", "+ 4 BARS", "+ 2 BARS", "+ 1 BAR"]
+        },
+        "toolbar": {
+          "items": ["Undo", "Riff History Indicators", "Expand"],
+          "position": "between_tabs_and_waveform"
+        }
+      }
+    },
+    "views": {
+      "instrument_tab": {
+        "category_selector": {
+          "layout": "2x4_grid",
+          "position": "top_section",
+          "categories": [
+            { "id": "drums", "label": "Drums", "icon": "drum", "row": 1, "col": 1 },
+            { "id": "notes", "label": "Notes", "icon": "note", "row": 1, "col": 2 },
+            { "id": "bass", "label": "Bass", "icon": "submarine", "row": 1, "col": 3 },
+            { "id": "ext_inst", "label": "Ext Inst", "icon": "keyboard", "row": 1, "col": 4 },
+            { "id": "sampler", "label": "Sampler", "icon": "dropper", "row": 2, "col": 1 },
+            { "id": "fx", "label": "FX", "icon": "box", "row": 2, "col": 2 },
+            { "id": "ext_fx", "label": "Ext FX", "icon": "waveform", "row": 2, "col": 3 },
+            { "id": "mic", "label": "Microphone", "icon": "mic", "row": 2, "col": 4 }
+          ]
+        },
+        "active_preset_display": {
+          "position": "top_right",
+          "shows": ["preset_name", "creator_attribution"]
+        },
+        "pad_grid": {
+          "structure": "4x4_grid",
+          "position": "bottom_section",
+          "content_type": "varies_by_instrument",
+          "examples": {
+            "drums": {
+              "cell_content": "drum_icons",
+              "samples": [
+                { "row": 1, "col": 1, "icon": "double_diamond" },
+                { "row": 1, "col": 2, "icon": "cylinder" },
+                { "row": 1, "col": 3, "icon": "tall_cylinder" },
+                { "row": 1, "col": 4, "icon": "tripod" },
+                { "row": 2, "col": 1, "icon": "double_diamond" },
+                { "row": 2, "col": 2, "icon": "double_diamond" },
+                { "row": 2, "col": 3, "icon": "double_diamond" },
+                { "row": 2, "col": 4, "icon": "double_diamond" },
+                { "row": 3, "col": 1, "icon": "hand" },
+                { "row": 3, "col": 2, "icon": "hand" },
+                { "row": 3, "col": 3, "icon": "snare" },
+                { "row": 3, "col": 4, "icon": "snare" },
+                { "row": 4, "col": 1, "icon": "lollipop" },
+                { "row": 4, "col": 2, "icon": "lollipop" },
+                { "row": 4, "col": 3, "icon": "lollipop" },
+                { "row": 4, "col": 4, "icon": "lollipop" }
+              ]
+            },
+            "notes_bass": {
+              "cell_content": "colored_pads",
+              "note": "pads colored based on instrument theme"
+            }
+          }
+        },
+        "preset_selector": {
+          "layout": "3x4_grid",
+          "position": "middle_section",
+          "preset_examples": [
+            "Slicer", "Razzz", "Acrylic", "Ting",
+            "Hoard", "Bumper", "Amoeba", "Girder",
+            "Demand", "Prey", "Stand", "Lanes"
+          ],
+          "selected_state": "highlighted_with_rounded_background"
+        },
+        "add_plugin": {
+          "trigger": "category_with_plus_button",
+          "examples": ["Plugin Effects", "Plugin Instrument"],
+          "modal": {
+            "icon": "plug",
+            "text": "Add a new Plugin",
+            "style": "centered_card_with_border"
+          }
+        }
+      },
+      "sound_tab": {
+        "preset_selector": {
+          "layout": "3x4_grid",
+          "position": "top_section",
+          "active_preset_display": "top_with_attribution",
+          "preset_examples": {
+            "fx": ["Lowpass", "Highpass", "Reverb", "Gate", "Buzz", "GoTo", "Saturator", "Delay", "Comb", "Distortion", "Smudge", "Channel"],
+            "infinite_fx": ["Keymasher", "Ripper", "Ringmod", "Bitcrusher", "Degrader", "Pitchmod", "Multicomb", "Freezer", "Zap Delay", "Dub Delay", "Compressor"]
+          }
+        },
+        "effect_control_area": {
+          "keymasher": {
+            "layout": "3x4_button_grid",
+            "position": "below_timeline",
+            "buttons": [
+              { "row": 1, "col": 1, "label": "Repeat" },
+              { "row": 1, "col": 2, "label": "Pitch Down" },
+              { "row": 1, "col": 3, "label": "Pitch Rst" },
+              { "row": 1, "col": 4, "label": "Pitch Up" },
+              { "row": 2, "col": 1, "label": "Reverse" },
+              { "row": 2, "col": 2, "label": "Gate" },
+              { "row": 2, "col": 3, "label": "Scratch" },
+              { "row": 2, "col": 4, "label": "Buzz" },
+              { "row": 3, "col": 1, "label": "Stutter" },
+              { "row": 3, "col": 2, "label": "Go To" },
+              { "row": 3, "col": 3, "label": "Go To 2" },
+              { "row": 3, "col": 4, "label": "Buzz slip" }
+            ],
+            "playback_controls": {
+              "layout": "2_rows_of_4_circular_buttons",
+              "position": "below_button_grid",
+              "note": "circular buttons with fill indicators"
+            }
+          },
+          "other_effects": {
+            "layout": "xy_pad",
+            "description": "XY control pad with crosshair",
+            "behavior": {
+              "crosshair_display": "appears only when finger held down",
+              "effect_active": "only while finger held down",
+              "interaction_style": "highly playable touch-and-hold effect"
+            },
+            "visual": "large rectangular pad with dotted crosshair guides",
+            "playback_controls": {
+              "layout": "2_rows_of_4_circular_buttons",
+              "position": "below_xy_pad"
+            }
+          }
+        }
+      },
+      "adjust_tab": {
+        "knob_controls": {
+          "layout": "2_rows_of_4_positions",
+          "structure": [
+            { "row": 1, "col": 1, "label": "Pitch", "type": "knob" },
+            { "row": 1, "col": 2, "label": "Length", "type": "knob" },
+            { "row": 1, "col": 3, "label": "Tone", "type": "knob" },
+            { "row": 1, "col": 4, "label": "Level", "type": "knob" },
+            { "row": 2, "col": 1, "label": "Bounce", "type": "knob" },
+            { "row": 2, "col": 2, "label": "Speed", "type": "knob" },
+            { "row": 2, "col": 3, "label": "reserved", "type": "empty" },
+            { "row": 2, "col": 4, "label": "Reverb", "type": "knob" }
+          ],
+          "additional_knobs": {
+            "reverb_section": [
+              { "label": "Reverb Mix", "type": "knob" },
+              { "label": "Room Size", "type": "knob" }
+            ],
+            "layout_note": "Additional knobs displayed in similar 2-row grid below main controls"
+          }
+        },
+        "pad_grid": {
+          "structure": "4x4_grid",
+          "position": "below_knobs",
+          "content": "instrument_specific_pads"
+        }
+      },
+      "mixer_tab": {
+        "transport_controls": {
+          "layout": "2x3_grid",
+          "position": "top_section",
+          "controls": [
+            { "row": 1, "col": 1, "label": "Quantise", "icon": "note", "type": "button" },
+            { "row": 1, "col": 2, "label": "Looper Mode", "icon": "loop", "type": "toggle" },
+            { "row": 1, "col": 3, "label": "More", "icon": "dots", "type": "button" },
+            { "row": 2, "col": 1, "label": "Metronome", "icon": "metronome", "type": "toggle" },
+            { "row": 2, "col": 2, "label": "Tempo", "value": "120.00", "type": "display_button" },
+            { "row": 2, "col": 3, "label": "Key", "value": "C Minor Pentatonic", "type": "display_button" }
+          ]
+        },
+        "primary_actions": {
+          "layout": "horizontal_row",
+          "position": "middle_section",
+          "buttons": [
+            { "label": "Start New", "icon": "plus", "style": "dark" },
+            { "label": "Commit", "icon": "checkmark", "style": "light_prominent" },
+            { "label": "Redo", "icon": "circular_arrow", "style": "dark" }
+          ]
+        },
+        "channel_strips": {
+          "layout": "grid_of_circular_faders",
+          "arrangement": "multiple_rows",
+          "channels": [
+            { "name": "Keymasher", "user": "bill_tribble", "type": "circular_fader" },
+            { "name": "Bitcrusher", "user": "bill_tribble", "type": "circular_fader" },
+            { "name": "Stark", "user": "bill_tribble", "type": "circular_fader" }
+          ],
+          "fader_style": "large_circular_control_with_arc_indicator",
+          "display_info": ["instrument_name", "user_attribution"]
+        }
+      },
+      "microphone_tab": {
+        "category_selector": "same_as_instrument_tab",
+        "microphone_selected_state": "highlighted",
+        "controls": {
+          "monitor_settings": [
+            { "label": "Monitor until looped", "type": "toggle", "default": "off" },
+            { "label": "Monitor input", "type": "toggle", "default": "off" }
+          ],
+          "gain_control": {
+            "type": "large_circular_knob",
+            "label": "Gain",
+            "position": "center_bottom",
+            "style": "prominent_with_arc_indicator"
+          }
+        },
+        "timeline_display": {
+          "shows": "recording_waveform",
+          "note": "displays audio input waveform during recording"
+        }
+      },
+      "riff_history_view": {
+        "header": {
+          "back_button": "top_left",
+          "transport_controls": "center (metronome, play/pause, loop/record)",
+          "share_button": "top_right"
+        },
+        "riff_details": {
+          "user_info": "bill_tribble",
+          "timestamp": "Yesterday",
+          "metadata": "4/4 120.00 BPM",
+          "scale": "C Minor Pentatonic",
+          "avatar": "circular_user_image",
+          "riff_icon": "oblong_layer_cake_large"
+        },
+        "actions": {
+          "layout": "horizontal_row",
+          "buttons": ["Export Video", "Export Stems", "Delete Rifff"]
+        },
+        "history_list": {
+          "grouping": "chronological_by_date",
+          "date_headers": ["11 Feb 2026", "7 Feb 2026"],
+          "riff_items": {
+            "layout": "grid",
+            "display": "oblong_layer_cake_with_user_badge",
+            "user_badge": "circular_badge_with_initial",
+            "selection_state": "outlined_border",
+            "interaction": "tappable_to_load_riff"
+          },
+          "load_control": {
+            "type": "button",
+            "label": "Load Older",
+            "position": "bottom_center"
+          }
+        }
+      },
+      "more_options_modal": {
+        "header": {
+          "title": "More Options",
+          "close_button": "top_right_x"
+        },
+        "sections": [
+          {
+            "type": "toggles",
+            "options": [
+              { "label": "Ableton Link", "type": "toggle", "default": "off" },
+              { "label": "Note Names", "type": "toggle", "default": "off" }
+            ]
+          },
+          {
+            "type": "audio_settings",
+            "title": "Audio Settings",
+            "divider": "horizontal_lines",
+            "controls": [
+              {
+                "label": "Device",
+                "type": "dropdown",
+                "value": "iOS Audio",
+                "additional_button": "Test"
+              },
+              {
+                "label": "Active output channels",
+                "type": "checkbox_list",
+                "options": ["Speaker 1 + 2", "Left + Right"],
+                "default": "Speaker 1 + 2"
+              },
+              {
+                "label": "Active input channels",
+                "type": "checkbox_list",
+                "options": ["Left + Right"]
+              },
+              {
+                "label": "Sample rate",
+                "type": "dropdown",
+                "value": "48000 Hz"
+              },
+              {
+                "label": "Audio buffer size",
+                "type": "dropdown",
+                "value": "256 samples (5.3 ms)"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
+```
