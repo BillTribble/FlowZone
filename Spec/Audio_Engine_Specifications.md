@@ -6,7 +6,7 @@
 
 ## **1. InternalFX — Effects Processing**
 
-\u003e **Implementation Note:** These effects support all UI elements defined in §7.6.3 (Sound/FX Tab) of the main spec. Simple procedural implementations for V1; future versions may replace with higher-quality algorithms or allow VST alternatives.
+\u003e **Implementation Note:** These effects support all UI elements defined in §7.6.3 (Play Tab) of the main spec. Simple procedural implementations for V1; future versions may replace with higher-quality algorithms or allow VST alternatives.
 
 ### **1.1. Core FX Bank (12 Effects)**
 
@@ -228,10 +228,10 @@ Same as Notes Mode (§2.2).
 | (1,2) | `cylinder` | Tom Low | Sine wave, pitch envelope (120Hz → 80Hz), medium decay (0.5s) |
 | (1,3) | `tall_cylinder` | Tom Mid | Sine wave, pitch envelope (200Hz → 150Hz), medium decay (0.4s) |
 | (1,4) | `tripod` | Cymbal | Metallic noise (bandpass: 3kHz - 12kHz), long decay (2.0s) |
-| (2,1) | `double_diamond` | Kick 2 | Sine + triangle blend, pitch envelope (100Hz → 40Hz), punchier attack |
-| (2,2) | `double_diamond` | Kick 3 | Sine wave, pitch envelope (60Hz → 25Hz), longer decay (0.5s) |
-| (2,3) | `double_diamond` | Kick 4 | Square wave, pitch envelope (90Hz → 35Hz), distorted |
-| (2,4) | `double_diamond` | Tom High | Sine wave, pitch envelope (300Hz → 220Hz), short decay (0.3s) |
+| (2,1) | `double_diamond_outline`| Kick 2 | Sine + triangle blend, pitch envelope (100Hz → 40Hz), punchier attack |
+| (2,2) | `double_diamond_dotted` | Kick 3 | Sine wave, pitch envelope (60Hz → 25Hz), longer decay (0.5s) |
+| (2,3) | `double_diamond_striped`| Kick 4 | Square wave, pitch envelope (90Hz → 35Hz), distorted |
+| (2,4) | `cylinder_short` | Tom High | Sine wave, pitch envelope (300Hz → 220Hz), short decay (0.3s) |
 | (3,1) | `hand` | Clap | Filtered noise burst (bandpass: 800Hz - 3kHz), multiple hits (3×), medium decay (0.2s) |
 | (3,2) | `hand` | Snap | Filtered noise burst (bandpass: 2kHz - 8kHz), single hit, very short (0.05s) |
 | (3,3) | `snare` | Snare 1 | Filtered noise (1kHz - 5kHz) + sine tone (200Hz), snappy envelope (0.15s) |
@@ -257,6 +257,9 @@ Adjust Tab controls:
 *   **Pitch** → Tune all pads globally (-12 to +12 semitones). Individual per-pad tuning is a potential V2 feature.
 *   **Tone** → Filter cutoff globally (brightens/darkens the sound across all pads)
 *   **Level** → Output gain globally (applies to all pads)
+*   **Length** → Drum decay multiplier (0.1x - 5.0x) - affects all pads
+*   **Reverb** → Reverb send amount (0.0 - 1.0)
+*   **Bounce/Speed** → NOT USED for Drum Mode in V1.
 
 ---
 
@@ -337,6 +340,7 @@ Handles microphone/line input with real-time effects.
 
 ### **6.1. Input Monitoring**
 
+*   **Input Selector:** The Microphone sub-view provides a selection grid for available audio inputs. Only one input can be active at a time for capture.
 *   **Monitor Until Looped** (toggle) — Input is audible until first loop commit, then muted
 *   **Monitor Input** (toggle) — Always monitor input (can cause feedback if using built-in mic + speakers)
 
@@ -352,6 +356,7 @@ Handles microphone/line input with real-time effects.
 *   **V1:** The microphone input has a **single built-in reverb effect** — controlled via Reverb Mix and Room Size knobs in the Adjust tab when Microphone mode is active (see main spec §7.6.4). This is a simple Freeverb instance, not the full InternalFX chain.
 *   **V2:** Full FX chain support (any InternalFX effect applied to input). Deferred.
 *   FX are applied to the input signal **before** it enters the retrospective capture buffer (i.e., the wet signal is what gets recorded).
+*   **FX Mode Note:** When FX Mode is active (resampling), the retrospective buffer input is re-routed to the FX output bus (sum of selected slots + active effect).
 
 ### **6.4. Waveform Display**
 

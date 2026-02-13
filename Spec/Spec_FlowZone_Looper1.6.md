@@ -954,55 +954,14 @@ This section defines the UI layout implementation details. For the complete JSON
 
 ### **7.6.2. Mode Tab Layout**
 
-#### **Category Selector**
-*   **Layout:** 2×4 grid
-*   **Position:** Top section of tab
-*   **Categories:**
-    | Row | Col 1 | Col 2 | Col 3 | Col 4 |
-    |:---|:---|:---|:---|:---|
-    | 1 | **Drums** (drum icon) | **Notes** (note icon) | **Bass** (submarine icon) | **Ext Inst** (keyboard icon) |
-    | 2 | **FX** (box icon) | **Ext FX** (waveform icon) | **Microphone** (mic icon) | *(empty — reserved for V2 Sampler)* |
-*   **Selection State:** Highlighted with rounded background fill
-*   **Ext Inst / Ext FX Placeholder:** When no VST3 plugins are available (or before Phase 7 plugin isolation is built), tapping "Ext Inst" or "Ext FX" shows an empty panel with a "Coming Soon" label. No crash, no error — just a placeholder.
+The Mode tab is for **Category Selection ONLY**. It allows the user to switch between the primary performance modes (Drums, Notes, Bass, Microphone, FX).
 
-#### **Active Preset Display**
-*   **Position:** Top right of tab (above preset selector)
-*   **Content:** 
-    *   Preset name
-    *   Creator attribution (e.g., "by bill_tribble")
-
-#### **Preset Selector**
-*   **Layout:** 3×4 grid
-*   **Position:** Middle section
-*   **Visual State:**
-    *   **Selected:** Highlighted with rounded background
-    *   **Unselected:** Transparent or subtle background
-*   **Content:** 3×4 grid of selectable presets. Preset names are defined per instrument category in [Audio_Engine_Specifications.md](./Audio_Engine_Specifications.md).
-
-> **Note:** Preset names will be created specifically for FlowZone. See `Audio_Engine_Specifications.md` for current working names (Sine Bell, Saw Lead, Sub, Growl, etc.).
-
-#### **Pad Grid**
-*   **Structure:** 4×4 grid (16 pads total)
-*   **Position:** Bottom section
-*   **Content Variations by Mode:**
-    *   **Drums:** Icon-based pads
-        *   Icons: double_diamond, cylinder, tall_cylinder, tripod, hand, snare, lollipop
-        *   Each pad represents a specific drum sound
-    *   **Notes / Bass:** Colored pads
-        *   Pad color based on instrument theme (see §7.1 palette)
-        *   Each pad triggers a note in the selected scale
-        *   **Pad-to-Note Mapping:** Pads are laid out bottom-left = root note, ascending through the selected scale left-to-right then bottom-to-top. For a 5-note pentatonic scale, 16 pads span ~3 octaves. For a 7-note scale, 16 pads span ~2 octaves. The Pitch knob (Adjust tab) transposes the entire grid ±24 semitones.
-        *   **Available Scales:** `major`, `minor`, `minor_pentatonic`, `major_pentatonic`, `dorian`, `mixolydian`, `blues`, `chromatic`.
-
-> **Note:** Grid cells in the Preset Selector beyond the available preset count (e.g., Drums has 4 kits but the grid has 12 cells) are rendered as empty/disabled.
-
-#### **Add Plugin Modal**
-*   **Trigger:** Tapping a category with a `+` icon (e.g., "Plugin Effects", "Plugin Instrument")
-*   **Layout:** Centered card with border
+*   **Behavior:** Selecting a category in the Mode tab performs two actions:
+    1.  Fires the `SELECT_MODE` command for that category.
+    2.  **Instant Switch:** The app instantly switches the UI view to the **Play tab** (§7.6.3) to show the performative controls for that category.
 *   **Content:**
-    *   Plug icon (center)
-    *   Text: `"Add a new Plugin"`
-    *   Action: Opens VST browser
+    *   **Category Grid:** 2×4 grid of instrument/mode categories (Drums, Notes, Bass, Ext Inst, FX, Ext FX, Microphone).
+    *   **No Presets or Pads:** The Mode tab itself does not show presets or pads (V1 decision). It is purely for high-level mode selection.
 
 #### **FX Mode (Resampling)**
 
@@ -1060,44 +1019,27 @@ When a user attempts to record into a 9th slot (all 8 slots are occupied), the a
 
 ### **7.6.3. Play Tab Layout**
 
-The Play tab is a **sub-view of Mode**. When the user selects a category (Drums, Notes, Bass, etc.) from the Mode tab, the app automatically switches to the Play tab to show the detail view for that category: presets, pads, and (in FX Mode only) the XY pad.
+The Play tab is the **primary performance view**. It dynamically changes its content based on the active mode selected in the Mode tab.
+
+#### **Layout: Instruments (Drums, Notes, Bass)**
+Used for all melodic and rhythmic instrument modes.
+*   **Preset Selector (Top):** 3×4 grid of preset buttons.
+*   **Active Preset Display:** Shows selected preset + attribution.
+*   **Pad Grid (Bottom):** 4×4 performative pad grid.
+*   **Slot Indicators:** Performance-row of loops (mute/unmute toggles).
+
+#### **Layout: Microphone**
+*   **Audio Input Selector:** A grid or list showing available hardware audio inputs. The user selects **one and only one** active input for capture.
+*   **Gain Control:** Large circular knob for `SET_INPUT_GAIN`.
+*   **Monitor Toggles:** "Monitor Input" and "Monitor Until Looped".
+*   **Waveform Timeline:** Real-time visualization of the input buffer.
+
+#### **Layout: FX (Resampling)**
+*   **FX Preset Selector:** Grid of available resampling effects (Keymasher, etc.). **Note:** FX presets are *only* visible when FX mode is active.
+*   **XY Pad:** Large touch surface for controlling the active effect.
+*   **Loop Source Selectors:** Loop indicators used as source-select toggles for the FX chain.
 
 > **Note:** This tab was formerly labeled "Sound" in reference designs. Renamed to "Play" to better describe its function across all categories.
-
-#### **Preset Selector**
-*   **Layout:** 3×4 grid
-*   **Position:** Top section
-*   **Active Preset Display:** Top with attribution (same as Mode tab)
-*   **Preset Banks:**
-    *   **Core FX:** Lowpass, Highpass, Reverb, Gate, Buzz, GoTo, Saturator, Delay, Comb, Distortion, Smudge, Channel
-    *   **Infinite FX:** Keymasher, Ripper, Ringmod, Bitcrusher, Degrader, Pitchmod, Multicomb, Freezer, Zap Delay, Dub Delay, Compressor
-
-#### **Effect Control Area**
-
-**Layout A: Button Grid (Keymasher and similar)**
-*   **Grid:** 3×4 button layout
-*   **Position:** Below timeline
-*   **Keymasher Buttons:**
-    | Row | Col 1 | Col 2 | Col 3 | Col 4 |
-    |:---|:---|:---|:---|:---|
-    | 1 | Repeat | Pitch Down | Pitch Rst | Pitch Up |
-    | 2 | Reverse | Gate | Scratch | Buzz |
-    | 3 | Stutter | Go To | Go To 2 | Buzz slip |
-*   **Interaction:** Tap to activate effect (behavior depends on effect — some toggle, some are momentary)
-
-**Layout B: XY Pad (All other FX)**
-*   **Control:** Large rectangular XY touch pad
-*   **Visual:** Dotted crosshair guides
-*   **Behavior:**
-    *   **Crosshair:** Appears ONLY when finger is held down
-    *   **Effect:** Active ONLY while finger is held down
-    *   **Design Intent:** Highly playable touch-and-hold performance control
-*   **Position:** Below timeline (replaces button grid)
-
-#### **Slot Indicators** (Both Layouts)
-*   **Layout:** 1 row × 8 oblong indicators (one per slot)
-*   **Position:** Below effect control area (button grid or XY pad)
-*   **Visual:** Oblong shapes with rounded edges showing slot state. Filled = has audio, outlined = empty.
 *   **Behavior:**
     *   **In FX Mode:** Tapping a slot indicator toggles it as a source for the FX processing chain (same as `SELECT_FX_SOURCE_SLOTS`). Selected slots are visually highlighted.
     *   **In all other modes:** Tapping a slot indicator toggles mute/unmute for that slot (same as `MUTE_SLOT` / `UNMUTE_SLOT`).
@@ -1153,8 +1095,9 @@ When the active category is **Microphone**, the Adjust tab shows a simplified la
 *   **Button:**
     1.  **Commit Mix** (checkmark icon) — Light prominent style (primary CTA)
         *   **Action:** Uses `COMMIT_RIFF` command to save the current volume/pan/mute state as a new Riff History entry.
-        *   **Visibility:** This button is **only visible when the user has changed mix levels (volume, pan) or toggled a mute** since the last commit or riff load. It is hidden when no mix changes have been made — preventing accidental or empty commits.
-        *   **Note:** This is the *only* place a dedicated "Commit" button appears. In other modes, committing is implicit via Loop Length taps.
+        *   **Visibility:** This button is **only visible when the user has changed mix levels (volume, pan) or toggled a mute** since the last commit or riff load. It is hidden when no mix changes have been made.
+        *   **Auto-Commit:** There is no auto-commit on exit or tab switch. If the user exits the jam or leaves the Levels/Mixer mode without committing, uncommitted changes are lost.
+        *   **Panic Button:** Long-pressing the Play/Pause button in any tab (or the header) triggers a **Panic** (stops all audio, resets all synth voices). (Uses `STOP` or dedicated `PANIC` command).
 
 #### **Channel Strips**
 *   **Layout:** Vertical fader strips (one per active slot)
@@ -1320,7 +1263,7 @@ Accessed via the "More" button in Mixer tab transport controls. This is the **on
 *   Navigation tabs fixed to bottom
 *   All grids scale to fill width
 *   Riff history collapses to toolbar indicators + expandable drawer
-*   Mixer channel strips scroll horizontally
+*   Mixer channel strips: Layout scales to fit the screen; no horizontal scrolling required for V1.
 
 **Tablet/Desktop Mode Specifics:**
 *   Navigation in header or left sidebar

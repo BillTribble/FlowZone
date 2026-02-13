@@ -21,8 +21,8 @@ Summarized from mobile design reference materials.
         "layout": "horizontal_bar",
         "position": "bottom_of_content_area",
         "tabs": [
-          { "id": "mode", "icon": "grid", "label": "Mode" },
-          { "id": "play", "icon": "wave", "label": "Play", "note": "sub-view of Mode; shows presets + pads for selected category" },
+          { "id": "mode", "icon": "grid", "label": "Mode", "note": "Primary mode selector. Instantly switches to Play tab on selection." },
+          { "id": "play", "icon": "wave", "label": "Play", "note": "Primary performative view. Shows presets + pads for selected category." },
           { "id": "adjust", "icon": "knob", "label": "Adjust" },
           { "id": "mixer", "icon": "sliders", "label": "Mixer" }
         ]
@@ -66,6 +66,7 @@ Summarized from mobile design reference materials.
         "category_selector": {
           "layout": "2x4_grid",
           "position": "top_section",
+          "note": "Mode tab is purely for category selection. No presets/pads shown here.",
           "categories": [
             { "id": "drums", "label": "Drums", "icon": "drum", "row": 1, "col": 1 },
             { "id": "notes", "label": "Notes", "icon": "note", "row": 1, "col": 2 },
@@ -130,7 +131,7 @@ Summarized from mobile design reference materials.
         }
       },
       "play_tab": {
-        "note": "Sub-view of Mode. Shows presets + pads for selected category. XY pad visible only in FX Mode.",
+        "note": "Primary performative view. Instantly switches from Mode tab. Shows presets + pads. XY pad visible only in FX Mode.",
         "preset_selector": {
           "layout": "3x4_grid",
           "position": "top_section",
@@ -229,7 +230,8 @@ Summarized from mobile design reference materials.
         },
         "channel_strips": {
           "layout": "vertical_fader_strips",
-          "arrangement": "horizontal_row_scrollable",
+          "arrangement": "scales_to_fit_screen",
+          "note": "No horizontal scrolling required for V1.",
           "channels_note": "Channel strip names shown below are illustrative — see Audio_Engine_Specifications.md for actual preset names.",
           "channels": [
             { "name": "Saw Lead", "user": "bill_tribble", "type": "vertical_fader" },
