@@ -70,11 +70,11 @@ Summarized from mobile design reference materials.
             { "id": "drums", "label": "Drums", "icon": "drum", "row": 1, "col": 1 },
             { "id": "notes", "label": "Notes", "icon": "note", "row": 1, "col": 2 },
             { "id": "bass", "label": "Bass", "icon": "submarine", "row": 1, "col": 3 },
-            { "id": "ext_inst", "label": "Ext Inst", "icon": "keyboard", "row": 1, "col": 4 },
-            { "id": "sampler", "label": "Sampler", "icon": "dropper", "row": 2, "col": 1 },
-            { "id": "fx", "label": "FX", "icon": "box", "row": 2, "col": 2 },
-            { "id": "ext_fx", "label": "Ext FX", "icon": "waveform", "row": 2, "col": 3 },
-            { "id": "mic", "label": "Microphone", "icon": "mic", "row": 2, "col": 4 }
+            { "id": "ext_inst", "label": "Ext Inst", "icon": "keyboard", "row": 1, "col": 4, "placeholder": "Coming Soon" },
+            { "id": "fx", "label": "FX", "icon": "box", "row": 2, "col": 1 },
+            { "id": "ext_fx", "label": "Ext FX", "icon": "waveform", "row": 2, "col": 2, "placeholder": "Coming Soon" },
+            { "id": "mic", "label": "Microphone", "icon": "mic", "row": 2, "col": 3 },
+            { "id": "reserved", "label": "", "row": 2, "col": 4, "note": "Reserved for V2 Sampler" }
           ]
         },
         "active_preset_display": {
@@ -158,10 +158,10 @@ Summarized from mobile design reference materials.
               { "row": 3, "col": 3, "label": "Go To 2" },
               { "row": 3, "col": 4, "label": "Buzz slip" }
             ],
-            "playback_controls": {
-              "layout": "2_rows_of_4_circular_buttons",
+            "slot_indicators": {
+              "layout": "1_row_of_8_oblongs",
               "position": "below_button_grid",
-              "note": "circular buttons with fill indicators"
+              "note": "Oblong slot indicators. In FX mode: toggle FX source selection. In other modes: toggle mute/unmute."
             }
           },
           "other_effects": {
@@ -173,9 +173,10 @@ Summarized from mobile design reference materials.
               "interaction_style": "highly playable touch-and-hold effect"
             },
             "visual": "large rectangular pad with dotted crosshair guides",
-            "playback_controls": {
-              "layout": "2_rows_of_4_circular_buttons",
-              "position": "below_xy_pad"
+            "slot_indicators": {
+              "layout": "1_row_of_8_oblongs",
+              "position": "below_xy_pad",
+              "note": "Oblong slot indicators. In FX mode: toggle FX source selection. In other modes: toggle mute/unmute."
             }
           }
         }

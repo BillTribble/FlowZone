@@ -17,9 +17,9 @@
     *   **Visual History:** A persistent, chronological "Riff Feed" is always visible (Sidebar on Desktop, Split/Drawer on Mobile), allowing users to drag past ideas back into the active flow.
 *   **Hybrid Architecture:** Native C++ Audio Engine (Source of Truth) + React Web UI (Stateless View).
     *   **Local:** `juce::WebBrowserComponent` (embedded).
-    *   **Remote:** Internal WebServer (Background Thread) for phone/tablet control.
-    *   **Unified State:** All clients see the exact same session state, synced via WebSocket.
-*   **Multi-User Collaboration:** Optimized for 2-4+ simultaneous users. Each client (local or remote) receives a real-time control surface, enabling collective "jamming" over a local WiFi network.
+    *   **Unified State:** The embedded client receives the engine's state via WebSocket (localhost).
+    *   **Remote (V2):** Internal WebServer for phone/tablet control over LAN. See §1.3 Future Goals.
+*   **Multi-User Collaboration (V2):** Remote multi-user jamming is a V2 feature. V1 is single-user on the local machine. See §1.3 for plans.
 *   **Strict Decoupling:** 
     *   **Audio Priority:** The Audio Thread is sacred. It must never block on UI, Network, or Disk I/O.
     *   **Crash Resilience:** UI crashes do not stop audio. Plugin crashes do not kill the main engine.
@@ -36,7 +36,7 @@
 *   **Centralized Audio Processing:** All audio processing happens on the main macOS computer.
 *   **Multi-Channel Output:** 8 stereo pairs (16 channels) for DAW recording via the VST3 plugin target. Each slot maps to one stereo pair, enabling multi-track capture of live sessions.
 *   **Dual Build Target:** Built simultaneously as a Standalone App and a VST3 Plugin from the same Projucer project. When running as a VST3, the app provides multi-channel output for DAW recording of riffs. VST3 hosting (Phase 7) is only available in Standalone mode.
-*   **Retrospective "Always-On" Capture:** Implement a lock-free circular buffer (~60s).
+*   **Retrospective "Always-On" Capture:** Implement a lock-free circular buffer (~96s, enough for 8 bars at 20 BPM).
 *   **Hybrid Sound Engine:** VST3 Hosting, Internal Procedural Instruments, Mic Input Processing.
 *   **Microtuning Support:** Internal synths must support microtuning via `.scl` (Scala) and `.kbm` files, with standard presets (Just Intonation, Pythagorean, Slendro, Pelog, 12TET).
 *   **"Configure Mode" for VST Parameters:** Users must explicitly "touch" a VST knob to expose it to the React UI.
@@ -49,10 +49,14 @@
 *   **Complex DAW Features:** No piano roll, no automation lanes.
 
 ### **1.3. Future Goals (V2 Stretch)**
+*   **Remote Web Server (Multi-Device):** Internal WebServer (background thread) exposing a real-time control surface on the LAN for phone/tablet control. Unified state sync via WebSocket so all clients see the same session.
+*   **Multi-User Collaboration:** 2-4+ simultaneous users jamming over local WiFi. Each client (local or remote) receives a real-time control surface.
+*   **Sample Engine:** Full sample playback engine with WAV/FLAC/MP3/AIFF support, playback modes (One-Shot, Gated, Looped, Sliced), per-pad sample assignment, drag-and-drop loading, and JSON preset system. See `Audio_Engine_Specifications.md` §5 for full design.
+*   **MP3 / AAC Export:** User preference to save recordings as MP3 or AAC to save disk space. Requires LAME (GPL) or macOS AudioToolbox. FLAC is V1's only format.
 *   **Ableton Link Integration:** Global phase-sync across devices and applications.
 *   **Export Riffs:** Export riff audio (stems, mixdown) to disk.
 *   **Windows/Linux Ports**
-*   **Tap Tempo Cold Start:** Time-between-taps sets session tempo when transport is stopped and slots are empty.
+*   **Tap Tempo Cold Start:** Time-between-taps sets session tempo when transport is paused and slots are empty.
 *   **WebGL Visualizers:** GPU-accelerated visualization option.
 *   **MIDI Clock Sync:** External MIDI Clock as transport source.
 *   **Multi-User Retrospective Buffers:** V1 uses a single global retrospective buffer (single-user). V2 will add per-user buffers for multi-user jamming — each connected user gets their own capture buffer. This requires a session settings item to configure the number of active users (2-4+), with each user's buffer pre-allocated on session start.
@@ -110,6 +114,7 @@ graph TD
 *   **Role:** Real-time audio processing DAG.
 *   **Priority:** `Realtime` (macOS `UserInteractive` QoS).
 *   **Master Limiter:** A brickwall limiter is applied to the master stereo output as the final stage of `processBlock`. Active only in Standalone mode — **bypassed in VST3 multi-channel mode** so that dynamics are preserved for DAW recording. Ceiling: -0.3 dBFS, lookahead: 1ms.
+*   **Bus Configuration:** In VST3 mode, declare 8 stereo output buses in `BusesProperties` (one per slot). In Standalone mode, declare a single stereo output bus (master only). Use `#if JucePlugin_Build_VST3` preprocessor guards for the bus configuration.
 
 #### **B. TransportService** — `src/engine/transport/TransportService.cpp`
 *   **Role:** Manages Transport state (Play/Pause, BPM, Phase). 
@@ -214,13 +219,9 @@ graph TD
     *   **Core FX (12):** Lowpass, Highpass, Reverb, Gate, Buzz, GoTo, Saturator, Delay, Comb, Distortion, Smudge, Channel.
     *   **Infinite FX (11):** Keymasher, Ripper, Ringmod, Bitcrusher, Degrader, Pitchmod, Multicomb, Freezer, Zap Delay, Dub Delay, Compressor.
     *   All effects support XY Pad mapping (except Keymasher which uses 3×4 button grid).
-*   **`SampleEngine`:**
-    *   **Sample Playback:** WAV, FLAC, MP3, AIFF support.
-    *   **Modes:** One-Shot, Gated, Looped, Sliced (16 pads).
-    *   **Parameters:** Pitch, Start Offset, Loop Points, ADSR, Filter, Reverse.
-    *   **Preset System:** JSON-based preset definitions for easy sample library management.
+*   **`SampleEngine` (V2):** Deferred to V2. See §1.3 Future Goals and `Audio_Engine_Specifications.md` §5 for full design.
 *   **`MicProcessor`:**
-    *   **Input Chains:** Gain control, monitor modes, FX chain (pre-fader).
+    *   **Input Chains:** Gain control, monitor modes, built-in reverb (applied to the input signal before it enters the retrospective capture buffer).
     *   **Waveform Display:** Real-time visualization with peak detection.
 
 ### **2.3. Thread Priority Table**
@@ -270,22 +271,23 @@ These must be kept in sync. Changes to one **must** be reflected in the other.
 // Valid parameter names for the SET_KNOB command (Adjust tab)
 type KnobParameter = 'pitch' | 'length' | 'tone' | 'level' | 'bounce' | 'speed' | 'reverb' | 'reverb_mix' | 'room_size';
 
-type Command = 
+// Valid scale names for SET_KEY command
+type Scale = 'major' | 'minor' | 'minor_pentatonic' | 'major_pentatonic' | 'dorian' | 'mixolydian' | 'blues' | 'chromatic';
+
+type Command =
   // Volume & Pan
   | { cmd: 'SET_VOL'; slot: number; val: number; reqId: string }   // val: 0.0 - 1.0
   | { cmd: 'SET_PAN'; slot: number; val: number }                  // val: -1.0 to 1.0
 
-  // Transport
+  // Transport (Play/Pause only — no Stop. Pausing holds all slot states; resuming continues from where it left off.)
   | { cmd: 'PLAY' }
   | { cmd: 'PAUSE' }
-  | { cmd: 'STOP' }
   | { cmd: 'SET_TEMPO'; bpm: number }                              // bpm: 20.0 - 300.0
   | { cmd: 'TOGGLE_METRONOME' }
   | { cmd: 'TOGGLE_QUANTISE' }                                     // Toggle quantise on/off
-  | { cmd: 'SET_KEY'; rootNote: number; scale: string }
+  | { cmd: 'SET_KEY'; rootNote: number; scale: Scale }
 
   // Slot Control (no explicit record start/stop — see §3.10 Retrospective Capture)
-  | { cmd: 'TRIGGER_SLOT'; slot: number; quantized: boolean }
   | { cmd: 'MUTE_SLOT'; slot: number }
   | { cmd: 'UNMUTE_SLOT'; slot: number }
   | { cmd: 'SET_LOOP_LENGTH'; bars: number }                       // 1, 2, 4, or 8
@@ -307,7 +309,7 @@ type Command =
   | { cmd: 'TOGGLE_MONITOR_UNTIL_LOOPED' }                         // Toggle monitor-until-looped on/off
 
   // Session & Riff Management
-  | { cmd: 'COMMIT_RIFF' }                                         // Save current state to riff history
+  | { cmd: 'COMMIT_RIFF' }                                         // Capture audio from retrospective buffer into the next empty slot, then save the resulting session state as a new entry in riff history. In FX Mode, captures FX-processed audio and deletes source slots (see §7.6.2 FX Mode). Available from Mixer tab.
   | { cmd: 'LOAD_RIFF'; riffId: string }                           // Load riff from history
   | { cmd: 'DELETE_RIFF'; riffId: string }                         // Delete riff from history
   | { cmd: 'NEW_JAM' }                                              // Create a new jam session
@@ -363,11 +365,10 @@ Every command has a defined set of possible error responses:
 | :--- | :--- | :--- |
 | `SET_VOL` | None (always succeeds) | Optimistic update; reconcile on next state patch. |
 | `SET_PAN` | None (always succeeds) | Optimistic update; reconcile on next state patch. |
-| `PLAY` / `PAUSE` / `STOP` | None (always succeeds) | Optimistic update. |
+| `PLAY` / `PAUSE` | None (always succeeds) | Optimistic update. |
 | `SET_TEMPO` | `2020: TEMPO_OUT_OF_RANGE` | Clamp UI slider to valid range (20–300 BPM). |
 | `TOGGLE_METRONOME` | None (always succeeds) | Optimistic toggle. |
-| `SET_KEY` | `2030: INVALID_SCALE` | Revert to previous key/scale. |
-| `TRIGGER_SLOT` | `2010: SLOT_BUSY` | Show toast "Slot busy, try again." |
+| `SET_KEY` | `2030: INVALID_SCALE` | Revert to previous key/scale. Valid scales: `major`, `minor`, `minor_pentatonic`, `major_pentatonic`, `dorian`, `mixolydian`, `blues`, `chromatic`. |
 | `MUTE_SLOT` / `UNMUTE_SLOT` | None (always succeeds) | Optimistic toggle. |
 | `SET_LOOP_LENGTH` | `2050: INVALID_LOOP_LENGTH` | Revert to current length. |
 | `SELECT_MODE` | `2060: PRESET_NOT_FOUND` | Show error toast. |
@@ -432,10 +433,10 @@ interface AppState {
     metronomeEnabled: boolean;
     quantiseEnabled: boolean;      // Whether input is quantised to grid
     rootNote: number;              // 0-11 (C=0)
-    scale: string;                 // e.g., 'minor_pentatonic'
+    scale: Scale;                  // e.g., 'minor_pentatonic'. See Scale type definition above.
   };
   activeMode: {
-    category: string;              // 'drums' | 'notes' | 'bass' | 'sampler' | 'fx' | 'mic' | 'ext_inst' | 'ext_fx'
+    category: string;              // 'drums' | 'notes' | 'bass' | 'fx' | 'mic' | 'ext_inst' | 'ext_fx' (sampler deferred to V2)
     presetId: string;              // Currently selected preset
     presetName: string;            // Display name
     isFxMode: boolean;             // True when FX resampling mode is active
@@ -454,7 +455,7 @@ interface AppState {
   };
   slots: Array<{
     id: string;                    // UUID
-    state: 'EMPTY' | 'PLAYING' | 'MUTED' | 'STOPPED';  // No RECORDING state — retrospective buffer is always capturing (§3.10). Slots transition directly from EMPTY to PLAYING on commit. STOPPED: slot has audio but transport is not running.
+    state: 'EMPTY' | 'PLAYING' | 'MUTED';  // No RECORDING or STOPPED states. Retrospective buffer is always capturing (§3.10). Slots transition directly from EMPTY to PLAYING on commit. When transport is paused, PLAYING slots simply pause in place — they remain PLAYING and resume when transport resumes. MUTED slots stay MUTED regardless of transport state.
     volume: number;                // 0.0 - 1.0
     pan: number;                   // -1.0 to 1.0
     name: string;
@@ -519,8 +520,8 @@ struct RiffSnapshot {
 
 ### **3.6. Audio Persistence Strategy**
 
-*   **Recording Format:** FLAC (Lossless) 24-bit / 44.1kHz or 48kHz (Default).
-*   **Storage Option:** User preference to save as MP3 320kbps (via LAME or system encoder) to save disk space.
+*   **Recording Format:** FLAC (Lossless) 24-bit / 44.1kHz or 48kHz (Default). **Compression level 0** (fastest) for real-time recording. Higher compression levels can be applied during session export or idle time if storage space is a concern.
+*   **Storage Option (V2):** User preference to save as MP3/AAC for disk space savings. Deferred to V2 — see §1.3. V1 uses FLAC only.
 *   **Naming Convention:** `project_name/audio/riff_{timestamp}_slot_{index}.flac`
 
 ### **3.7. Binary Visualization Stream**
@@ -558,7 +559,7 @@ FlowZone uses **always-on capture** — there is no explicit "record start" or "
 
 **Buffer Design:**
 
-*   **Size:** Pre-allocated at startup. Approximately **30 seconds** of stereo audio at the session sample rate (e.g., 48kHz × 2 channels × 4 bytes × 30s ≈ 11.5 MB). This is a fixed allocation — the buffer never resizes.
+*   **Size:** Pre-allocated at startup. Approximately **96 seconds** of stereo audio at the session sample rate (e.g., 48kHz × 2 channels × 4 bytes × 96s ≈ 36.9 MB). This ensures 8 bars can be captured even at the minimum tempo of 20 BPM (8 bars at 20 BPM = 96 seconds). This is a fixed allocation — the buffer never resizes.
 *   **Count:** V1 uses a **single global buffer** (single-user). See §1.3 for V2 multi-user buffer plans.
 *   **Content:** Continuously records the output of the currently selected instrument/mode. Old audio is overwritten as the buffer wraps.
 
@@ -569,12 +570,13 @@ FlowZone uses **always-on capture** — there is no explicit "record start" or "
 3.  **Commit to slot:** When the user triggers `COMMIT_RIFF`, the most recent N bars of audio (per current `loopLengthBars`) are copied from the retrospective buffer into the next available slot. If the selected length contains silence (e.g., 8 bars were requested but only 2 bars of audio were played), the silent bars are included — this is the expected behavior.
 4.  **Slot state transitions:**
     *   `EMPTY` → `PLAYING` (audio committed from retrospective buffer)
-    *   `PLAYING` → `STOPPED` (transport stopped)
-    *   `STOPPED` → `PLAYING` (transport started)
     *   `PLAYING` → `MUTED` (user mutes)
     *   `MUTED` → `PLAYING` (user unmutes)
+    *   When transport is **paused**, `PLAYING` slots pause in place — they remain in `PLAYING` state and resume automatically when transport resumes. `MUTED` slots stay `MUTED` regardless of transport state. There is no `STOPPED` state.
 
 This model ensures **zero-latency creative flow** — the user never waits for recording to start or misses the beginning of a performance.
+
+> **Note:** V1 does not include a per-slot clear command. Users who want to remove a single layer should load a previous riff from history. A per-slot clear could be added as a V2 feature.
 
 ---
 
@@ -945,8 +947,9 @@ This section defines the UI layout implementation details. For the complete JSON
     | Row | Col 1 | Col 2 | Col 3 | Col 4 |
     |:---|:---|:---|:---|:---|
     | 1 | **Drums** (drum icon) | **Notes** (note icon) | **Bass** (submarine icon) | **Ext Inst** (keyboard icon) |
-    | 2 | **Sampler** (dropper icon) | **FX** (box icon) | **Ext FX** (waveform icon) | **Microphone** (mic icon) |
+    | 2 | **FX** (box icon) | **Ext FX** (waveform icon) | **Microphone** (mic icon) | *(empty — reserved for V2 Sampler)* |
 *   **Selection State:** Highlighted with rounded background fill
+*   **Ext Inst / Ext FX Placeholder:** When no VST3 plugins are available (or before Phase 7 plugin isolation is built), tapping "Ext Inst" or "Ext FX" shows an empty panel with a "Coming Soon" label. No crash, no error — just a placeholder.
 
 #### **Active Preset Display**
 *   **Position:** Top right of tab (above preset selector)
@@ -974,6 +977,10 @@ This section defines the UI layout implementation details. For the complete JSON
     *   **Notes / Bass:** Colored pads
         *   Pad color based on instrument theme (see §7.1 palette)
         *   Each pad triggers a note in the selected scale
+        *   **Pad-to-Note Mapping:** Pads are laid out bottom-left = root note, ascending through the selected scale left-to-right then bottom-to-top. For a 5-note pentatonic scale, 16 pads span ~3 octaves. For a 7-note scale, 16 pads span ~2 octaves. The Pitch knob (Adjust tab) transposes the entire grid ±24 semitones.
+        *   **Available Scales:** `major`, `minor`, `minor_pentatonic`, `major_pentatonic`, `dorian`, `mixolydian`, `blues`, `chromatic`.
+
+> **Note:** Grid cells in the Preset Selector beyond the available preset count (e.g., Drums has 4 kits but the grid has 12 cells) are rendered as empty/disabled.
 
 #### **Add Plugin Modal**
 *   **Trigger:** Tapping a category with a `+` icon (e.g., "Plugin Effects", "Plugin Instrument")
@@ -994,7 +1001,7 @@ When the user selects **FX** from the Mode category selector, the app enters FX 
 3.  **Select Effect:** The Play tab (§7.6.3) shows the main FX selector. Only one effect is active at a time — this is an FX *selector*, not a chain. The XY pad (visible only in FX Mode) controls the selected effect's parameters in real-time.
 4.  **Real-Time Processing:** While in FX Mode, selected layers are continuously routed through the active effect and output to the audio buffer. **Unselected slots continue playing normally** alongside the FX-processed audio. The user **cannot play instruments** while in FX Mode (V1).
 5.  **FX Activation:** The effect is engaged only while the user's finger is held down on the XY pad (`FX_ENGAGE` on touch-down, `FX_DISENGAGE` on touch-up). When disengaged, the selected layers play through unprocessed.
-6.  **Commit Resampled Layer:** When the user commits (records), the FX-processed audio is captured for one loop cycle and written to the **next empty slot**. The source slots that were selected are then **deleted** (destructive — this is the only option). This is safe because all prior states are preserved in Riff History.
+6.  **Commit Resampled Layer:** When the user commits (records), the FX-processed audio is captured for one loop cycle and written to the **next empty slot**. The source slots that were selected are then set to `EMPTY` state (destructive — this is the only option). Their audio files remain on disk per the garbage collection policy (§2.2.G). This is safe because the currently playing riff (the pre-FX state) is already the latest entry in Riff History — the user committed it when they originally recorded those layers. Loading that riff from history instantly restores the individual layers.
 7.  **Auto-Merge:** If all 8 slots are full when committing the resampled layer, the standard auto-merge rule applies first (see §7.6.2.1 Auto-Merge Algorithm), then the resampled audio goes into the next available slot.
 
 **Audio Routing in FX Mode:**
@@ -1071,23 +1078,26 @@ The Play tab is a **sub-view of Mode**. When the user selects a category (Drums,
     *   **Design Intent:** Highly playable touch-and-hold performance control
 *   **Position:** Below timeline (replaces button grid)
 
-#### **Playback Controls** (Both Layouts)
-*   **Layout:** 2 rows × 4 circular buttons
+#### **Slot Indicators** (Both Layouts)
+*   **Layout:** 1 row × 8 oblong indicators (one per slot)
 *   **Position:** Below effect control area (button grid or XY pad)
-*   **Visual:** Circular buttons with fill/arc indicators showing state
+*   **Visual:** Oblong shapes with rounded edges showing slot state. Filled = has audio, outlined = empty.
+*   **Behavior:**
+    *   **In FX Mode:** Tapping a slot indicator toggles it as a source for the FX processing chain (same as `SELECT_FX_SOURCE_SLOTS`). Selected slots are visually highlighted.
+    *   **In all other modes:** Tapping a slot indicator toggles mute/unmute for that slot (same as `MUTE_SLOT` / `UNMUTE_SLOT`).
 
 ---
 
 ### **7.6.4. Adjust Tab Layout**
 
-#### **Knob Controls (Standard — Drums, Notes, Bass, Sampler)**
+#### **Knob Controls (Standard — Drums, Notes, Bass)**
 *   **Layout:** 2 rows × 4 positions
 *   **Position:** Top section
 *   **Main Knobs:**
     | Row | Col 1 | Col 2 | Col 3 | Col 4 |
     |:---|:---|:---|:---|:---|
     | 1 | Pitch | Length | Tone | Level |
-    | 2 | Bounce | Speed | *(reserved)* | Reverb |
+    | 2 | Bounce | Speed | *(empty — reserved for future parameter)* | Reverb |
 *   **Additional Reverb Controls:** (displayed when Reverb knob is touched)
     *   Reverb Mix (knob)
     *   Room Size (knob)
@@ -1140,7 +1150,7 @@ When the active category is **Microphone**, the Adjust tab shows a simplified la
 
 ---
 
-### **7.6.6. Microphone Tab Layout**
+### **7.6.6. Microphone Category View**
 
 #### **Category Selector**
 *   Same 2×4 grid as Mode tab (§7.6.2)
@@ -1303,7 +1313,11 @@ Accessed via the "More" button in Mixer tab transport controls. This is the **on
 
 ## **7.7. Home Screen (Jam Manager)**
 
-The Home screen is the entry point for the application, allowing users to manage their "Jams" (sessions).
+The Home screen is the **first screen** the user sees on every app launch. It is the entry point for the application, allowing users to manage their "Jams" (sessions).
+
+**First Launch Behavior:**
+*   On the very first launch (no jams exist), the Jam Manager shows a centered **"Create your first jam"** prompt with a prominent "New Jam" button. A note below reads: *"Your jams will appear here."*
+*   On subsequent launches, the Jam Manager displays the full jam list. The most recently used jam is highlighted. Tapping it loads the session.
 
 ### **7.7.1. Jam List**
 *   **Sorting:** chronological, with the **latest jam at the top**.
@@ -1495,10 +1509,11 @@ The task breakdown in §9 should follow this risk-aware phasing:
 ```
 PHASE 0: SKELETON (one bead, run first, blocks everything)
 ├── Projucer project configured (FlowZone.jucer)
+├── CivetWeb integrated as source files in libs/civetweb/ (added to Projucer as source group)
 ├── Empty JUCE app compiles → launches → opens WebBrowserComponent
-├── Empty React app loads inside WebBrowserComponent
+├── Empty React app loads inside WebBrowserComponent (dev: localhost:5173, prod: bundled resources)
 ├── WebSocket handshake succeeds (hardcoded "hello")
-└── Both build systems verified (C++ and Vite)
+└── Both build systems verified (C++ and Vite, Catch2 and Vitest)
 
 PHASE 1: CONTRACTS (serial beads, must complete before fanout)
 ├── schema.ts + commands.h — full type definitions
@@ -1513,33 +1528,38 @@ PHASE 2: ENGINE CORE (can parallelize after contracts)
 ├── StateBroadcaster (full snapshot only, no patches yet)
 └── DiskWriter (Tier 1 only)
 
-PHASE 3: UI SHELL (can parallelize with Phase 2)
+PHASE 3: FRONTEND INFRASTRUCTURE (can parallelize with Phase 2)
 ├── WebSocket client with reconnection
 ├── ResponsiveContainer + navigation shell
 ├── Mock state provider (for UI development without engine)
-└── Individual UI components (XY Pad, Pad Grid, Faders, etc.)
+└── Jam Manager (Home screen, first-launch flow)
 
-PHASE 4: AUDIO ENGINES (after Phase 2 engine core works)
+PHASE 4: INTERNAL AUDIO ENGINES (after Phase 2 engine core works)
 ├── Filter-based effects (Lowpass, Highpass, Comb, Multicomb)
 ├── Delay-based effects
 ├── Distortion/saturation effects
 ├── Synth presets — 12TET only (Notes, Bass)
-├── Drum engine
-└── Sample engine (basic playback)
+└── Drum engine
 
-PHASE 5: INTEGRATION (serial, combines engine + UI)
+PHASE 5: UI COMPONENTS (after Phase 3 shell is complete)
+├── XY Pad, Pad Grid, Vertical Faders, Knob components
+├── Riff History Indicator, Waveform Timeline
+├── Slot Indicators (oblong mute/FX source selectors)
+└── Assemble views: Dashboard, Mode, FX, Mixer
+
+PHASE 6: INTEGRATION (serial, combines engine + UI)
 ├── StateBroadcaster patches (RFC 6902)
 ├── Full command flow: UI → WS → CommandQueue → Dispatcher → Engine → State → UI
 ├── SessionStateManager (autosave, riff history management)
 └── Binary visualization stream (optional for MVP)
 
-PHASE 6: PLUGIN ISOLATION (defer until core works)
+PHASE 7: PLUGIN ISOLATION (defer until core works)
 ├── PluginHostApp binary + Projucer Console Application target (single vertical-slice bead)
 ├── Shared memory ring buffers
 ├── Process lifecycle + watchdog
 └── Hot-swap + exponential backoff
 
-PHASE 7: POLISH
+PHASE 8: POLISH & PRODUCTION
 ├── CrashGuard + Safe Mode (graduated levels)
 ├── DiskWriter Tiers 2-4
 ├── Microtuning support
@@ -1744,7 +1764,7 @@ Development must pause at these checkpoints for manual verification before proce
 > **Important:** This task breakdown should be read in conjunction with the risk mitigations in §8. Each task/bead must follow the applicable mitigation practices listed above.
 
 ### **Phase 0: Project Skeleton** *(Blocks everything — complete first)*
-1.  **Task 0.1:** Set up Projucer project (`FlowZone.jucer`) with aggressive compiler warnings (`-Wall -Wextra`). Configure **Catch2** (as a separate Projucer Console Application or Xcode test target) and **Vitest** (in `web_client/`). Produce a compiling JUCE standalone app with empty `processBlock` + WebBrowserComponent loading a "Hello World" React page. Verify both C++ and Vite build chains end-to-end. Run one trivial Catch2 test and one trivial Vitest test to confirm test infrastructure works.
+1.  **Task 0.1:** Set up Projucer project (`FlowZone.jucer`) with aggressive compiler warnings (`-Wall -Wextra`). Integrate **CivetWeb** as source files in a `libs/civetweb/` directory added to Projucer as a source group (do not use a pre-built library). Configure **Catch2** (as a separate Projucer Console Application or Xcode test target) and **Vitest** (in `web_client/`). Produce a compiling JUCE standalone app with empty `processBlock` + WebBrowserComponent loading a "Hello World" React page (in debug builds, load `http://localhost:5173` from Vite dev server; in release builds, load bundled resources from the app's resource directory or use JUCE 8's `WebBrowserComponent::Options::withResourceProvider()`). WebSocket handshake succeeds. Verify both C++ and Vite build chains end-to-end. Run one trivial Catch2 test and one trivial Vitest test to confirm test infrastructure works.
 
 ### **Phase 1: Contracts & Foundations** *(Serial — must complete before fanout)*
 2.  **Task 1.1:** **Schema Foundation** — Define full `Command` union and `AppState` interface in both `schema.ts` and `commands.h`. Include a verification step that counts type members on each side.
@@ -1769,17 +1789,19 @@ Development must pause at these checkpoints for manual verification before proce
 15. **Task 4.1:** Filter-based effects (Lowpass, Highpass, Comb, Multicomb) — with parameter range validation tests.
 16. **Task 4.2:** Delay-based effects (Delay, Zap Delay, Dub Delay) — with parameter range validation tests.
 17. **Task 4.3:** Remaining effects (distortion, saturation, modulation, etc.) grouped by implementation similarity.
-18. **Task 4.4:** Synth presets (Notes, Bass) — **12TET only**. Microtuning deferred to Phase 7.
+18. **Task 4.4:** Synth presets (Notes, Bass) — **12TET only**. Microtuning deferred to Phase 8.
 19. **Task 4.5:** Drum engine (4 kits, 16 sounds each) — group by synthesis type (noise-based, tonal, etc.).
-20. **Task 4.6:** Sample engine (basic playback: WAV, FLAC, MP3, AIFF).
+
+> **Note:** Sample engine deferred to V2. See §1.3 Future Goals.
 
 ### **Phase 5: UI Components** *(After Phase 3 shell is complete)*
-21. **Task 5.1:** XY Pad component — standalone demo with mock state. Tap-only first; touch-and-hold deferred.
-22. **Task 5.2:** Pad Grid component — standalone demo.
-23. **Task 5.3:** Vertical Fader / VU Meter / Knob components — standalone demo.
-24. **Task 5.4:** Riff History Indicator — standalone demo.
-25. **Task 5.5:** Waveform Timeline — standalone demo.
-26. **Task 5.6:** Assemble views: Dashboard (responsive Grid/Stack), Mode, FX, Mixer.
+20. **Task 5.1:** XY Pad component — standalone demo with mock state. Tap-only first; touch-and-hold deferred.
+21. **Task 5.2:** Pad Grid component — standalone demo (with scale-based note mapping for Notes/Bass modes).
+22. **Task 5.3:** Vertical Fader / VU Meter / Knob components — standalone demo.
+23. **Task 5.4:** Riff History Indicator — standalone demo.
+24. **Task 5.5:** Waveform Timeline — standalone demo.
+25. **Task 5.6:** Slot Indicator oblongs — standalone demo (FX source selection + mute toggle modes).
+26. **Task 5.7:** Assemble views: Dashboard (responsive Grid/Stack), Mode, FX, Mixer, Jam Manager.
 
 ### **Phase 6: Integration** *(Serial — combines engine + UI)*
 27. **Task 6.1:** `StateBroadcaster` patches (RFC 6902). Protocol Conformance Test bead (canned patch sequences → validate resulting state).

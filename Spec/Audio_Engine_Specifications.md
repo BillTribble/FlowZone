@@ -262,7 +262,7 @@ Adjust Tab controls:
 
 ## **5. SampleEngine — Sample Playback System**
 
-\u003e **Future-Proof Architecture:** Designed to replace procedural sounds with high-quality samples. V1 implementation supports basic playback; V2+ will add advanced features (multi-sampling, velocity layers, round-robin).
+\u003e **V2 Feature:** The Sample Engine is deferred to V2. This section documents the full design for future reference. V1 uses procedural instruments only (InternalSynth + DrumEngine).
 
 ### **5.1. Sample Loading**
 
@@ -351,7 +351,7 @@ Handles microphone/line input with real-time effects.
 
 *   **V1:** The microphone input has a **single built-in reverb effect** — controlled via Reverb Mix and Room Size knobs in the Adjust tab when Microphone mode is active (see main spec §7.6.4). This is a simple Freeverb instance, not the full InternalFX chain.
 *   **V2:** Full FX chain support (any InternalFX effect applied to input). Deferred.
-*   FX are applied to the input signal **before** it enters the retrospective capture buffer.
+*   FX are applied to the input signal **before** it enters the retrospective capture buffer (i.e., the wet signal is what gets recorded).
 
 ### **6.4. Waveform Display**
 
