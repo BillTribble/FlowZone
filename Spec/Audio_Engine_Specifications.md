@@ -254,9 +254,9 @@ As listed in mobile UI §7.6.3:
 
 Adjust Tab controls:
 
-*   **Pitch** → Tune individual pad (-12 to +12 semitones)
-*   **Tone** → Filter cutoff (brightens/darkens the sound)
-*   **Level** → Output gain per pad
+*   **Pitch** → Tune all pads globally (-12 to +12 semitones). Individual per-pad tuning is a potential V2 feature.
+*   **Tone** → Filter cutoff globally (brightens/darkens the sound across all pads)
+*   **Level** → Output gain globally (applies to all pads)
 
 ---
 

@@ -160,7 +160,7 @@ graph TD
 *   **Role:** Auto-save, crash-recovery snapshots, session loading, riff history management.
 *   **Implementation:**
     *   Manages the riff history (commit, load, delete operations).
-    *   Audio files are **never deleted immediately** — only marked for garbage collection on clean exit.
+    *   Audio files are **never deleted immediately** — only marked for garbage collection on clean exit. `DELETE_JAM` immediately removes session metadata and riff history entries; associated audio files are marked for GC and deleted on next clean exit.
     *   **Auto-save:** Writes a recovery snapshot every 30 seconds to `~/Library/Application Support/FlowZone/backups/autosave.json`.
     *   **No Undo/Redo in V1:** Riff History serves as the primary recovery mechanism — every committed riff is preserved and can be loaded at any time. Undo/Redo is deferred to V2 (see §1.3).
 
@@ -195,8 +195,12 @@ graph TD
 *   **Rendering:** 
     *   **UI:** React DOM.
     *   **Visualizers:** Canvas API (via `requestAnimationFrame`).
+*   **Network Configuration:**
+    *   Default port: `8765` (configurable via `config.json` field `"serverPort": 8765`).
+    *   React dev mode connects to `ws://localhost:8765`.
+    *   Health endpoint at `http://localhost:8765/api/health`.
 *   **Connection Lifecycle:**
-    1.  **Connect:** Client → opens WebSocket with `{ clientId: <UUID> }`.
+    1.  **Connect:** Client → opens WebSocket to `ws://localhost:<serverPort>` with `{ clientId: <UUID> }`.
     2.  **Handshake:** Server → sends `STATE_FULL` with current `revisionId` and `protocolVersion`.
     3.  **Version check:** If `protocolVersion` doesn't match, server sends `ERROR { code: 1100, msg: 'PROTOCOL_MISMATCH' }` and closes.
     4.  **Steady state:** Server → `STATE_PATCH` ops. Client → commands.
@@ -290,12 +294,16 @@ type Command =
   // Slot Control (no explicit record start/stop — see §3.10 Retrospective Capture)
   | { cmd: 'MUTE_SLOT'; slot: number }
   | { cmd: 'UNMUTE_SLOT'; slot: number }
-  | { cmd: 'SET_LOOP_LENGTH'; bars: number }                       // 1, 2, 4, or 8
+  | { cmd: 'SET_LOOP_LENGTH'; bars: number }                       // 1, 2, 4, or 8. **Dual-purpose:** Sets the loop length AND immediately captures that duration from the retrospective buffer into the next empty slot. This is the primary recording mechanism — see §3.10. In FX Mode, captures FX-processed audio instead (see §7.6.2 FX Mode).
+
+  // Performance (Pad / Note Triggering)
+  | { cmd: 'NOTE_ON'; note: number }                               // Trigger a note/pad. note: MIDI note number (0-127). Pad grid maps to notes via scale/root/transpose (§7.6.2). Drums use fixed pad-to-note mapping (§4.1 Audio Engine Spec). Equivalent to external MIDI NOTE_ON.
+  | { cmd: 'NOTE_OFF'; note: number }                              // Release a note/pad. Drums ignore NOTE_OFF (one-shot). Sustained synth presets (Organ, Warm Pad, etc.) require NOTE_OFF to stop sounding.
 
   // Mode & FX
   | { cmd: 'SELECT_MODE'; category: string; presetId: string }
   | { cmd: 'SELECT_EFFECT'; effectId: string }
-  | { cmd: 'SET_KNOB'; param: KnobParameter; val: number }         // Adjust tab knob
+  | { cmd: 'SET_KNOB'; param: KnobParameter; val: number }         // Adjust tab knob. Routed based on current activeMode.category — e.g., 'reverb_mix' in Microphone mode adjusts the mic's built-in reverb, while in Notes mode it adjusts the synth's reverb send.
   | { cmd: 'LOAD_VST'; slot: number; pluginId: string }
   | { cmd: 'SET_XY_PAD'; x: number; y: number }                    // XY pad position (0.0-1.0 each)
   | { cmd: 'FX_ENGAGE' }                                           // Finger down on XY pad — activate FX
@@ -309,7 +317,7 @@ type Command =
   | { cmd: 'TOGGLE_MONITOR_UNTIL_LOOPED' }                         // Toggle monitor-until-looped on/off
 
   // Session & Riff Management
-  | { cmd: 'COMMIT_RIFF' }                                         // Capture audio from retrospective buffer into the next empty slot, then save the resulting session state as a new entry in riff history. In FX Mode, captures FX-processed audio and deletes source slots (see §7.6.2 FX Mode). Available from Mixer tab.
+  | { cmd: 'COMMIT_RIFF' }                                         // Save the current session state (volumes, pans, mutes) as a new entry in riff history. Does NOT capture audio from the retrospective buffer — use loop length buttons (SET_LOOP_LENGTH) for audio capture. Only available from the Mixer tab, and only enabled when the user has changed mix levels or mute states since the last commit. In FX Mode, captures FX-processed audio and deletes source slots (see §7.6.2 FX Mode).
   | { cmd: 'LOAD_RIFF'; riffId: string }                           // Load riff from history
   | { cmd: 'DELETE_RIFF'; riffId: string }                         // Delete riff from history
   | { cmd: 'NEW_JAM' }                                              // Create a new jam session
@@ -352,7 +360,7 @@ interface JsonPatchOp {
 // Server Responses
 type ServerMessage =
   | { type: 'STATE_FULL'; data: AppState }
-  | { type: 'STATE_PATCH'; ops: JsonPatchOp[]; revId: number }
+  | { type: 'STATE_PATCH'; ops: JsonPatchOp[]; revisionId: number }
   | { type: 'ACK'; reqId: string }
   | { type: 'ERROR'; code: number; msg: string; reqId?: string };
 ```
@@ -370,13 +378,14 @@ Every command has a defined set of possible error responses:
 | `TOGGLE_METRONOME` | None (always succeeds) | Optimistic toggle. |
 | `SET_KEY` | `2030: INVALID_SCALE` | Revert to previous key/scale. Valid scales: `major`, `minor`, `minor_pentatonic`, `major_pentatonic`, `dorian`, `mixolydian`, `blues`, `chromatic`. |
 | `MUTE_SLOT` / `UNMUTE_SLOT` | None (always succeeds) | Optimistic toggle. |
-| `SET_LOOP_LENGTH` | `2050: INVALID_LOOP_LENGTH` | Revert to current length. |
+| `NOTE_ON` / `NOTE_OFF` | None (always succeeds) | Trigger/release immediately. Local audio feedback optional (engine is source of truth for sound). |
+| `SET_LOOP_LENGTH` | `2050: INVALID_LOOP_LENGTH`, `4010: NOTHING_TO_COMMIT` | Revert to current length. If retro buffer is empty (nothing played), show brief "Nothing to capture" toast. |
 | `SELECT_MODE` | `2060: PRESET_NOT_FOUND` | Show error toast. |
 | `SELECT_EFFECT` | `2060: PRESET_NOT_FOUND` | Show error toast. |
 | `SET_KNOB` | None (always succeeds) | Optimistic update. |
 | `LOAD_VST` | `3001: PLUGIN_CRASH`, `3010: PLUGIN_NOT_FOUND` | Show error in slot UI panel. |
 | `KEYMASHER_ACTION` | None (always succeeds) | Trigger immediately. |
-| `COMMIT_RIFF` | `4010: NOTHING_TO_COMMIT` | Disable commit button. |
+| `COMMIT_RIFF` | `4010: NOTHING_TO_COMMIT` | Button only visible when mix state has changed. If somehow triggered with no changes, show toast. |
 | `LOAD_RIFF` | `4011: RIFF_NOT_FOUND` | Show error toast. |
 | `DELETE_RIFF` | `4011: RIFF_NOT_FOUND` | Show error toast. |
 | `NEW_JAM` | None (always succeeds) | Navigate to new empty session. |
@@ -459,8 +468,8 @@ interface AppState {
     volume: number;                // 0.0 - 1.0
     pan: number;                   // -1.0 to 1.0
     name: string;
-    instrumentCategory: string;    // What produced this slot's audio
-    presetId: string;              // Which preset was used
+    instrumentCategory: string;    // What produced this slot's audio. Values: 'drums', 'notes', 'bass', 'fx', 'mic', 'ext_inst', 'ext_fx', 'merge' (auto-merge result).
+    presetId: string;              // Which preset was used. For mic recordings: 'mic_input'. For auto-merge: 'auto_merge'.
     userId: string;                // Who recorded this slot (multi-user)
     pluginChain: PluginInstance[];
     lastError?: number;            // Error code if slot has an active error
@@ -528,11 +537,12 @@ struct RiffSnapshot {
 
 *   **Format:** Raw Float32 Array (Little Endian).
 *   **Header:** `[Magic:4][FrameId:4][Timestamp:8]`
-*   **Payload:** `[MasterRMS_L][MasterRMS_R][Slot1_RMS][Slot1_Spec_1...16]...`
+*   **Payload:** `[BarPhase:4][MasterRMS_L][MasterRMS_R][Slot1_RMS][Slot1_Spec_1...16]...`
+*   **`BarPhase`:** A Float32 value (0.0–1.0) representing the current position within the bar. Included in every binary frame so the client can animate transport position at up to 30fps without polling JSON state. This value is **not** broadcast via JSON `STATE_PATCH` — it is exclusively delivered through the binary stream to avoid flooding the patch channel.
 *   **Transmission:** Binary frames on the **same** WebSocket connection used for JSON command/state traffic. The client distinguishes frame types by WebSocket opcode (`0x1` text = JSON, `0x2` binary = visualization). This avoids the complexity of managing a second connection.
 *   **Backpressure Control:**
     *   Server maintains a per-client `pendingFrameCount` (incremented on send, decremented on ACK).
-    *   Client sends a **4-byte ACK** after *every received frame*.
+    *   Client sends a **4-byte ACK** (the `FrameId` of the received frame as `uint32` Little Endian) after *every received frame*.
     *   If `pendingFrameCount > 3`, server skips sending the next frame.
     *   Fast clients get ~30fps; slow clients (phone on WiFi) gracefully degrade.
 
@@ -565,11 +575,10 @@ FlowZone uses **always-on capture** — there is no explicit "record start" or "
 
 **How recording works:**
 
-1.  **Continuous capture:** The engine maintains the circular buffer, always recording. The user plays pads/keys/drums naturally — everything is captured. No arming, no record button.
-2.  **Loop length selects a portion:** When the user taps a loop length section (1, 2, 4, or 8 bars via `SET_LOOP_LENGTH`), this determines *how much* audio will be taken from the buffer on the next commit. The buffer itself does not resize — only the selection window changes.
-3.  **Commit to slot:** When the user Taps a loop length button (1, 2, 4, or 8 Bars) in the Mode or Play tabs, the most recent N bars of audio (per the tapped length) are copied from the retrospective buffer into the next available slot.
-    *   **Implicit Commit:** There is no separate "Commit" button in the Mode/Play tabs. Tapping the length button *is* the commit action.
-    *   **Mixer Tab Commit:** The Mixer tab has a specific `COMMIT_RIFF` button for saving mix/pan changes as a new riff, but meant for "mix-down" style commits rather than initial capture.
+1.  **Continuous capture:** The engine maintains the circular buffer, always recording. The user plays pads/keys/drums via `NOTE_ON`/`NOTE_OFF` commands from the React UI — the engine generates audio and everything is captured into the retrospective buffer. No arming, no record button. External MIDI input also triggers NOTE_ON/OFF through the same path.
+2.  **Commit to slot via loop length tap:** When the user taps a **Loop Length Button** (1, 2, 4, or 8 Bars) in the Mode or Play tabs, the `SET_LOOP_LENGTH` command fires. This simultaneously sets the loop length to that value AND copies the most recent N bars of audio from the retrospective buffer into the next available slot. The buffer itself does not resize — only the capture window changes.
+    *   **Implicit Commit:** There is no separate "Commit" button in the Mode/Play tabs. Tapping the length button *is* the commit action. `SET_LOOP_LENGTH` is the primary recording command.
+    *   **Mixer Tab Commit:** The Mixer tab has a specific `COMMIT_RIFF` button for saving mix/pan changes as a new riff — this is a state-only snapshot and does **not** capture audio from the retrospective buffer.
 4.  **Slot state transitions:**
     *   `EMPTY` → `PLAYING` (audio committed from retrospective buffer)
     *   `PLAYING` → `MUTED` (user mutes)
@@ -657,6 +666,7 @@ Strict adherence for Agent clarity.
     1.  Parse JSON. If parse fails → load backup.
     2.  Check `configVersion`. If older than current app version → run a migration function.
     3.  If migration fails → load factory defaults. Archive old config as `config.legacy.json`.
+    4.  If factory default loading also fails → initialize with a **hardcoded minimum configuration** compiled into the binary (44.1kHz, 512 buffer, no plugins, no session auto-load). This is the absolute fallback and cannot fail.
 
 ---
 
@@ -719,7 +729,7 @@ All components must emit logs in this format. One JSON object per line (`*.jsonl
 
 ### **5.3. Telemetry & Metrics**
 *   **Local Metric Store:** A circular buffer of the last 10 minutes of performance metrics (CPU, RAM, FPS, disk buffer %).
-*   **Developer Overlay:** UI can request `GET_METRICS_HISTORY` to render a performance graph.
+*   **Developer Overlay:** UI can request metrics history to render a performance graph. The `GET_METRICS_HISTORY` command will be defined as part of Phase 8 (Task 8.7) when the developer overlay is implemented.
 
 ### **5.4. HTTP Health Endpoint**
 
@@ -1000,7 +1010,7 @@ When the user selects **FX** from the Mode category selector, the app enters FX 
 
 **Workflow:**
 
-1.  **Enter FX Mode:** User taps **FX** in the Mode category selector (§7.6.2).
+1.  **Enter FX Mode:** User taps **FX** in the Mode category selector (§7.6.2). On entry, if the current session state differs from the latest riff history entry, the engine automatically commits the current state to riff history. This ensures all mix adjustments (volumes, pans, mutes) are preserved before any destructive FX operation.
 2.  **Select Source Layers:** The bottom panel shows loop slot indicators as **oblong loop symbols** (with rounded edges). Each has a **square selector indicator** that toggles selection on/off. User taps to select which layers are fed through the FX chain. Uses `SELECT_FX_SOURCE_SLOTS` command.
 3.  **Select Effect:** The Play tab (§7.6.3) shows the main FX selector. Only one effect is active at a time — this is an FX *selector*, not a chain. The XY pad (visible only in FX Mode) controls the selected effect's parameters in real-time.
 4.  **Real-Time Processing:** While in FX Mode, selected layers are continuously routed through the active effect and output to the audio buffer. **Unselected slots continue playing normally** alongside the FX-processed audio. The user **cannot play instruments** while in FX Mode (V1).
@@ -1023,7 +1033,7 @@ When the user selects **FX** from the Mode category selector, the app enters FX 
 *   `SELECT_EFFECT` chooses the active effect
 *   `FX_ENGAGE` / `FX_DISENGAGE` activates/deactivates the effect (finger down/up on XY pad)
 *   `SET_XY_PAD` updates the XY pad position in real-time
-*   `COMMIT_RIFF` in FX Mode triggers the resample-and-replace behavior
+*   `SET_LOOP_LENGTH` in FX Mode captures the FX-processed audio and triggers the resample-and-replace behavior (same dual-purpose as in other modes)
 
 > **Note:** The XY pad is only visible when in FX Mode. There is no FX chain or XY pad available in other modes (Drums, Notes, Bass, etc.) for V1. The Audio In slot has its own independent FX chain (simple reverb for vocals), which is only accessible from the Audio In / Microphone mode and is not related to FX Mode.
 
@@ -1043,6 +1053,8 @@ When a user attempts to record into a 9th slot (all 8 slots are occupied), the a
 6.  **Proceed:** Recording begins into Slot 2 (first empty slot after merge).
 
 > **Note:** This merge is destructive to the individual slot contents, but safe because the pre-merge state was already saved to Riff History via the auto-commit in step 5. The user can always load a previous riff to recover individual layers.
+
+> **Implementation Note:** The auto-merge operation must be non-blocking from the audio thread's perspective. During merge, the 8 existing loops continue playing. The merge computation (summing and writing) happens on a background thread. Once complete, the slot states are atomically swapped on the next audio callback. The retrospective buffer continues capturing during the merge, so no audio is lost — the capture begins from the next available slot once the merge finalizes.
 
 ---
 
@@ -1141,6 +1153,7 @@ When the active category is **Microphone**, the Adjust tab shows a simplified la
 *   **Button:**
     1.  **Commit Mix** (checkmark icon) — Light prominent style (primary CTA)
         *   **Action:** Uses `COMMIT_RIFF` command to save the current volume/pan/mute state as a new Riff History entry.
+        *   **Visibility:** This button is **only visible when the user has changed mix levels (volume, pan) or toggled a mute** since the last commit or riff load. It is hidden when no mix changes have been made — preventing accidental or empty commits.
         *   **Note:** This is the *only* place a dedicated "Commit" button appears. In other modes, committing is implicit via Loop Length taps.
 
 #### **Channel Strips**
@@ -1193,7 +1206,7 @@ This is a dedicated full-screen view (not a tab). Accessed by tapping "Expand" i
 #### **Riff Details (Selected Riff)**
 *   **User Info:** Username (e.g., "bill_tribble")
 *   **Timestamp:** Relative or absolute (e.g., "Yesterday", "11 Feb 2026")
-*   **Metadata:** Time signature and BPM (e.g., "4/4 120.00 BPM")
+*   **Metadata:** Time signature and BPM (e.g., "4/4 120.00 BPM"). V1 uses 4/4 time signature exclusively — the "4/4" display is hardcoded. Time signature selection is a potential V2 feature.
 *   **Scale:** Key and scale name (e.g., "C Minor Pentatonic")
 *   **Avatar:** Circular user image
 *   **Riff Icon:** Large oblong layer cake indicator
