@@ -2,7 +2,7 @@
 
 **Version:** 1.6 (Unified Architecture + Product Specification)  
 **Target Framework:** JUCE 8.0.x (C++20) + React 18.3.1 (TypeScript 5.x)  
-**Platform:** macOS (Standalone App, Silicon Native)  
+**Platform:** macOS (Standalone App + VST3 Plugin, Silicon Native)  
 **Repository Structure:** Monorepo  
 
 ---
@@ -34,6 +34,8 @@
 *   **Agent-Optimized:** Codebase structured for clarity, with single-source-of-truth schemas and a step-by-step implementation recipe (§6).
 *   **Responsive Design:** The UI must adapt fluidly to the client device's form factor (Phone vs. Tablet/Desktop).
 *   **Centralized Audio Processing:** All audio processing happens on the main macOS computer.
+*   **Multi-Channel Output:** 8 stereo pairs (16 channels) for DAW recording via the VST3 plugin target. Each slot maps to one stereo pair, enabling multi-track capture of live sessions.
+*   **Dual Build Target:** Built simultaneously as a Standalone App and a VST3 Plugin from the same Projucer project. When running as a VST3, the app provides multi-channel output for DAW recording of riffs. VST3 hosting (Phase 7) is only available in Standalone mode.
 *   **Retrospective "Always-On" Capture:** Implement a lock-free circular buffer (~60s).
 *   **Hybrid Sound Engine:** VST3 Hosting, Internal Procedural Instruments, Mic Input Processing.
 *   **Microtuning Support:** Internal synths must support microtuning via `.scl` (Scala) and `.kbm` files, with standard presets (Just Intonation, Pythagorean, Slendro, Pelog, 12TET).
@@ -48,6 +50,7 @@
 
 ### **1.3. Future Goals (V2 Stretch)**
 *   **Ableton Link Integration:** Global phase-sync across devices and applications.
+*   **Export Riffs:** Export riff audio (stems, mixdown) to disk.
 *   **Windows/Linux Ports**
 *   **Tap Tempo Cold Start:** Time-between-taps sets session tempo when transport is stopped and slots are empty.
 *   **WebGL Visualizers:** GPU-accelerated visualization option.
@@ -104,6 +107,7 @@ graph TD
 *   The singleton `juce::AudioProcessor`.
 *   **Role:** Real-time audio processing DAG.
 *   **Priority:** `Realtime` (macOS `UserInteractive` QoS).
+*   **Master Limiter:** A brickwall limiter is applied to the master stereo output as the final stage of `processBlock`. Active only in Standalone mode — **bypassed in VST3 multi-channel mode** so that dynamics are preserved for DAW recording. Ceiling: -0.3 dBFS, lookahead: 1ms.
 
 #### **B. TransportService** — `src/engine/transport/TransportService.cpp`
 *   **Role:** Manages Transport state (Play/Pause, BPM, Phase). 
@@ -260,6 +264,10 @@ These must be kept in sync. Changes to one **must** be reflected in the other.
 ```typescript
 // Commands sent from Client -> Engine
 // Must match C++ decoding logic EXACTLY.
+
+// Valid parameter names for the SET_KNOB command (Adjust tab)
+type KnobParameter = 'pitch' | 'length' | 'tone' | 'level' | 'bounce' | 'speed' | 'reverb' | 'reverb_mix' | 'room_size';
+
 type Command = 
   // Volume & Pan
   | { cmd: 'SET_VOL'; slot: number; val: number; reqId: string }   // val: 0.0 - 1.0
@@ -271,31 +279,66 @@ type Command =
   | { cmd: 'STOP' }
   | { cmd: 'SET_TEMPO'; bpm: number }                              // bpm: 20.0 - 300.0
   | { cmd: 'TOGGLE_METRONOME' }
+  | { cmd: 'TOGGLE_QUANTISE' }                                     // Toggle quantise on/off
   | { cmd: 'SET_KEY'; rootNote: number; scale: string }
 
-  // Slot Control
+  // Slot Control (no explicit record start/stop — see §3.10 Retrospective Capture)
   | { cmd: 'TRIGGER_SLOT'; slot: number; quantized: boolean }
   | { cmd: 'MUTE_SLOT'; slot: number }
   | { cmd: 'UNMUTE_SLOT'; slot: number }
-  | { cmd: 'RECORD_START'; slot: number }
-  | { cmd: 'RECORD_STOP'; slot: number }
   | { cmd: 'SET_LOOP_LENGTH'; bars: number }                       // 1, 2, 4, or 8
 
   // Mode & FX
   | { cmd: 'SELECT_MODE'; category: string; presetId: string }
   | { cmd: 'SELECT_EFFECT'; effectId: string }
-  | { cmd: 'SET_KNOB'; param: string; val: number }                // Adjust tab knob
+  | { cmd: 'SET_KNOB'; param: KnobParameter; val: number }         // Adjust tab knob
   | { cmd: 'LOAD_VST'; slot: number; pluginId: string }
+  | { cmd: 'SET_XY_PAD'; x: number; y: number }                    // XY pad position (0.0-1.0 each)
+  | { cmd: 'FX_ENGAGE' }                                           // Finger down on XY pad — activate FX
+  | { cmd: 'FX_DISENGAGE' }                                        // Finger up on XY pad — bypass FX
+  | { cmd: 'SELECT_FX_SOURCE_SLOTS'; slots: number[] }             // FX Mode: select which slots to route through FX
+  | { cmd: 'KEYMASHER_ACTION'; action: KeymasherButton }           // Keymasher performance button press
 
-  // Session & Riff
+  // Microphone / Input
+  | { cmd: 'SET_INPUT_GAIN'; val: number }                         // val: -60dB to +40dB
+  | { cmd: 'TOGGLE_MONITOR_INPUT' }                                // Toggle direct monitoring on/off
+  | { cmd: 'TOGGLE_MONITOR_UNTIL_LOOPED' }                         // Toggle monitor-until-looped on/off
+
+  // Session & Riff Management
   | { cmd: 'COMMIT_RIFF' }                                         // Save current state to riff history
   | { cmd: 'LOAD_RIFF'; riffId: string }                           // Load riff from history
-  | { cmd: 'START_NEW' }                                            // Clear slots, start fresh riff
+  | { cmd: 'DELETE_RIFF'; riffId: string }                         // Delete riff from history
+  | { cmd: 'NEW_JAM' }                                              // Create a new jam session
+  | { cmd: 'LOAD_JAM'; sessionId: string }                         // Load an existing jam session
+  | { cmd: 'RENAME_JAM'; sessionId: string; name: string }         // Rename a jam session
+  | { cmd: 'DELETE_JAM'; sessionId: string }                       // Delete a jam session and its audio
   | { cmd: 'UNDO'; scope: 'SESSION' }
+  | { cmd: 'REDO'; scope: 'SESSION' }                              // Redo last undone action
+
+  // UI Settings (UI-only, stored in localStorage — not sent to engine)
+  | { cmd: 'TOGGLE_NOTE_NAMES' }                                   // Toggle note name display on pads
+
+  // Engine Settings (sent to engine via WebSocket)
+  | { cmd: 'SET_AUDIO_DEVICE'; deviceType: 'input' | 'output'; deviceId: string }
+  | { cmd: 'SET_SAMPLE_RATE'; rate: number }                       // 44100, 48000, 88200, 96000
+  | { cmd: 'SET_BUFFER_SIZE'; size: number }                       // 16, 32, 64, 128, 256, 512, 1024
+  | { cmd: 'SET_INPUT_CHANNELS'; channels: number[] }              // Enable specific input channels
+  | { cmd: 'SET_OUTPUT_CHANNELS'; channels: number[] }             // Enable specific output channels
+  | { cmd: 'PLAY_TEST_TONE' }                                      // Play test tone through output
+  | { cmd: 'SET_MIDI_INPUT_ACTIVE'; portId: string; active: boolean }
+  | { cmd: 'SET_CLOCK_SOURCE'; source: 'internal' | 'external_midi' }
+  | { cmd: 'SET_VST_SEARCH_PATHS'; paths: string[] }               // Update VST3 search directories
+  | { cmd: 'RESCAN_PLUGINS' }                                      // Trigger full plugin rescan
+  | { cmd: 'SET_STORAGE_LOCATION'; path: string }                  // Set recordings storage path
+  | { cmd: 'SET_RIFF_SWAP_MODE'; mode: 'instant' | 'swap_on_bar' } // How riff history taps switch playback
 
   // System
-  | { cmd: 'PANIC'; scope: 'ALL' | 'ENGINE' }                     // Immediate silence/reset
-  | { cmd: 'AUTH'; pin: string };                                   // Optional PIN auth
+  | { cmd: 'PANIC'; scope: 'ALL' | 'ENGINE' }                     // ALL: silence + reset all slots + stop transport. ENGINE: silence audio output only, preserve state.
+  | { cmd: 'AUTH'; pin: string }                                    // Optional PIN auth
+  | { cmd: 'WS_RECONNECT'; revisionId: number; clientId: string }; // Client reconnection with last known state revision
+
+// Valid Keymasher button actions
+type KeymasherButton = 'repeat' | 'pitch_down' | 'pitch_rst' | 'pitch_up' | 'reverse' | 'gate' | 'scratch' | 'buzz' | 'stutter' | 'goto' | 'goto2' | 'buzz_slip';
 
 // Server Responses
 type ServerMessage = 
@@ -319,19 +362,44 @@ Every command has a defined set of possible error responses:
 | `SET_KEY` | `2030: INVALID_SCALE` | Revert to previous key/scale. |
 | `TRIGGER_SLOT` | `2010: SLOT_BUSY` | Show toast "Slot busy, try again." |
 | `MUTE_SLOT` / `UNMUTE_SLOT` | None (always succeeds) | Optimistic toggle. |
-| `RECORD_START` | `2010: SLOT_BUSY`, `2040: NO_INPUT` | Show error toast. |
-| `RECORD_STOP` | None (always succeeds) | Finalize recording. |
 | `SET_LOOP_LENGTH` | `2050: INVALID_LOOP_LENGTH` | Revert to current length. |
 | `SELECT_MODE` | `2060: PRESET_NOT_FOUND` | Show error toast. |
 | `SELECT_EFFECT` | `2060: PRESET_NOT_FOUND` | Show error toast. |
 | `SET_KNOB` | None (always succeeds) | Optimistic update. |
 | `LOAD_VST` | `3001: PLUGIN_CRASH`, `3010: PLUGIN_NOT_FOUND` | Show error in slot UI panel. |
+| `KEYMASHER_ACTION` | None (always succeeds) | Trigger immediately. |
 | `COMMIT_RIFF` | `4010: NOTHING_TO_COMMIT` | Disable commit button. |
 | `LOAD_RIFF` | `4011: RIFF_NOT_FOUND` | Show error toast. |
-| `START_NEW` | None (always succeeds) | Full UI reset. |
+| `DELETE_RIFF` | `4011: RIFF_NOT_FOUND` | Show error toast. |
+| `NEW_JAM` | None (always succeeds) | Navigate to new empty session. |
+| `LOAD_JAM` | `4020: SESSION_NOT_FOUND` | Show error toast. |
+| `RENAME_JAM` | `4020: SESSION_NOT_FOUND` | Show error toast. |
+| `DELETE_JAM` | `4020: SESSION_NOT_FOUND` | Show error toast. |
 | `UNDO` | `4001: NOTHING_TO_UNDO` | Disable undo button. |
-| `PANIC` | None (always succeeds) | Full UI reset animation. |
+| `REDO` | `4002: NOTHING_TO_REDO` | Disable redo button. |
+| `PANIC` | None (always succeeds) | `ALL`: Full UI reset animation. `ENGINE`: silence output, preserve UI state. |
 | `AUTH` | `1101: AUTH_FAILED` | Show "Incorrect PIN" prompt. |
+| `TOGGLE_QUANTISE` | None (always succeeds) | Optimistic toggle. |
+| `SET_XY_PAD` | None (always succeeds) | Optimistic update. |
+| `FX_ENGAGE` | None (always succeeds) | Show crosshair, activate effect. |
+| `FX_DISENGAGE` | None (always succeeds) | Hide crosshair, bypass effect. |
+| `SELECT_FX_SOURCE_SLOTS` | `2010: SLOT_BUSY` | Show error toast. |
+| `SET_INPUT_GAIN` | None (always succeeds) | Optimistic update. |
+| `TOGGLE_MONITOR_INPUT` | None (always succeeds) | Optimistic toggle. |
+| `TOGGLE_MONITOR_UNTIL_LOOPED` | None (always succeeds) | Optimistic toggle. |
+| `TOGGLE_NOTE_NAMES` | None (always succeeds) | Optimistic toggle. |
+| `SET_AUDIO_DEVICE` | `2070: AUDIO_DEVICE_NOT_FOUND` | Revert to previous device. |
+| `SET_SAMPLE_RATE` | `2071: INVALID_SAMPLE_RATE` | Revert to previous rate. |
+| `SET_BUFFER_SIZE` | `2072: INVALID_BUFFER_SIZE` | Revert to previous size. |
+| `SET_INPUT_CHANNELS` / `SET_OUTPUT_CHANNELS` | None (always succeeds) | Optimistic update. |
+| `PLAY_TEST_TONE` | None (always succeeds) | Show "Playing..." indicator. |
+| `SET_MIDI_INPUT_ACTIVE` | None (always succeeds) | Optimistic toggle. |
+| `SET_CLOCK_SOURCE` | None (always succeeds) | Optimistic update. |
+| `SET_VST_SEARCH_PATHS` | None (always succeeds) | Update paths list. |
+| `RESCAN_PLUGINS` | None (always succeeds) | Show scanning indicator. |
+| `SET_STORAGE_LOCATION` | `1003: STORAGE_PATH_INVALID` | Show error toast. |
+| `SET_RIFF_SWAP_MODE` | None (always succeeds) | Optimistic update. |
+| `WS_RECONNECT` | `1100: PROTOCOL_MISMATCH` | Full page reload. |
 
 ### **3.4. App State**
 
@@ -343,6 +411,7 @@ interface AppState {
     serverTime: number;           // For jitter compensation
     mode: 'NORMAL' | 'SAFE_MODE';
     version: string;              // e.g. "1.0.0"
+    isVstMode: boolean;           // True when running as VST3 plugin (read-only)
   };
   session: {
     id: string;                    // UUID
@@ -356,6 +425,7 @@ interface AppState {
     barPhase: number;              // 0.0 - 1.0
     loopLengthBars: number;        // Current loop length (1, 2, 4, 8)
     metronomeEnabled: boolean;
+    quantiseEnabled: boolean;      // Whether input is quantised to grid
     rootNote: number;              // 0-11 (C=0)
     scale: string;                 // e.g., 'minor_pentatonic'
   };
@@ -363,16 +433,23 @@ interface AppState {
     category: string;              // 'drums' | 'notes' | 'bass' | 'sampler' | 'fx' | 'mic' | 'ext_inst' | 'ext_fx'
     presetId: string;              // Currently selected preset
     presetName: string;            // Display name
+    isFxMode: boolean;             // True when FX resampling mode is active
+    selectedSourceSlots: number[]; // Slots selected for FX Mode routing (empty when not in FX mode)
   };
   activeFX: {
     effectId: string;              // Currently selected effect
     effectName: string;            // Display name
     xyPosition: { x: number; y: number }; // Current XY pad state (0.0-1.0)
-    isActive: boolean;             // Whether effect is currently engaged (finger down)
+    isActive: boolean;             // Whether effect is currently engaged (finger down on XY pad)
+  };
+  mic: {
+    inputGain: number;             // -60dB to +40dB
+    monitorInput: boolean;         // Direct monitoring on/off
+    monitorUntilLooped: boolean;   // Monitor until first loop commit
   };
   slots: Array<{
     id: string;                    // UUID
-    state: 'EMPTY' | 'RECORDING' | 'PLAYING' | 'MUTED';
+    state: 'EMPTY' | 'RECORDING' | 'PLAYING' | 'MUTED' | 'STOPPED';  // STOPPED: slot has audio but transport is not running
     volume: number;                // 0.0 - 1.0
     pan: number;                   // -1.0 to 1.0
     name: string;
@@ -390,6 +467,16 @@ interface AppState {
     colors: string[];              // Layer cake colors (source-based)
     userId: string;                // Who committed
   }>;
+  settings: {
+    riffSwapMode: 'instant' | 'swap_on_bar';  // How riff history taps switch playback
+    bufferSize: number;            // Current buffer size (16, 32, 64, 128, 256, 512, 1024)
+    sampleRate: number;            // Current sample rate (44100, 48000, 88200, 96000)
+    storageLocation: string;       // Path for recordings storage
+    clockSource: 'internal' | 'external_midi';
+  };
+  ui: {
+    noteNamesEnabled: boolean;     // Show note names on pads
+  };
   system: {
     cpuLoad: number;               // 0.0 - 1.0 (DSP time / buffer time)
     diskBufferUsage: number;       // 0.0 - 1.0
@@ -398,6 +485,8 @@ interface AppState {
   };
 }
 ```
+
+> **Note:** Multi-channel output routing (8 stereo pairs / 16 channels for VST3 DAW mode) is automatic: Slot N → Output Pair N. This is not user-configurable in V1 and does not appear in the UI.
 
 ### **3.5. RiffSnapshot (C++)**
 
@@ -448,6 +537,24 @@ struct RiffSnapshot {
 
 For low-latency commands (`SET_VOL`, `SET_PAN`, `SET_TEMPO`), the client updates its local state optimistically before receiving server confirmation. On the next `STATE_PATCH`, the client reconciles. If the server sends an `ERROR`, the client reverts to the last confirmed state. Apply this consistently to all "always succeeds" or "range-clampable" commands.
 
+### **3.10. Retrospective Capture (Always-On Recording)**
+
+FlowZone uses **always-on capture** — there is no explicit "record start" or "record stop" command. The audio engine continuously captures all played audio into a rolling retrospective buffer.
+
+**How recording works:**
+
+1.  **Continuous capture:** The engine maintains a circular buffer that always records the output of the currently selected instrument/mode. The buffer length matches `transport.loopLengthBars`.
+2.  **Commit to slot:** When the user triggers `COMMIT_RIFF` (or the loop cycle completes with quantised commit enabled), the retrospective buffer is written to the next available slot.
+3.  **No arming required:** The user plays pads/keys/drums naturally. Everything is captured. The user never needs to "arm" or "start" recording — the creative flow is uninterrupted.
+4.  **Slot state transitions:**
+    *   `EMPTY` → `PLAYING` (audio committed from retrospective buffer)
+    *   `PLAYING` → `STOPPED` (transport stopped)
+    *   `STOPPED` → `PLAYING` (transport started)
+    *   `PLAYING` → `MUTED` (user mutes)
+    *   `MUTED` → `PLAYING` (user unmutes)
+
+This model ensures **zero-latency creative flow** — the user never waits for recording to start or misses the beginning of a performance.
+
 ---
 
 ## **4. File System & Reliability**
@@ -458,7 +565,6 @@ Strict adherence for Agent clarity.
 
 ```
 /FlowZone_Root
-├── /cmake
 ├── /src
 │   ├── /engine              # Core Audio Logic
 │   │   ├── /transport       # TransportService
@@ -538,6 +644,7 @@ Agents must strictly use these codes. New codes must be registered here before u
 *   `1000-1099`: System (Boot, Config, Filesystem)
     *   `1001`: `ERR_DISK_FULL`
     *   `1002`: `ERR_DISK_CRITICAL` (Write failed / overflow exceeded)
+    *   `1003`: `ERR_STORAGE_PATH_INVALID`
     *   `1010`: `ERR_CONFIG_CORRUPT`
     *   `1011`: `ERR_CONFIG_MIGRATION_FAILED`
 *   `1100-1199`: Protocol
@@ -552,6 +659,9 @@ Agents must strictly use these codes. New codes must be registered here before u
     *   `2040`: `ERR_NO_INPUT` (No audio input device available)
     *   `2050`: `ERR_INVALID_LOOP_LENGTH`
     *   `2060`: `ERR_PRESET_NOT_FOUND`
+    *   `2070`: `ERR_AUDIO_DEVICE_NOT_FOUND`
+    *   `2071`: `ERR_INVALID_SAMPLE_RATE`
+    *   `2072`: `ERR_INVALID_BUFFER_SIZE`
 *   `3000-3999`: Plugins
     *   `3001`: `ERR_PLUGIN_CRASH`
     *   `3002`: `ERR_PLUGIN_TIMEOUT`
@@ -559,8 +669,10 @@ Agents must strictly use these codes. New codes must be registered here before u
     *   `3020`: `ERR_PLUGIN_OVERLOAD` (IPC ring buffer drops)
 *   `4000-4999`: Session
     *   `4001`: `ERR_NOTHING_TO_UNDO`
+    *   `4002`: `ERR_NOTHING_TO_REDO`
     *   `4010`: `ERR_NOTHING_TO_COMMIT`
     *   `4011`: `ERR_RIFF_NOT_FOUND`
+    *   `4020`: `ERR_SESSION_NOT_FOUND`
 
 ### **5.2. Structured Log Format (JSONL)**
 
@@ -674,7 +786,7 @@ Example: Adding `MUTE_SLOT`.
 
 #### **Phone Mode (`< 768px`)**
 
-*   **Navigation:** Bottom Tab Bar (Mode | Sound | Adjust | Mixer). Settings accessed via "More" button in Mixer tab (§7.6.8).
+*   **Navigation:** Bottom Tab Bar (Mode | Play | Adjust | Mixer). Settings accessed via "More" button in Mixer tab (§7.6.8).
 *   **Dashboard:** Vertical Stack.
 *   **Mixer:** Scrollable.
 
@@ -726,49 +838,9 @@ Example: Adding `MUTE_SLOT`.
 }
 ```
 
-### **7.4. Settings Panel Specification**
+### **7.4. Settings**
 
-The settings view is divided into four tabs. Changes made here sync to the Engine immediately via WebSocket.
-
-#### **A. Interface (Look & Feel)**
-
-*   **Zoom Level:** Global UI scaling percentage.
-    *   *Controls:* Slider [50% - 200%]. (Default: 100%).
-    *   *Implementation:* CSS `html { font-size: X% }` using REM units for all layout.
-*   **Theme:** Color scheme selector.
-    *   *Options:* Dark | Mid | Light | Match System.
-*   **Font Size:** Base text scaling independent of layout zoom.
-    *   *Options:* Small | Medium (Default) | Large.
-*   **Reduce Motion:** Accessibility toggle.
-    *   *Action:* Disables canvas visualizer animations and smooth scrolling.
-*   **Emoji Skin Tone:** Global preference for emoji modifiers.
-    *   *Options:* None (Yellow) | Light | Medium-Light | Medium | Medium-Dark | Dark.
-    *   *Implementation:* Applies Unicode skin tone modifiers (U+1F3FB to U+1F3FF) to supported emojis.
-
-#### **B. Audio (Engine Configuration)**
-
-*   **Driver Type:** CoreAudio only for V1.
-*   **Input Device:** Dropdown selector for Hardware Input.
-*   **Output Device:** Dropdown selector for Hardware Output.
-*   **Sample Rate:** Dropdown [44.1kHz | 48kHz | 88.2kHz | 96kHz].
-*   **Buffer Size:** Dropdown [16 | 32 | 64 | 128 | 256 | 512 | 1024].
-    *   *Note:* Critical for latency management. Lower values = lower latency but higher CPU load.
-*   **Input Channels:** Checkbox matrix to enable/disable specific inputs from the interface (1-8).
-
-#### **C. MIDI & Sync**
-
-*   **MIDI Inputs:** List of detected ports with "Active" checkboxes.
-*   **Clock Source:** Radio button [Internal | External MIDI Clock].
-    *   *Note:* Ableton Link clock source deferred to V2 (see §1.3).
-
-#### **D. Library & VST**
-
-*   **VST3 Search Paths:** List of directories.
-    *   *Actions:* Add Path, Remove Path.
-*   **Scan:**
-    *   *Button:* "Rescan All Plugins".
-    *   *Toggle:* "Scan on Startup".
-*   **Storage Location:** Path selector for where Recordings/Project History are saved.
+All settings are accessed via the **More Options / Settings Panel** (§7.6.8), opened from the "More" button in the Mixer tab. This is the only settings entry point on all devices. Changes sync to the Engine immediately via WebSocket.
 
 ### **7.5. Safe Mode Recovery UI**
 
@@ -793,16 +865,16 @@ This section defines the UI layout implementation details. For the complete JSON
     *   Position: Top center
     *   Typography: Small caps, secondary color
 *   **Top Bar Controls:** 3-section horizontal layout
-    *   **Left Section:** Home button, Help button
-    *   **Center Section:** Metronome toggle, Play/Pause toggle, Loop/Record toggle
-    *   **Right Section:** Share button, Add button
+    *   **Left Section:** Home button (navigates to Jam Manager §7.7)
+    *   **Center Section:** Metronome toggle, Play/Pause toggle
+    *   **Right Section:** Undo button, Redo button
 
 #### **Navigation Tabs**
 *   **Layout:** Horizontal tab bar
 *   **Position:** Bottom of content area (above riff history indicators)
 *   **Tabs:** 4 tabs in fixed order
     1.  **Mode** — Grid icon
-    2.  **Sound** — Wave icon
+    2.  **Play** — Wave icon — *Sub-view of Mode; shows presets + pads for the selected category*
     3.  **Adjust** — Knob icon  
     4.  **Mixer** — Sliders icon
 *   **Visual State:**
@@ -840,9 +912,8 @@ This section defines the UI layout implementation details. For the complete JSON
 #### **Toolbar**
 *   **Position:** Between navigation tabs and waveform display
 *   **Items:** 
-    *   **Undo** button (left)
     *   **Riff History Indicators** (center, see above)
-    *   **Expand** button (right) — Expands timeline to fullscreen
+    *   **Expand** button (right) — Expands to Riff History View (§7.6.7)
 
 ---
 
@@ -861,7 +932,7 @@ This section defines the UI layout implementation details. For the complete JSON
 #### **Active Preset Display**
 *   **Position:** Top right of tab (above preset selector)
 *   **Content:** 
-    *   Preset name (e.g., "Slicer")
+    *   Preset name
     *   Creator attribution (e.g., "by bill_tribble")
 
 #### **Preset Selector**
@@ -870,7 +941,9 @@ This section defines the UI layout implementation details. For the complete JSON
 *   **Visual State:**
     *   **Selected:** Highlighted with rounded background
     *   **Unselected:** Transparent or subtle background
-*   **Examples:** Slicer, Razzz, Acrylic, Ting, Hoard, Bumper, Amoeba, Girder, Demand, Prey, Stand, Lanes
+*   **Content:** 3×4 grid of selectable presets. Preset names are defined per instrument category in [Audio_Engine_Specifications.md](./Audio_Engine_Specifications.md).
+
+> **Note:** Preset names will be created specifically for FlowZone. See `Audio_Engine_Specifications.md` for current working names (Sine Bell, Saw Lead, Sub, Growl, etc.).
 
 #### **Pad Grid**
 *   **Structure:** 4×4 grid (16 pads total)
@@ -898,40 +971,56 @@ When the user selects **FX** from the Mode category selector, the app enters FX 
 **Workflow:**
 
 1.  **Enter FX Mode:** User taps **FX** in the Mode category selector (§7.6.2).
-2.  **Select Source Layers:** The bottom panel shows loop slot indicators as **oblong loop symbols** (with rounded edges). Each has a **square selector indicator** that toggles selection on/off. User taps to select which layers are fed through the FX chain.
-3.  **Select Effect:** The Sound tab (§7.6.3) shows the main FX selector. Only one effect is active at a time — this is an FX *selector*, not a chain. The XY pad controls the selected effect's parameters in real-time.
-4.  **Real-Time Processing:** While in FX Mode, selected layers are continuously routed through the active effect and output to the audio buffer. The user hears the processed audio in real-time.
-5.  **Commit Resampled Layer:** When the user commits (records), the FX-processed audio is captured for one loop cycle and written to the **next empty slot**. The source slots that were selected are then **deleted**.
-6.  **Auto-Merge:** If all 8 slots are full when committing the resampled layer, the standard auto-merge rule applies first (sum Slots 1-8 into Slot 1), then the resampled audio goes into the next available slot.
+2.  **Select Source Layers:** The bottom panel shows loop slot indicators as **oblong loop symbols** (with rounded edges). Each has a **square selector indicator** that toggles selection on/off. User taps to select which layers are fed through the FX chain. Uses `SELECT_FX_SOURCE_SLOTS` command.
+3.  **Select Effect:** The Play tab (§7.6.3) shows the main FX selector. Only one effect is active at a time — this is an FX *selector*, not a chain. The XY pad (visible only in FX Mode) controls the selected effect's parameters in real-time.
+4.  **Real-Time Processing:** While in FX Mode, selected layers are continuously routed through the active effect and output to the audio buffer. **Unselected slots continue playing normally** alongside the FX-processed audio. The user **cannot play instruments** while in FX Mode (V1).
+5.  **FX Activation:** The effect is engaged only while the user's finger is held down on the XY pad (`FX_ENGAGE` on touch-down, `FX_DISENGAGE` on touch-up). When disengaged, the selected layers play through unprocessed.
+6.  **Commit Resampled Layer:** When the user commits (records), the FX-processed audio is captured for one loop cycle and written to the **next empty slot**. The source slots that were selected are then **deleted** (destructive — this is the only option). This is safe because all prior states are preserved in Riff History.
+7.  **Auto-Merge:** If all 8 slots are full when committing the resampled layer, the standard auto-merge rule applies first (see §7.6.2.1 Auto-Merge Algorithm), then the resampled audio goes into the next available slot.
 
-**UI Layout in FX Mode:**
-
-*   **Top:** FX preset selector (same as Sound tab §7.6.3 — Core FX + Infinite FX banks)
-*   **Middle:** XY Pad for real-time effect control
-*   **Bottom:** Loop slot indicators with square selection toggles
-    *   **Selected:** Square border highlighted (accent color)
-    *   **Unselected:** Square border dim/transparent
-    *   Empty slots are not selectable
-
-**Audio Routing:**
+**Audio Routing in FX Mode:**
 
 ```
 [Selected Slots] → [Sum] → [Active Effect (XY controlled)] → [Audio Output]
                                                             → [Record Buffer (on commit)]
+[Unselected Slots] → [Normal Mix] → [Audio Output]  (continue playing unaffected)
 ```
 
 **Commands:**
 
 *   `SELECT_MODE` with `category: 'fx'` enters FX Mode
+*   `SELECT_FX_SOURCE_SLOTS` chooses which slots to route through effects
 *   `SELECT_EFFECT` chooses the active effect
-*   Existing slot selection uses `TRIGGER_SLOT` with a mode-specific flag
+*   `FX_ENGAGE` / `FX_DISENGAGE` activates/deactivates the effect (finger down/up on XY pad)
+*   `SET_XY_PAD` updates the XY pad position in real-time
 *   `COMMIT_RIFF` in FX Mode triggers the resample-and-replace behavior
 
-> **Note:** FX Mode uses the same main FX chain as the Sound tab — it is not a separate system. The Audio In slot has its own independent FX chain (simple reverb for vocals), which is only accessible from the Audio In / Microphone mode and is not related to FX Mode.
+> **Note:** The XY pad is only visible when in FX Mode. There is no FX chain or XY pad available in other modes (Drums, Notes, Bass, etc.) for V1. The Audio In slot has its own independent FX chain (simple reverb for vocals), which is only accessible from the Audio In / Microphone mode and is not related to FX Mode.
+
+#### **7.6.2.1. Auto-Merge Algorithm (9th Loop Trigger)**
+
+When a user attempts to record into a 9th slot (all 8 slots are occupied), the auto-merge fires:
+
+1.  **Sum:** Mix the audio from Slots 1-8 into a single stereo buffer at current playback levels (respecting per-slot volume and pan).
+2.  **Replace Slot 1:** Write the summed audio into Slot 1, replacing its previous content.
+3.  **Clear Slots 2-8:** Set Slots 2-8 to `EMPTY` state.
+4.  **Update Slot 1 Metadata:**
+    *   `instrumentCategory`: `"merge"`
+    *   `presetId`: `"auto_merge"`
+    *   `name`: Generated name (e.g., `"Merge [timestamp]"`).
+    *   `userId`: The user who triggered the merge.
+5.  **Auto-Commit to Riff History:** The merged state is automatically committed as a new riff snapshot before the new recording begins. This ensures no audio is ever lost.
+6.  **Proceed:** Recording begins into Slot 2 (first empty slot after merge).
+
+> **Note:** This merge is destructive to the individual slot contents, but safe because the pre-merge state was already saved to Riff History via the auto-commit in step 5. The user can always load a previous riff to recover individual layers.
 
 ---
 
-### **7.6.3. Sound / FX Tab Layout**
+### **7.6.3. Play Tab Layout**
+
+The Play tab is a **sub-view of Mode**. When the user selects a category (Drums, Notes, Bass, etc.) from the Mode tab, the app automatically switches to the Play tab to show the detail view for that category: presets, pads, and (in FX Mode only) the XY pad.
+
+> **Note:** This tab was formerly labeled "Sound" in reference designs. Renamed to "Play" to better describe its function across all categories.
 
 #### **Preset Selector**
 *   **Layout:** 3×4 grid
@@ -1000,19 +1089,18 @@ When the user selects **FX** from the Mode category selector, the app enters FX 
 *   **Controls:**
     | Row | Col 1 | Col 2 | Col 3 |
     |:---|:---|:---|:---|
-    | 1 | **Quantise** (note icon, button) | **Looper Mode** (loop icon, toggle) | **More** (dots icon, button) |
+    | 1 | **Quantise** (note icon, button) | *(empty)* | **More** (dots icon, button) |
     | 2 | **Metronome** (metronome icon, toggle) | **Tempo** (`120.00`, display/button) | **Key** (`C Minor Pentatonic`, display/button) |
 *   **Button Types:**
     *   Toggle: Two-state (on/off with visual feedback)
     *   Display/Button: Shows value, tapping opens editor
 
 #### **Primary Actions**
-*   **Layout:** Horizontal row of 3 large buttons
+*   **Layout:** Horizontal row of 2 large buttons
 *   **Position:** Middle section
 *   **Buttons:**
-    1.  **Start New** (`+` icon) — Dark style
-    2.  **Commit** (checkmark icon) — Light prominent style (primary CTA)
-    3.  **Redo** (circular arrow icon) — Dark style
+    1.  **Commit** (checkmark icon) — Light prominent style (primary CTA) — *Uses `COMMIT_RIFF` command*
+    2.  **Redo** (circular arrow icon) — Dark style — *Uses `REDO` command*
 
 #### **Channel Strips**
 *   **Layout:** Grid of circular faders (multiple rows as needed)
@@ -1059,8 +1147,7 @@ This is a dedicated full-screen view (not a tab). Accessed by tapping "Expand" i
 
 #### **Header**
 *   **Back Button:** Top left (returns to main view)
-*   **Transport Controls:** Center (Metronome, Play/Pause, Loop/Record)
-*   **Share Button:** Top right
+*   **Transport Controls:** Center (Metronome, Play/Pause)
 
 #### **Riff Details (Selected Riff)**
 *   **User Info:** Username (e.g., "bill_tribble")
@@ -1071,11 +1158,10 @@ This is a dedicated full-screen view (not a tab). Accessed by tapping "Expand" i
 *   **Riff Icon:** Large oblong layer cake indicator
 
 #### **Actions Row**
-*   **Layout:** Horizontal row of 3 buttons
+*   **Layout:** Horizontal row of buttons
 *   **Buttons:**
-    1.  `Export Video`
-    2.  `Export Stems`
-    3.  `Delete Riff`
+    1.  `Delete Riff` — *Uses `DELETE_RIFF` command*
+    2.  `Export Stems` — *Disabled for V1. Shows "Coming Soon" label.* (Deferred to V2, see §1.3)
 
 #### **History List**
 *   **Grouping:** Chronological by date
@@ -1094,40 +1180,46 @@ This is a dedicated full-screen view (not a tab). Accessed by tapping "Expand" i
 
 ---
 
-### **7.6.8. More Options Modal**
+### **7.6.8. More Options / Settings Panel**
 
-Accessed via the "More" button in Mixer tab transport controls.
+Accessed via the "More" button in Mixer tab transport controls. This is the **only** settings access point on all devices. Content is organised into scrollable tabs.
 
 #### **Header**
-*   **Title:** `"More Options"`
+*   **Title:** `"Settings"`
 *   **Close Button:** Top right (`×` icon)
 
-#### **Section 1: General Toggles**
-*   **Ableton Link** — Toggle (default: OFF)
-*   **Note Names** — Toggle (default: OFF) — Shows note names on pads
+#### **Tab A: Interface (Look & Feel)**
+*   **Zoom Level:** Slider [50% - 200%]. (Default: 100%). CSS `html { font-size: X% }` using REM units.
+*   **Theme:** Dark | Mid | Light | Match System.
+*   **Font Size:** Small | Medium (Default) | Large.
+*   **Reduce Motion:** Toggle. Disables canvas visualizer animations and smooth scrolling.
+*   **Emoji Skin Tone:** None (Yellow) | Light | Medium-Light | Medium | Medium-Dark | Dark.
 
-#### **Section 2: Audio Settings**
-*   **Title:** `"Audio Settings"`
-*   **Divider:** Horizontal line above and below section
-*   **Controls:**
-    1.  **Device**
-        *   Type: Dropdown
-        *   Value: `"iOS Audio"` (or current device)
-        *   Additional: `Test` button (plays test tone)
-    2.  **Active output channels**
-        *   Type: Checkbox list
-        *   Options: `"Speaker 1 + 2"`, `"Left + Right"`
-        *   Default: `"Speaker 1 + 2"` selected
-    3.  **Active input channels**
-        *   Type: Checkbox list
-        *   Options: `"Left + Right"` (or device-specific)
-    4.  **Sample rate**
-        *   Type: Dropdown
-        *   Value: `"48000 Hz"` (or current)
-    5.  **Audio buffer size**
-        *   Type: Dropdown
-        *   Value: `"256 samples (5.3 ms)"` (shows latency)
-        *   Options: 64, 128, 256, 512, 1024 samples (with calculated latency)
+#### **Tab B: Audio (Engine Configuration)**
+*   **Driver Type:** CoreAudio only for V1.
+*   **Input Device:** Dropdown selector for Hardware Input.
+*   **Output Device:** Dropdown selector for Hardware Output.
+*   **Sample Rate:** Dropdown [44.1kHz | 48kHz | 88.2kHz | 96kHz].
+*   **Buffer Size:** Dropdown [16 | 32 | 64 | 128 | 256 | 512 | 1024]. Lower = lower latency, higher CPU.
+*   **Input Channels:** Checkbox matrix to enable/disable specific inputs (1-8).
+*   **Active Output Channels:** Checkbox list (e.g., `"Speaker 1 + 2"`, `"Left + Right"`).
+*   **Test:** Button — plays test tone.
+
+#### **Tab C: MIDI & Sync**
+*   **MIDI Inputs:** List of detected ports with "Active" checkboxes.
+*   **Clock Source:** Radio button [Internal | External MIDI Clock].
+*   **Ableton Link:** Toggle — *Disabled for V1. Shows "Coming Soon" label.* (See §1.3)
+
+#### **Tab D: Library & VST**
+*   **VST3 Search Paths:** List of directories. Actions: Add Path, Remove Path.
+*   **Scan:** "Rescan All Plugins" button. "Scan on Startup" toggle.
+*   **Storage Location:** Path selector for Recordings/Project History.
+
+#### **Section: Quick Toggles** (below tabs, always visible)
+*   **Note Names** — Toggle (default: OFF) — Shows note names on pads. Uses `TOGGLE_NOTE_NAMES` command.
+
+#### **Section: User Preferences** (below Quick Toggles, always visible)
+*   **Riff Swap Mode** — Radio button [`Instant` | `Swap on Bar`] (Default: `Instant`) — Controls how riff history taps switch playback. Uses `SET_RIFF_SWAP_MODE` command.
 
 ---
 
@@ -1238,7 +1330,7 @@ The following emojis are used for random assignment to new Jams:
 
 ## **8. Risk Mitigations & Bead Planning Guide**
 
-> **Source:** These mitigations are derived from the [FlowZone Risk Assessment](./FlowZone_Risk_Assessment.md) and are integrated here so that any agent planning or executing beads has the full safety context in one place.
+> **Note:** These mitigations were derived from an internal risk assessment and are integrated here so that any agent planning or executing beads has the full safety context in one place.
 
 ### **8.1. Key Principle**
 
@@ -1274,7 +1366,7 @@ The plugin isolation architecture requires a separate binary (`PluginHostApp`), 
 
 **Required bead practices:**
 - **Defer plugin isolation to a later phase.** Get the engine working with internal instruments first. This removes the hardest integration risk from the critical path.
-- When IPC is built, structure it as a **vertical slice**: one bead that creates the host binary, configures the CMake target, establishes shared memory, and successfully passes one audio buffer round-trip. Only then fan out to watchdog/respawn/hot-swap beads.
+- When IPC is built, structure it as a **vertical slice**: one bead that creates the host binary, configures the Projucer Console Application target, establishes shared memory, and successfully passes one audio buffer round-trip. Only then fan out to watchdog/respawn/hot-swap beads.
 - The IPC bead must be large and self-contained — not split across multiple agents.
 
 #### **M4: Build System (Resolved: Projucer)**
@@ -1417,7 +1509,7 @@ PHASE 5: INTEGRATION (serial, combines engine + UI)
 └── Binary visualization stream (optional for MVP)
 
 PHASE 6: PLUGIN ISOLATION (defer until core works)
-├── PluginHostApp binary + CMake target (single vertical-slice bead)
+├── PluginHostApp binary + Projucer Console Application target (single vertical-slice bead)
 ├── Shared memory ring buffers
 ├── Process lifecycle + watchdog
 └── Hot-swap + exponential backoff
@@ -1560,6 +1652,8 @@ Development must pause at these checkpoints for manual verification before proce
 | Catch2 test passes | Run `FlowZoneTests` |
 | Vitest test passes | Run `npm test` in `web_client/` |
 
+> **What you should see:** A dark grey window opens (approximately 800×600 pixels). In the center, white text reads "Hello FlowZone" (or similar React placeholder). No crash dialogs appear. In Xcode's console output at the bottom, you should see a line like `[WebSocket] Server listening on port 8765` followed by `[WebSocket] Client connected`. There should be **no red error text** in the Xcode console. If you open Terminal and run the test commands, both should print green "PASSED" or "✓" with zero failures.
+
 **Stop criteria:** Do NOT proceed to Phase 1 until this passes.
 
 #### **Checkpoint 2: After Phase 1 + Task 2.4** — *"Does state flow from C++ to React?"*
@@ -1571,6 +1665,8 @@ Development must pause at these checkpoints for manual verification before proce
 | `STATE_FULL` contains valid `AppState` | Inspect message payload |
 | State changes in C++ reflect in React | Trigger transport play, verify UI updates |
 | All Catch2 + Vitest tests pass | `FlowZoneTests` + `npm test` |
+
+> **What you should see:** The app window now shows a basic React UI (may still be unstyled — that's OK). To check state flow: right-click inside the app window → "Inspect Element" (if available) or use a separate browser tab connected to the same WebSocket. In the Network tab → WS section, you should see a single incoming message of type `STATE_FULL` containing a JSON object with fields like `meta`, `session`, `transport`, `slots`. The `transport.bpm` field should show `120` (the default). If you trigger a Play command, you should see the `transport.isPlaying` field change to `true` in a subsequent `STATE_PATCH` message.
 
 **Stop criteria:** Do NOT proceed to UI work until both sides agree on state.
 
@@ -1584,6 +1680,8 @@ Development must pause at these checkpoints for manual verification before proce
 | Design matches "studio minimalism" aesthetic | Subjective visual check |
 | No layout breakage at various widths | Resize browser window |
 
+> **What you should see:** A dark-themed UI reminiscent of a professional music app (think Ableton or a DJ app). At the bottom of the screen, four tabs labeled **Mode**, **Play**, **Adjust**, and **Mixer** with small icons. The currently active tab should be highlighted with an accent color. Tapping each tab should smoothly switch the content area above. You should see placeholder components: a circular XY pad (like a crosshair target), a 4×4 grid of square pads, and circular fader knobs with arc indicators. When you resize the browser window to phone width (~375px), the tabs should stay at the bottom but the content should reflow — no horizontal scrolling, no elements overlapping or clipped. The overall feel should be **dark, clean, and professional** — not like a basic HTML page.
+
 **Stop criteria:** Layout and navigation must be correct before integration.
 
 #### **Checkpoint 4: After Task 6.2** — *"Does the loop work?"*
@@ -1596,6 +1694,8 @@ Development must pause at these checkpoints for manual verification before proce
 | Open on phone (LAN WebSocket) → same state | Connect from mobile browser |
 | Multiple tabs → state syncs | Open 2+ browser tabs |
 
+> **What you should see:** When you tap the **Play** button in the header, the bar phase indicator (a thin animated bar or progress ring) should start moving, cycling from left to right (or 0% to 100%) repeatedly. When you tap a **pad** in the grid, you should **hear a sound** through your speakers/headphones — a synth tone or drum hit. The pad should flash briefly on tap, and a riff history indicator (a small colored oblong) should appear in the toolbar area, confirming audio was captured. When you drag a **fader knob** (circular control in the Mixer tab), the volume should change in real-time — you'll hear the audio get louder or quieter as you drag. To test sync: open the same URL in a second browser tab. Both tabs should show identical state — tapping Play in one tab should show the play state in the other.
+
 **Stop criteria:** Audio must play. Commands must flow. State must sync.
 
 #### **Checkpoint 5: After Phase 8** — *"Is it shippable?"*
@@ -1607,6 +1707,8 @@ Development must pause at these checkpoints for manual verification before proce
 | Settings panel | Change audio device, verify effect |
 | Stress test | 8 slots playing → CPU load stays reasonable |
 | Overall feel | Premium, responsive, inspires flow |
+
+> **What you should see:** A complete end-to-end workflow: tap Home → Jam Manager shows your sessions → create a New Jam → you're in an empty session. Play pads to make music → see riff indicators appearing as loops are captured → tap Commit → the riff is saved to history. Open the Riff History View (expand button) → you see your riffs grouped by date with colored layer cakes and your avatar badge. Tap one → it loads and plays back. Go to Settings (More button in Mixer tab) → change the audio output device → the sound should switch to the new device immediately (no restart required). For crash recovery: while music is playing, force-quit the app (Cmd+Q). Relaunch it — the session should recover automatically and you should see your most recent riffs intact. The CPU load indicator in the system section should stay under 60% with all 8 slots playing. The overall app should feel **fast, fluid, and premium** — like an instrument, not like a website.
 
 **Stop criteria:** Final sign-off before declaring V1 complete.
 
@@ -1660,7 +1762,7 @@ Development must pause at these checkpoints for manual verification before proce
 29. **Task 6.3:** `SessionStateManager` (undo/redo, autosave).
 
 ### **Phase 7: Plugin Isolation** *(Defer until core works)*
-30. **Task 7.1:** **Vertical Slice** — `PluginHostApp` binary + CMake target + shared memory + one audio buffer round-trip. Single self-contained bead.
+30. **Task 7.1:** **Vertical Slice** — `PluginHostApp` binary + Projucer Console Application target + shared memory + one audio buffer round-trip. Single self-contained bead.
 31. **Task 7.2:** Process lifecycle + watchdog + exponential backoff respawn.
 32. **Task 7.3:** Hot-swap + plugin scanning.
 

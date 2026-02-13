@@ -12,9 +12,9 @@ Summarized from mobile design reference materials.
           "position": "top_center"
         },
         "top_bar_controls": {
-          "left_section": ["Home", "Help"],
-          "center_section": ["Metronome", "Play/Pause", "Loop/Record"],
-          "right_section": ["Share", "Add"]
+          "left_section": ["Home"],
+          "center_section": ["Metronome", "Play/Pause"],
+          "right_section": ["Undo", "Redo"]
         }
       },
       "navigation_tabs": {
@@ -22,7 +22,7 @@ Summarized from mobile design reference materials.
         "position": "bottom_of_content_area",
         "tabs": [
           { "id": "mode", "icon": "grid", "label": "Mode" },
-          { "id": "sound", "icon": "wave", "label": "Sound" },
+          { "id": "play", "icon": "wave", "label": "Play", "note": "sub-view of Mode; shows presets + pads for selected category" },
           { "id": "adjust", "icon": "knob", "label": "Adjust" },
           { "id": "mixer", "icon": "sliders", "label": "Mixer" }
         ]
@@ -115,11 +115,7 @@ Summarized from mobile design reference materials.
         "preset_selector": {
           "layout": "3x4_grid",
           "position": "middle_section",
-          "preset_examples": [
-            "Slicer", "Razzz", "Acrylic", "Ting",
-            "Hoard", "Bumper", "Amoeba", "Girder",
-            "Demand", "Prey", "Stand", "Lanes"
-          ],
+          "preset_examples": "See Audio_Engine_Specifications.md for preset names per category. FlowZone-specific names TBD.",
           "selected_state": "highlighted_with_rounded_background"
         },
         "add_plugin": {
@@ -132,7 +128,8 @@ Summarized from mobile design reference materials.
           }
         }
       },
-      "sound_tab": {
+      "play_tab": {
+        "note": "Sub-view of Mode. Shows presets + pads for selected category. XY pad visible only in FX Mode.",
         "preset_selector": {
           "layout": "3x4_grid",
           "position": "top_section",
@@ -215,7 +212,6 @@ Summarized from mobile design reference materials.
           "position": "top_section",
           "controls": [
             { "row": 1, "col": 1, "label": "Quantise", "icon": "note", "type": "button" },
-            { "row": 1, "col": 2, "label": "Looper Mode", "icon": "loop", "type": "toggle" },
             { "row": 1, "col": 3, "label": "More", "icon": "dots", "type": "button" },
             { "row": 2, "col": 1, "label": "Metronome", "icon": "metronome", "type": "toggle" },
             { "row": 2, "col": 2, "label": "Tempo", "value": "120.00", "type": "display_button" },
@@ -226,7 +222,6 @@ Summarized from mobile design reference materials.
           "layout": "horizontal_row",
           "position": "middle_section",
           "buttons": [
-            { "label": "Start New", "icon": "plus", "style": "dark" },
             { "label": "Commit", "icon": "checkmark", "style": "light_prominent" },
             { "label": "Redo", "icon": "circular_arrow", "style": "dark" }
           ]
@@ -234,10 +229,11 @@ Summarized from mobile design reference materials.
         "channel_strips": {
           "layout": "grid_of_circular_faders",
           "arrangement": "multiple_rows",
+          "channels_note": "Channel strip names shown below are illustrative — see Audio_Engine_Specifications.md for actual preset names.",
           "channels": [
-            { "name": "Keymasher", "user": "bill_tribble", "type": "circular_fader" },
-            { "name": "Bitcrusher", "user": "bill_tribble", "type": "circular_fader" },
-            { "name": "Stark", "user": "bill_tribble", "type": "circular_fader" }
+            { "name": "Saw Lead", "user": "bill_tribble", "type": "circular_fader" },
+            { "name": "Dub Delay", "user": "bill_tribble", "type": "circular_fader" },
+            { "name": "Sub", "user": "bill_tribble", "type": "circular_fader" }
           ],
           "fader_style": "large_circular_control_with_arc_indicator",
           "display_info": ["instrument_name", "user_attribution"]
@@ -266,8 +262,7 @@ Summarized from mobile design reference materials.
       "riff_history_view": {
         "header": {
           "back_button": "top_left",
-          "transport_controls": "center (metronome, play/pause, loop/record)",
-          "share_button": "top_right"
+          "transport_controls": "center (metronome, play/pause)"
         },
         "riff_details": {
           "user_info": "bill_tribble",
@@ -279,7 +274,7 @@ Summarized from mobile design reference materials.
         },
         "actions": {
           "layout": "horizontal_row",
-          "buttons": ["Export Video", "Export Stems", "Delete Riff"]
+          "buttons": ["Delete Riff", {"label": "Export Stems", "disabled": true, "note": "Coming Soon — V2"}]
         },
         "history_list": {
           "grouping": "chronological_by_date",
@@ -298,54 +293,65 @@ Summarized from mobile design reference materials.
           }
         }
       },
-      "more_options_modal": {
+      "settings_panel": {
+        "note": "Sole settings access point on all devices. Opened from More button in Mixer tab.",
         "header": {
-          "title": "More Options",
+          "title": "Settings",
           "close_button": "top_right_x"
         },
-        "sections": [
+        "tabs": [
           {
-            "type": "toggles",
-            "options": [
-              { "label": "Ableton Link", "type": "toggle", "default": "off" },
-              { "label": "Note Names", "type": "toggle", "default": "off" }
+            "id": "interface",
+            "label": "Interface",
+            "controls": [
+              { "label": "Zoom Level", "type": "slider", "range": "50%-200%", "default": "100%" },
+              { "label": "Theme", "type": "selector", "options": ["Dark", "Mid", "Light", "Match System"] },
+              { "label": "Font Size", "type": "selector", "options": ["Small", "Medium", "Large"], "default": "Medium" },
+              { "label": "Reduce Motion", "type": "toggle", "default": "off" },
+              { "label": "Emoji Skin Tone", "type": "selector", "options": ["None", "Light", "Medium-Light", "Medium", "Medium-Dark", "Dark"] }
             ]
           },
           {
-            "type": "audio_settings",
-            "title": "Audio Settings",
-            "divider": "horizontal_lines",
+            "id": "audio",
+            "label": "Audio",
             "controls": [
-              {
-                "label": "Device",
-                "type": "dropdown",
-                "value": "CoreAudio Device",
-                "additional_button": "Test"
-              },
-              {
-                "label": "Active output channels",
-                "type": "checkbox_list",
-                "options": ["Speaker 1 + 2", "Left + Right"],
-                "default": "Speaker 1 + 2"
-              },
-              {
-                "label": "Active input channels",
-                "type": "checkbox_list",
-                "options": ["Left + Right"]
-              },
-              {
-                "label": "Sample rate",
-                "type": "dropdown",
-                "value": "48000 Hz"
-              },
-              {
-                "label": "Audio buffer size",
-                "type": "dropdown",
-                "value": "256 samples (5.3 ms)"
-              }
+              { "label": "Driver Type", "type": "display", "value": "CoreAudio" },
+              { "label": "Input Device", "type": "dropdown" },
+              { "label": "Output Device", "type": "dropdown" },
+              { "label": "Sample Rate", "type": "dropdown", "options": ["44.1kHz", "48kHz", "88.2kHz", "96kHz"] },
+              { "label": "Buffer Size", "type": "dropdown", "options": ["16", "32", "64", "128", "256", "512", "1024"] },
+              { "label": "Input Channels", "type": "checkbox_matrix" },
+              { "label": "Active Output Channels", "type": "checkbox_list" },
+              { "label": "Test", "type": "button", "action": "play_test_tone" }
+            ]
+          },
+          {
+            "id": "midi_sync",
+            "label": "MIDI & Sync",
+            "controls": [
+              { "label": "MIDI Inputs", "type": "checkbox_list" },
+              { "label": "Clock Source", "type": "radio", "options": ["Internal", "External MIDI Clock"] },
+              { "label": "Ableton Link", "type": "toggle", "default": "off", "disabled": true, "note": "Coming Soon (V2)" }
+            ]
+          },
+          {
+            "id": "library_vst",
+            "label": "Library & VST",
+            "controls": [
+              { "label": "VST3 Search Paths", "type": "path_list", "actions": ["Add", "Remove"] },
+              { "label": "Rescan All Plugins", "type": "button" },
+              { "label": "Scan on Startup", "type": "toggle" },
+              { "label": "Storage Location", "type": "path_selector" }
             ]
           }
-        ]
+        ],
+        "quick_toggles": {
+          "position": "below_tabs",
+          "always_visible": true,
+          "options": [
+            { "label": "Note Names", "type": "toggle", "default": "off", "command": "TOGGLE_NOTE_NAMES" }
+          ]
+        }
       }
     }
   }
