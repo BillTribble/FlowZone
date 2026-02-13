@@ -567,14 +567,16 @@ FlowZone uses **always-on capture** — there is no explicit "record start" or "
 
 1.  **Continuous capture:** The engine maintains the circular buffer, always recording. The user plays pads/keys/drums naturally — everything is captured. No arming, no record button.
 2.  **Loop length selects a portion:** When the user taps a loop length section (1, 2, 4, or 8 bars via `SET_LOOP_LENGTH`), this determines *how much* audio will be taken from the buffer on the next commit. The buffer itself does not resize — only the selection window changes.
-3.  **Commit to slot:** When the user triggers `COMMIT_RIFF`, the most recent N bars of audio (per current `loopLengthBars`) are copied from the retrospective buffer into the next available slot. If the selected length contains silence (e.g., 8 bars were requested but only 2 bars of audio were played), the silent bars are included — this is the expected behavior.
+3.  **Commit to slot:** When the user Taps a loop length button (1, 2, 4, or 8 Bars) in the Mode or Play tabs, the most recent N bars of audio (per the tapped length) are copied from the retrospective buffer into the next available slot.
+    *   **Implicit Commit:** There is no separate "Commit" button in the Mode/Play tabs. Tapping the length button *is* the commit action.
+    *   **Mixer Tab Commit:** The Mixer tab has a specific `COMMIT_RIFF` button for saving mix/pan changes as a new riff, but meant for "mix-down" style commits rather than initial capture.
 4.  **Slot state transitions:**
     *   `EMPTY` → `PLAYING` (audio committed from retrospective buffer)
     *   `PLAYING` → `MUTED` (user mutes)
     *   `MUTED` → `PLAYING` (user unmutes)
     *   When transport is **paused**, `PLAYING` slots pause in place — they remain in `PLAYING` state and resume automatically when transport resumes. `MUTED` slots stay `MUTED` regardless of transport state. There is no `STOPPED` state.
 
-This model ensures **zero-latency creative flow** — the user never waits for recording to start or misses the beginning of a performance.
+This model ensures **zero-latency creative flow** — the user never waits for recording to start or misses the beginning of a performance. Tapping a length button instantly captures what was just played.
 
 > **Note:** V1 does not include a per-slot clear command. Users who want to remove a single layer should load a previous riff from history. A per-slot clear could be added as a V2 feature.
 
@@ -928,7 +930,9 @@ This section defines the UI layout implementation details. For the complete JSON
 *   **Layout:** Horizontal button row
 *   **Position:** Above pad grid (below timeline)
 *   **Buttons:** `[8 BARS] [4 BARS] [2 BARS] [1 BAR]`
-*   **Action:** Sets the loop length to the specified value (absolute, not additive). Uses `SET_LOOP_LENGTH` command.
+*   **Action:** Sets the loop length to the specified value AND **immediately commits** that duration from the retrospective buffer to the next empty slot.
+    *   **Dual Function:** Serves as both length selector and "Capture" trigger.
+    *   **Visual Feedback:** Buttons flash heavily on tap to indicate capture occurred.
 
 #### **Toolbar**
 *   **Position:** Between navigation tabs and waveform display
@@ -1001,7 +1005,7 @@ When the user selects **FX** from the Mode category selector, the app enters FX 
 3.  **Select Effect:** The Play tab (§7.6.3) shows the main FX selector. Only one effect is active at a time — this is an FX *selector*, not a chain. The XY pad (visible only in FX Mode) controls the selected effect's parameters in real-time.
 4.  **Real-Time Processing:** While in FX Mode, selected layers are continuously routed through the active effect and output to the audio buffer. **Unselected slots continue playing normally** alongside the FX-processed audio. The user **cannot play instruments** while in FX Mode (V1).
 5.  **FX Activation:** The effect is engaged only while the user's finger is held down on the XY pad (`FX_ENGAGE` on touch-down, `FX_DISENGAGE` on touch-up). When disengaged, the selected layers play through unprocessed.
-6.  **Commit Resampled Layer:** When the user commits (records), the FX-processed audio is captured for one loop cycle and written to the **next empty slot**. The source slots that were selected are then set to `EMPTY` state (destructive — this is the only option). Their audio files remain on disk per the garbage collection policy (§2.2.G). This is safe because the currently playing riff (the pre-FX state) is already the latest entry in Riff History — the user committed it when they originally recorded those layers. Loading that riff from history instantly restores the individual layers.
+6.  **Commit Resampled Layer:** When the user taps a **Loop Length Button** (1, 2, 4, or 8 Bars), the FX-processed audio is captured for that duration and written to the **next empty slot**. The source slots that were selected are then set to `EMPTY` state (destructive — this is the only option). Their audio files remain on disk per the garbage collection policy (§2.2.G). This is safe because the currently playing riff (the pre-FX state) is already the latest entry in Riff History — the user committed it when they originally recorded those layers. Loading that riff from history instantly restores the individual layers.
 7.  **Auto-Merge:** If all 8 slots are full when committing the resampled layer, the standard auto-merge rule applies first (see §7.6.2.1 Auto-Merge Algorithm), then the resampled audio goes into the next available slot.
 
 **Audio Routing in FX Mode:**
@@ -1135,7 +1139,9 @@ When the active category is **Microphone**, the Adjust tab shows a simplified la
 *   **Layout:** Single large button
 *   **Position:** Middle section
 *   **Button:**
-    1.  **Commit** (checkmark icon) — Light prominent style (primary CTA) — *Uses `COMMIT_RIFF` command*
+    1.  **Commit Mix** (checkmark icon) — Light prominent style (primary CTA)
+        *   **Action:** Uses `COMMIT_RIFF` command to save the current volume/pan/mute state as a new Riff History entry.
+        *   **Note:** This is the *only* place a dedicated "Commit" button appears. In other modes, committing is implicit via Loop Length taps.
 
 #### **Channel Strips**
 *   **Layout:** Vertical fader strips (one per active slot)

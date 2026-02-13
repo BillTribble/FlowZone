@@ -509,7 +509,8 @@ All findings from this assessment have been resolved in the spec documents per o
 | **C2** | Phase numbering mismatch | Align §8.6 to §9 | §8.6 now has 9 phases (0-8) matching §9 exactly. Names aligned. | `Spec 1.6` §8.6 |
 | **C3** | `TRIGGER_SLOT` undefined | Remove — COMMIT_RIFF is the only capture command | Removed from Command Schema and Error Matrix. | `Spec 1.6` §3.2, §3.3 |
 | **C4** | SampleEngine has no commands | Defer to V2 | Moved to §1.3 Future Goals. §2.2.M marked V2. Task 4.6 removed from §9. Sampler removed from Mode Tab category grid. | `Spec 1.6` §1.3, §2.2.M, §7.6.2, §9; `UI_Layout_Reference.md` |
-| **H1** | `COMMIT_RIFF` dual purpose unclear | Clarify — it captures from buffer AND saves to history. Available from Mixer. | Updated §3.2 comment with full description of dual behavior. | `Spec 1.6` §3.2 |
+| **H1** | `COMMIT_RIFF` dual purpose unclear | Split behavior | Loop Length tap triggers capture (implicit). `COMMIT_RIFF` button restricted to Mixer for saving mix state. | `Spec 1.6` §3.10, §7.6.1, §7.6.2, §7.6.5 |
+| **R-NEW-1** | FX Mode commit ambiguity | Implicit commit | FX Mode capture triggered by Loop Length tap. No shared button with Mixer commit. | `Spec 1.6` §7.6.2 |
 | **H2** | `STOP` vs `PAUSE` no distinction | Play/Pause only. Remove STOP. | Removed `STOP` from Command Schema and Error Matrix. Transport uses `isPlaying: boolean`. | `Spec 1.6` §3.2, §3.3 |
 | **H3** | "Playback Controls" 8 buttons undefined | Oblong slot indicators. FX mode: source selection. Other modes: mute toggles. | Renamed to "Slot Indicators", defined as 1×8 oblongs with dual behavior. | `Spec 1.6` §7.6.3; `UI_Layout_Reference.md` |
 | **H4** | Pad-to-note mapping undefined | Add mapping: bottom-left = root, ascending through scale | Added pad-to-note mapping algorithm, octave spanning, and Pitch knob interaction. Added `Scale` type with 8 valid values. | `Spec 1.6` §7.6.2, §3.2 |
