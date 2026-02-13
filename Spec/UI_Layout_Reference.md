@@ -14,7 +14,7 @@ Summarized from mobile design reference materials.
         "top_bar_controls": {
           "left_section": ["Home"],
           "center_section": ["Metronome", "Play/Pause"],
-          "right_section": ["Undo", "Redo"]
+          "right_section": []
         }
       },
       "navigation_tabs": {
@@ -52,10 +52,11 @@ Summarized from mobile design reference materials.
         "loop_length_controls": {
           "layout": "horizontal_row",
           "position": "above_pad_grid",
-          "buttons": ["+ 8 BARS", "+ 4 BARS", "+ 2 BARS", "+ 1 BAR"]
+          "buttons": ["8 BARS", "4 BARS", "2 BARS", "1 BAR"],
+          "action": "absolute_set_loop_length"
         },
         "toolbar": {
-          "items": ["Undo", "Riff History Indicators", "Expand"],
+          "items": ["Riff History Indicators", "Expand"],
           "position": "between_tabs_and_waveform"
         }
       }
@@ -222,20 +223,20 @@ Summarized from mobile design reference materials.
           "layout": "horizontal_row",
           "position": "middle_section",
           "buttons": [
-            { "label": "Commit", "icon": "checkmark", "style": "light_prominent" },
-            { "label": "Redo", "icon": "circular_arrow", "style": "dark" }
+            { "label": "Commit", "icon": "checkmark", "style": "light_prominent" }
           ]
         },
         "channel_strips": {
-          "layout": "grid_of_circular_faders",
-          "arrangement": "multiple_rows",
+          "layout": "vertical_fader_strips",
+          "arrangement": "horizontal_row_scrollable",
           "channels_note": "Channel strip names shown below are illustrative — see Audio_Engine_Specifications.md for actual preset names.",
           "channels": [
-            { "name": "Saw Lead", "user": "bill_tribble", "type": "circular_fader" },
-            { "name": "Dub Delay", "user": "bill_tribble", "type": "circular_fader" },
-            { "name": "Sub", "user": "bill_tribble", "type": "circular_fader" }
+            { "name": "Saw Lead", "user": "bill_tribble", "type": "vertical_fader" },
+            { "name": "Dub Delay", "user": "bill_tribble", "type": "vertical_fader" },
+            { "name": "Sub", "user": "bill_tribble", "type": "vertical_fader" }
           ],
-          "fader_style": "large_circular_control_with_arc_indicator",
+          "fader_style": "vertical_slider_with_integrated_vu_meter",
+          "fader_note": "VU level bounces inside the fader track, showing real-time output level alongside the volume setting.",
           "display_info": ["instrument_name", "user_attribution"]
         }
       },
@@ -350,6 +351,13 @@ Summarized from mobile design reference materials.
           "always_visible": true,
           "options": [
             { "label": "Note Names", "type": "toggle", "default": "off", "command": "TOGGLE_NOTE_NAMES" }
+          ]
+        },
+        "user_preferences": {
+          "position": "below_quick_toggles",
+          "always_visible": true,
+          "options": [
+            { "label": "Riff Swap Mode", "type": "radio", "options": ["Instant", "Swap on Bar"], "default": "Instant", "command": "SET_RIFF_SWAP_MODE" }
           ]
         }
       }

@@ -55,6 +55,8 @@
 *   **Tap Tempo Cold Start:** Time-between-taps sets session tempo when transport is stopped and slots are empty.
 *   **WebGL Visualizers:** GPU-accelerated visualization option.
 *   **MIDI Clock Sync:** External MIDI Clock as transport source.
+*   **Multi-User Retrospective Buffers:** V1 uses a single global retrospective buffer (single-user). V2 will add per-user buffers for multi-user jamming — each connected user gets their own capture buffer. This requires a session settings item to configure the number of active users (2-4+), with each user's buffer pre-allocated on session start.
+*   **Undo/Redo:** Session-level undo/redo. Deferred from V1 because Riff History (always-on capture + commit history) provides the primary recovery mechanism.
 
 ---
 
@@ -85,7 +87,7 @@ graph TD
         
         DiskWriter -->|Write| FileSystem[SSD Storage]
 
-        SessionMgr[SessionStateManager] <-->|Undo/Redo/Save| Engine
+        SessionMgr[SessionStateManager] <-->|Auto-Save/Load| Engine
         CrashGuard[CrashGuard - Startup] -->|Mode Decision| Engine
     end
     
@@ -150,12 +152,12 @@ graph TD
 | **Level 3: Full Recovery** | Config corruption or crash counter ≥ 3 | Disable VSTs, default audio, no session auto-load. Factory defaults offered. |
 
 #### **G. SessionStateManager** — `src/engine/SessionStateManager.cpp`
-*   **Role:** Undo/redo stack management, auto-save, crash-recovery snapshots, session loading.
+*   **Role:** Auto-save, crash-recovery snapshots, session loading, riff history management.
 *   **Implementation:**
-    *   Holds `std::deque<AppState> undoStack` (max 50 entries).
-    *   Every destructive command (Record Over, Delete, Clear) pushes the *previous* state to the stack.
+    *   Manages the riff history (commit, load, delete operations).
     *   Audio files are **never deleted immediately** — only marked for garbage collection on clean exit.
     *   **Auto-save:** Writes a recovery snapshot every 30 seconds to `~/Library/Application Support/FlowZone/backups/autosave.json`.
+    *   **No Undo/Redo in V1:** Riff History serves as the primary recovery mechanism — every committed riff is preserved and can be loaded at any time. Undo/Redo is deferred to V2 (see §1.3).
 
 #### **H. FeatureExtractor** — `src/engine/FeatureExtractor.cpp`
 *   **Optimization:** Double-buffered atomic exchange.
@@ -312,9 +314,6 @@ type Command =
   | { cmd: 'LOAD_JAM'; sessionId: string }                         // Load an existing jam session
   | { cmd: 'RENAME_JAM'; sessionId: string; name: string }         // Rename a jam session
   | { cmd: 'DELETE_JAM'; sessionId: string }                       // Delete a jam session and its audio
-  | { cmd: 'UNDO'; scope: 'SESSION' }
-  | { cmd: 'REDO'; scope: 'SESSION' }                              // Redo last undone action
-
   // UI Settings (UI-only, stored in localStorage — not sent to engine)
   | { cmd: 'TOGGLE_NOTE_NAMES' }                                   // Toggle note name display on pads
 
@@ -340,8 +339,16 @@ type Command =
 // Valid Keymasher button actions
 type KeymasherButton = 'repeat' | 'pitch_down' | 'pitch_rst' | 'pitch_up' | 'reverse' | 'gate' | 'scratch' | 'buzz' | 'stutter' | 'goto' | 'goto2' | 'buzz_slip';
 
+// JSON Patch operation (RFC 6902)
+interface JsonPatchOp {
+  op: 'add' | 'remove' | 'replace' | 'move' | 'copy' | 'test';
+  path: string;
+  value?: any;
+  from?: string;
+}
+
 // Server Responses
-type ServerMessage = 
+type ServerMessage =
   | { type: 'STATE_FULL'; data: AppState }
   | { type: 'STATE_PATCH'; ops: JsonPatchOp[]; revId: number }
   | { type: 'ACK'; reqId: string }
@@ -375,8 +382,6 @@ Every command has a defined set of possible error responses:
 | `LOAD_JAM` | `4020: SESSION_NOT_FOUND` | Show error toast. |
 | `RENAME_JAM` | `4020: SESSION_NOT_FOUND` | Show error toast. |
 | `DELETE_JAM` | `4020: SESSION_NOT_FOUND` | Show error toast. |
-| `UNDO` | `4001: NOTHING_TO_UNDO` | Disable undo button. |
-| `REDO` | `4002: NOTHING_TO_REDO` | Disable redo button. |
 | `PANIC` | None (always succeeds) | `ALL`: Full UI reset animation. `ENGINE`: silence output, preserve UI state. |
 | `AUTH` | `1101: AUTH_FAILED` | Show "Incorrect PIN" prompt. |
 | `TOGGLE_QUANTISE` | None (always succeeds) | Optimistic toggle. |
@@ -449,7 +454,7 @@ interface AppState {
   };
   slots: Array<{
     id: string;                    // UUID
-    state: 'EMPTY' | 'RECORDING' | 'PLAYING' | 'MUTED' | 'STOPPED';  // STOPPED: slot has audio but transport is not running
+    state: 'EMPTY' | 'PLAYING' | 'MUTED' | 'STOPPED';  // No RECORDING state — retrospective buffer is always capturing (§3.10). Slots transition directly from EMPTY to PLAYING on commit. STOPPED: slot has audio but transport is not running.
     volume: number;                // 0.0 - 1.0
     pan: number;                   // -1.0 to 1.0
     name: string;
@@ -484,6 +489,16 @@ interface AppState {
     activePluginHosts: number;
   };
 }
+
+// Plugin instance definition (used in slot.pluginChain)
+interface PluginInstance {
+  id: string;          // Instance UUID
+  pluginId: string;    // VST3 plugin ID
+  manufacturer: string;
+  name: string;
+  bypass: boolean;
+  state?: string;      // Base64-encoded VST3 state blob for recall
+}
 ```
 
 > **Note:** Multi-channel output routing (8 stereo pairs / 16 channels for VST3 DAW mode) is automatic: Slot N → Output Pair N. This is not user-configurable in V1 and does not appear in the UI.
@@ -513,7 +528,7 @@ struct RiffSnapshot {
 *   **Format:** Raw Float32 Array (Little Endian).
 *   **Header:** `[Magic:4][FrameId:4][Timestamp:8]`
 *   **Payload:** `[MasterRMS_L][MasterRMS_R][Slot1_RMS][Slot1_Spec_1...16]...`
-*   **Transmission:** Separate binary WebSocket channel.
+*   **Transmission:** Binary frames on the **same** WebSocket connection used for JSON command/state traffic. The client distinguishes frame types by WebSocket opcode (`0x1` text = JSON, `0x2` binary = visualization). This avoids the complexity of managing a second connection.
 *   **Backpressure Control:**
     *   Server maintains a per-client `pendingFrameCount` (incremented on send, decremented on ACK).
     *   Client sends a **4-byte ACK** after *every received frame*.
@@ -539,13 +554,19 @@ For low-latency commands (`SET_VOL`, `SET_PAN`, `SET_TEMPO`), the client updates
 
 ### **3.10. Retrospective Capture (Always-On Recording)**
 
-FlowZone uses **always-on capture** — there is no explicit "record start" or "record stop" command. The audio engine continuously captures all played audio into a rolling retrospective buffer.
+FlowZone uses **always-on capture** — there is no explicit "record start" or "record stop" command. The audio engine continuously captures all played audio into a fixed-size rolling retrospective buffer.
+
+**Buffer Design:**
+
+*   **Size:** Pre-allocated at startup. Approximately **30 seconds** of stereo audio at the session sample rate (e.g., 48kHz × 2 channels × 4 bytes × 30s ≈ 11.5 MB). This is a fixed allocation — the buffer never resizes.
+*   **Count:** V1 uses a **single global buffer** (single-user). See §1.3 for V2 multi-user buffer plans.
+*   **Content:** Continuously records the output of the currently selected instrument/mode. Old audio is overwritten as the buffer wraps.
 
 **How recording works:**
 
-1.  **Continuous capture:** The engine maintains a circular buffer that always records the output of the currently selected instrument/mode. The buffer length matches `transport.loopLengthBars`.
-2.  **Commit to slot:** When the user triggers `COMMIT_RIFF` (or the loop cycle completes with quantised commit enabled), the retrospective buffer is written to the next available slot.
-3.  **No arming required:** The user plays pads/keys/drums naturally. Everything is captured. The user never needs to "arm" or "start" recording — the creative flow is uninterrupted.
+1.  **Continuous capture:** The engine maintains the circular buffer, always recording. The user plays pads/keys/drums naturally — everything is captured. No arming, no record button.
+2.  **Loop length selects a portion:** When the user taps a loop length section (1, 2, 4, or 8 bars via `SET_LOOP_LENGTH`), this determines *how much* audio will be taken from the buffer on the next commit. The buffer itself does not resize — only the selection window changes.
+3.  **Commit to slot:** When the user triggers `COMMIT_RIFF`, the most recent N bars of audio (per current `loopLengthBars`) are copied from the retrospective buffer into the next available slot. If the selected length contains silence (e.g., 8 bars were requested but only 2 bars of audio were played), the silent bars are included — this is the expected behavior.
 4.  **Slot state transitions:**
     *   `EMPTY` → `PLAYING` (audio committed from retrospective buffer)
     *   `PLAYING` → `STOPPED` (transport stopped)
@@ -668,8 +689,6 @@ Agents must strictly use these codes. New codes must be registered here before u
     *   `3010`: `ERR_PLUGIN_NOT_FOUND`
     *   `3020`: `ERR_PLUGIN_OVERLOAD` (IPC ring buffer drops)
 *   `4000-4999`: Session
-    *   `4001`: `ERR_NOTHING_TO_UNDO`
-    *   `4002`: `ERR_NOTHING_TO_REDO`
     *   `4010`: `ERR_NOTHING_TO_COMMIT`
     *   `4011`: `ERR_RIFF_NOT_FOUND`
     *   `4020`: `ERR_SESSION_NOT_FOUND`
@@ -867,7 +886,7 @@ This section defines the UI layout implementation details. For the complete JSON
 *   **Top Bar Controls:** 3-section horizontal layout
     *   **Left Section:** Home button (navigates to Jam Manager §7.7)
     *   **Center Section:** Metronome toggle, Play/Pause toggle
-    *   **Right Section:** Undo button, Redo button
+    *   **Right Section:** *(Reserved for V2 — e.g., Share, Undo when implemented)*
 
 #### **Navigation Tabs**
 *   **Layout:** Horizontal tab bar
@@ -906,8 +925,8 @@ This section defines the UI layout implementation details. For the complete JSON
 #### **Loop Length Controls**
 *   **Layout:** Horizontal button row
 *   **Position:** Above pad grid (below timeline)
-*   **Buttons:** `[+ 8 BARS] [+ 4 BARS] [+ 2 BARS] [+ 1 BAR]`
-*   **Action:** Extends current loop by specified length
+*   **Buttons:** `[8 BARS] [4 BARS] [2 BARS] [1 BAR]`
+*   **Action:** Sets the loop length to the specified value (absolute, not additive). Uses `SET_LOOP_LENGTH` command.
 
 #### **Toolbar**
 *   **Position:** Between navigation tabs and waveform display
@@ -1061,7 +1080,7 @@ The Play tab is a **sub-view of Mode**. When the user selects a category (Drums,
 
 ### **7.6.4. Adjust Tab Layout**
 
-#### **Knob Controls**
+#### **Knob Controls (Standard — Drums, Notes, Bass, Sampler)**
 *   **Layout:** 2 rows × 4 positions
 *   **Position:** Top section
 *   **Main Knobs:**
@@ -1074,10 +1093,17 @@ The Play tab is a **sub-view of Mode**. When the user selects a category (Drums,
     *   Room Size (knob)
     *   Layout: Same 2-row grid pattern below main controls
 
+#### **Knob Controls (Microphone Mode)**
+When the active category is **Microphone**, the Adjust tab shows a simplified layout:
+*   **Top Section:** 2 knobs only — **Reverb Mix** and **Room Size** (controls the built-in mic reverb effect)
+*   **Middle Section:** Monitor toggles — "Monitor until looped" (toggle), "Monitor input" (toggle)
+*   **Bottom Section:** Large **Gain** knob (uses `SET_INPUT_GAIN` command)
+*   **No pad grid** when in Microphone mode.
+
 #### **Pad Grid**
 *   **Structure:** 4×4 grid
 *   **Position:** Below knob controls
-*   **Content:** Mode-specific pads (same as Mode tab)
+*   **Content:** Mode-specific pads (same as Mode tab). Not shown in Microphone mode.
 
 ---
 
@@ -1096,19 +1122,18 @@ The Play tab is a **sub-view of Mode**. When the user selects a category (Drums,
     *   Display/Button: Shows value, tapping opens editor
 
 #### **Primary Actions**
-*   **Layout:** Horizontal row of 2 large buttons
+*   **Layout:** Single large button
 *   **Position:** Middle section
-*   **Buttons:**
+*   **Button:**
     1.  **Commit** (checkmark icon) — Light prominent style (primary CTA) — *Uses `COMMIT_RIFF` command*
-    2.  **Redo** (circular arrow icon) — Dark style — *Uses `REDO` command*
 
 #### **Channel Strips**
-*   **Layout:** Grid of circular faders (multiple rows as needed)
-*   **Arrangement:** Scrollable if > 8 channels
+*   **Layout:** Vertical fader strips (one per active slot)
+*   **Arrangement:** Horizontal row, scrollable if > 8 channels
 *   **Fader Style:**
-    *   Large circular control
-    *   Arc indicator (fills clockwise from bottom to current value)
-    *   Center position = unity gain (0 dB)
+    *   Vertical slider bar for volume control (`SET_VOL` command)
+    *   **Integrated VU meter:** Real-time level display within the same bar area as the fader — the VU level bounces inside the fader track, showing the slot's audio output level alongside the volume setting
+    *   Mute/Solo indicators per strip
 *   **Display Info (per channel):**
     *   Instrument/preset name (e.g., "Keymasher")
     *   User attribution (e.g., "bill_tribble")
@@ -1404,7 +1429,7 @@ The StateBroadcaster uses JSON Patch (RFC 6902) with complex rules about patches
 
 #### **M7: Mobile UI Custom Components (Risk: Hard to verify without engine)**
 
-Custom touch controls (XY pads, circular faders, waveform timelines) need Canvas rendering and careful touch event handling.
+Custom touch controls (XY pads, vertical faders with VU meters, knobs, waveform timelines) need Canvas rendering and careful touch event handling.
 
 **Required bead practices:**
 - Structure UI beads as **component-level** (one bead per major component: XY Pad, Circular Fader, Pad Grid, Riff History Indicator, Waveform Timeline).
@@ -1505,7 +1530,7 @@ PHASE 4: AUDIO ENGINES (after Phase 2 engine core works)
 PHASE 5: INTEGRATION (serial, combines engine + UI)
 ├── StateBroadcaster patches (RFC 6902)
 ├── Full command flow: UI → WS → CommandQueue → Dispatcher → Engine → State → UI
-├── SessionStateManager (undo/redo, autosave)
+├── SessionStateManager (autosave, riff history management)
 └── Binary visualization stream (optional for MVP)
 
 PHASE 6: PLUGIN ISOLATION (defer until core works)
@@ -1680,7 +1705,7 @@ Development must pause at these checkpoints for manual verification before proce
 | Design matches "studio minimalism" aesthetic | Subjective visual check |
 | No layout breakage at various widths | Resize browser window |
 
-> **What you should see:** A dark-themed UI reminiscent of a professional music app (think Ableton or a DJ app). At the bottom of the screen, four tabs labeled **Mode**, **Play**, **Adjust**, and **Mixer** with small icons. The currently active tab should be highlighted with an accent color. Tapping each tab should smoothly switch the content area above. You should see placeholder components: a circular XY pad (like a crosshair target), a 4×4 grid of square pads, and circular fader knobs with arc indicators. When you resize the browser window to phone width (~375px), the tabs should stay at the bottom but the content should reflow — no horizontal scrolling, no elements overlapping or clipped. The overall feel should be **dark, clean, and professional** — not like a basic HTML page.
+> **What you should see:** A dark-themed UI reminiscent of a professional music app (think Ableton or a DJ app). At the bottom of the screen, four tabs labeled **Mode**, **Play**, **Adjust**, and **Mixer** with small icons. The currently active tab should be highlighted with an accent color. Tapping each tab should smoothly switch the content area above. You should see placeholder components: a circular XY pad (like a crosshair target), a 4×4 grid of square pads, vertical fader bars with integrated VU meters, and rotary knobs with arc indicators. When you resize the browser window to phone width (~375px), the tabs should stay at the bottom but the content should reflow — no horizontal scrolling, no elements overlapping or clipped. The overall feel should be **dark, clean, and professional** — not like a basic HTML page.
 
 **Stop criteria:** Layout and navigation must be correct before integration.
 
@@ -1751,7 +1776,7 @@ Development must pause at these checkpoints for manual verification before proce
 ### **Phase 5: UI Components** *(After Phase 3 shell is complete)*
 21. **Task 5.1:** XY Pad component — standalone demo with mock state. Tap-only first; touch-and-hold deferred.
 22. **Task 5.2:** Pad Grid component — standalone demo.
-23. **Task 5.3:** Circular Fader / Knob component — standalone demo.
+23. **Task 5.3:** Vertical Fader / VU Meter / Knob components — standalone demo.
 24. **Task 5.4:** Riff History Indicator — standalone demo.
 25. **Task 5.5:** Waveform Timeline — standalone demo.
 26. **Task 5.6:** Assemble views: Dashboard (responsive Grid/Stack), Mode, FX, Mixer.
@@ -1759,7 +1784,7 @@ Development must pause at these checkpoints for manual verification before proce
 ### **Phase 6: Integration** *(Serial — combines engine + UI)*
 27. **Task 6.1:** `StateBroadcaster` patches (RFC 6902). Protocol Conformance Test bead (canned patch sequences → validate resulting state).
 28. **Task 6.2:** Full command flow: UI → WS → CommandQueue → Dispatcher → Engine → State → UI.
-29. **Task 6.3:** `SessionStateManager` (undo/redo, autosave).
+29. **Task 6.3:** `SessionStateManager` (autosave, riff history management, crash recovery).
 
 ### **Phase 7: Plugin Isolation** *(Defer until core works)*
 30. **Task 7.1:** **Vertical Slice** — `PluginHostApp` binary + Projucer Console Application target + shared memory + one audio buffer round-trip. Single self-contained bead.

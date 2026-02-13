@@ -347,11 +347,11 @@ Handles microphone/line input with real-time effects.
 *   Visual: Arc indicator shows current gain level
 *   Auto-gain option (future): Automatic level adjustment
 
-### **6.3. Input FX Chain**
+### **6.3. Input FX (V1: Built-In Reverb Only)**
 
-*   Same FX as InternalFX (§1) can be applied to input
-*   Common use: Lowpass/Highpass filtering, Reverb, Delay, Compressor
-*   FX are pre-fader (applied before loop recording)
+*   **V1:** The microphone input has a **single built-in reverb effect** — controlled via Reverb Mix and Room Size knobs in the Adjust tab when Microphone mode is active (see main spec §7.6.4). This is a simple Freeverb instance, not the full InternalFX chain.
+*   **V2:** Full FX chain support (any InternalFX effect applied to input). Deferred.
+*   FX are applied to the input signal **before** it enters the retrospective capture buffer.
 
 ### **6.4. Waveform Display**
 
