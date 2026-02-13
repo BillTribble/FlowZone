@@ -39,20 +39,16 @@ Summarized from mobile design reference materials.
         "position": "below_navigation_tabs"
       },
       "timeline_area": {
-        "waveform_display": {
+        "retrospective_timeline": {
           "flow_direction": "right_to_left",
           "sections": [
-            { "length": "1_bar", "position": "rightmost" },
-            { "length": "2_bars", "position": "second" },
-            { "length": "4_bars", "position": "third" },
-            { "length": "8_bars", "position": "leftmost" }
+            { "length": "1_bar", "position": "rightmost_section" },
+            { "length": "2_bars", "position": "second_from_right" },
+            { "length": "4_bars", "position": "third_from_right" },
+            { "length": "8_bars", "position": "leftmost_section" }
           ],
-          "interaction": "tap waveform section to loop that length"
-        },
-        "loop_length_controls": {
-          "layout": "horizontal_row",
-          "position": "above_pad_grid",
-          "buttons": ["8 BARS", "4 BARS", "2 BARS", "1 BAR"],
+          "note": "Waveform sections act as buttons. Labels (8 BARS, etc.) overlay the sections.",
+          "interaction": "tap specific waveform section to loop that length AND capture audio",
           "action": "absolute_set_loop_length"
         },
         "toolbar": {
@@ -94,10 +90,10 @@ Summarized from mobile design reference materials.
                 { "row": 1, "col": 2, "icon": "cylinder" },
                 { "row": 1, "col": 3, "icon": "tall_cylinder" },
                 { "row": 1, "col": 4, "icon": "tripod" },
-                { "row": 2, "col": 1, "icon": "double_diamond" },
-                { "row": 2, "col": 2, "icon": "double_diamond" },
-                { "row": 2, "col": 3, "icon": "double_diamond" },
-                { "row": 2, "col": 4, "icon": "double_diamond" },
+                { "row": 2, "col": 1, "icon": "double_diamond_outline" },
+                { "row": 2, "col": 2, "icon": "double_diamond_dotted" },
+                { "row": 2, "col": 3, "icon": "double_diamond_striped" },
+                { "row": 2, "col": 4, "icon": "cylinder_short" },
                 { "row": 3, "col": 1, "icon": "hand" },
                 { "row": 3, "col": 2, "icon": "hand" },
                 { "row": 3, "col": 3, "icon": "snare" },
@@ -110,7 +106,7 @@ Summarized from mobile design reference materials.
             },
             "notes_bass": {
               "cell_content": "colored_pads",
-              "note": "pads colored based on instrument theme"
+              "note": "pads colored based on instrument theme. Root note (octaves) pads are brighter."
             }
           }
         },
@@ -239,7 +235,7 @@ Summarized from mobile design reference materials.
             { "name": "Sub", "user": "bill_tribble", "type": "vertical_fader" }
           ],
           "fader_style": "vertical_slider_with_integrated_vu_meter",
-          "fader_note": "VU level bounces inside the fader track, showing real-time output level alongside the volume setting.",
+          "fader_note": "VU level bounces inside the fader track.",
           "display_info": ["instrument_name", "user_attribution"]
         }
       },

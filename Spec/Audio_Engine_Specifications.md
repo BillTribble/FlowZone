@@ -63,7 +63,7 @@
 1.  **Keymasher** — 12-button performance sampler (§7.6.3 button grid)
     *   No XY Pad — uses 3×4 button grid instead
     *   Buttons: Repeat, Pitch Down, Pitch Rst, Pitch Up, Reverse, Gate, Scratch, Buzz, Stutter, Go To, Go To 2, Buzz Slip
-    *   Implementation: Captures loop buffer, applies real-time manipulation per button
+    *   Implementation: In FX Mode, captures audio from the sum of selected FX source slots (same routing as other effects). The captured audio is held in an internal manipulation buffer. Button presses apply real-time transformations to this buffer.
 
 2.  **Ripper** — Bit reduction + sample rate reduction
     *   Parameters: Bit Depth (1 - 16 bits), Sample Rate Reduction (1x - 32x)
