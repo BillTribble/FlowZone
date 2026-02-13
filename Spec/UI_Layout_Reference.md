@@ -1,10 +1,10 @@
-# Mobile Layout Reference (JSON)
+# UI Layout Reference (JSON)
 
 Summarized from mobile design reference materials.
 
 ```json
 {
-  "mobile_layout_specification": {
+  "ui_layout_specification": {
     "global_elements": {
       "header": {
         "context_label": {
@@ -21,7 +21,7 @@ Summarized from mobile design reference materials.
         "layout": "horizontal_bar",
         "position": "bottom_of_content_area",
         "tabs": [
-          { "id": "instrument", "icon": "grid", "label": "Instrument" },
+          { "id": "mode", "icon": "grid", "label": "Mode" },
           { "id": "sound", "icon": "wave", "label": "Sound" },
           { "id": "adjust", "icon": "knob", "label": "Adjust" },
           { "id": "mixer", "icon": "sliders", "label": "Mixer" }
@@ -279,7 +279,7 @@ Summarized from mobile design reference materials.
         },
         "actions": {
           "layout": "horizontal_row",
-          "buttons": ["Export Video", "Export Stems", "Delete Rifff"]
+          "buttons": ["Export Video", "Export Stems", "Delete Riff"]
         },
         "history_list": {
           "grouping": "chronological_by_date",
@@ -319,7 +319,7 @@ Summarized from mobile design reference materials.
               {
                 "label": "Device",
                 "type": "dropdown",
-                "value": "iOS Audio",
+                "value": "CoreAudio Device",
                 "additional_button": "Test"
               },
               {

@@ -39,7 +39,7 @@
 *   **Microtuning Support:** Internal synths must support microtuning via `.scl` (Scala) and `.kbm` files, with standard presets (Just Intonation, Pythagorean, Slendro, Pelog, 12TET).
 *   **"Configure Mode" for VST Parameters:** Users must explicitly "touch" a VST knob to expose it to the React UI.
 *   **Smart Layering (Auto-Merge):** The "9th Loop" trigger automatically sums Slots 1-8 into Slot 1.
-*   **FX Mode / Resampling:** Route specific layers through FX and resample into a new layer.
+*   **FX Mode / Resampling:** Route specific layers through FX and resample into a new layer (see §7.6.2 FX Mode).
 
 ### **1.2. Non-Goals**
 *   **Windows/Linux Support:** macOS only for V1.
@@ -195,7 +195,7 @@ graph TD
 
 #### **M. Internal Audio Engines (Native C++)**
 
-> **Detailed Specifications:** See [Audio_Engine_Specifications.md](file:///Users/tribble/Sites/FlowZone/Spec%20versions/Audio_Engine_Specifications.md) for comprehensive implementation details of all effects, presets, and sound generators.
+> **Detailed Specifications:** See [Audio_Engine_Specifications.md](./Audio_Engine_Specifications.md) for comprehensive implementation details of all effects, presets, and sound generators.
 
 *   **`InternalSynth`:**
     *   **Engines:** Drums, Bass, Leads (Notes).
@@ -261,11 +261,39 @@ These must be kept in sync. Changes to one **must** be reflected in the other.
 // Commands sent from Client -> Engine
 // Must match C++ decoding logic EXACTLY.
 type Command = 
+  // Volume & Pan
   | { cmd: 'SET_VOL'; slot: number; val: number; reqId: string }   // val: 0.0 - 1.0
-  | { cmd: 'TRIGGER_SLOT'; slot: number; quantized: boolean }
-  | { cmd: 'LOAD_VST'; slot: number; pluginId: string }
+  | { cmd: 'SET_PAN'; slot: number; val: number }                  // val: -1.0 to 1.0
+
+  // Transport
+  | { cmd: 'PLAY' }
+  | { cmd: 'PAUSE' }
+  | { cmd: 'STOP' }
   | { cmd: 'SET_TEMPO'; bpm: number }                              // bpm: 20.0 - 300.0
+  | { cmd: 'TOGGLE_METRONOME' }
+  | { cmd: 'SET_KEY'; rootNote: number; scale: string }
+
+  // Slot Control
+  | { cmd: 'TRIGGER_SLOT'; slot: number; quantized: boolean }
+  | { cmd: 'MUTE_SLOT'; slot: number }
+  | { cmd: 'UNMUTE_SLOT'; slot: number }
+  | { cmd: 'RECORD_START'; slot: number }
+  | { cmd: 'RECORD_STOP'; slot: number }
+  | { cmd: 'SET_LOOP_LENGTH'; bars: number }                       // 1, 2, 4, or 8
+
+  // Mode & FX
+  | { cmd: 'SELECT_MODE'; category: string; presetId: string }
+  | { cmd: 'SELECT_EFFECT'; effectId: string }
+  | { cmd: 'SET_KNOB'; param: string; val: number }                // Adjust tab knob
+  | { cmd: 'LOAD_VST'; slot: number; pluginId: string }
+
+  // Session & Riff
+  | { cmd: 'COMMIT_RIFF' }                                         // Save current state to riff history
+  | { cmd: 'LOAD_RIFF'; riffId: string }                           // Load riff from history
+  | { cmd: 'START_NEW' }                                            // Clear slots, start fresh riff
   | { cmd: 'UNDO'; scope: 'SESSION' }
+
+  // System
   | { cmd: 'PANIC'; scope: 'ALL' | 'ENGINE' }                     // Immediate silence/reset
   | { cmd: 'AUTH'; pin: string };                                   // Optional PIN auth
 
@@ -284,9 +312,23 @@ Every command has a defined set of possible error responses:
 | Command | Possible Errors | Client Behavior |
 | :--- | :--- | :--- |
 | `SET_VOL` | None (always succeeds) | Optimistic update; reconcile on next state patch. |
-| `TRIGGER_SLOT` | `2010: SLOT_BUSY` | Show toast "Slot busy, try again." |
-| `LOAD_VST` | `3001: PLUGIN_CRASH`, `3010: PLUGIN_NOT_FOUND` | Show error in slot UI panel. |
+| `SET_PAN` | None (always succeeds) | Optimistic update; reconcile on next state patch. |
+| `PLAY` / `PAUSE` / `STOP` | None (always succeeds) | Optimistic update. |
 | `SET_TEMPO` | `2020: TEMPO_OUT_OF_RANGE` | Clamp UI slider to valid range (20–300 BPM). |
+| `TOGGLE_METRONOME` | None (always succeeds) | Optimistic toggle. |
+| `SET_KEY` | `2030: INVALID_SCALE` | Revert to previous key/scale. |
+| `TRIGGER_SLOT` | `2010: SLOT_BUSY` | Show toast "Slot busy, try again." |
+| `MUTE_SLOT` / `UNMUTE_SLOT` | None (always succeeds) | Optimistic toggle. |
+| `RECORD_START` | `2010: SLOT_BUSY`, `2040: NO_INPUT` | Show error toast. |
+| `RECORD_STOP` | None (always succeeds) | Finalize recording. |
+| `SET_LOOP_LENGTH` | `2050: INVALID_LOOP_LENGTH` | Revert to current length. |
+| `SELECT_MODE` | `2060: PRESET_NOT_FOUND` | Show error toast. |
+| `SELECT_EFFECT` | `2060: PRESET_NOT_FOUND` | Show error toast. |
+| `SET_KNOB` | None (always succeeds) | Optimistic update. |
+| `LOAD_VST` | `3001: PLUGIN_CRASH`, `3010: PLUGIN_NOT_FOUND` | Show error in slot UI panel. |
+| `COMMIT_RIFF` | `4010: NOTHING_TO_COMMIT` | Disable commit button. |
+| `LOAD_RIFF` | `4011: RIFF_NOT_FOUND` | Show error toast. |
+| `START_NEW` | None (always succeeds) | Full UI reset. |
 | `UNDO` | `4001: NOTHING_TO_UNDO` | Disable undo button. |
 | `PANIC` | None (always succeeds) | Full UI reset animation. |
 | `AUTH` | `1101: AUTH_FAILED` | Show "Incorrect PIN" prompt. |
@@ -302,10 +344,31 @@ interface AppState {
     mode: 'NORMAL' | 'SAFE_MODE';
     version: string;              // e.g. "1.0.0"
   };
+  session: {
+    id: string;                    // UUID
+    name: string;                  // e.g., "Jam 12 Feb 2026"
+    emoji: string;                 // Randomly assigned
+    createdAt: number;             // Unix timestamp
+  };
   transport: {
     bpm: number;
     isPlaying: boolean;
     barPhase: number;              // 0.0 - 1.0
+    loopLengthBars: number;        // Current loop length (1, 2, 4, 8)
+    metronomeEnabled: boolean;
+    rootNote: number;              // 0-11 (C=0)
+    scale: string;                 // e.g., 'minor_pentatonic'
+  };
+  activeMode: {
+    category: string;              // 'drums' | 'notes' | 'bass' | 'sampler' | 'fx' | 'mic' | 'ext_inst' | 'ext_fx'
+    presetId: string;              // Currently selected preset
+    presetName: string;            // Display name
+  };
+  activeFX: {
+    effectId: string;              // Currently selected effect
+    effectName: string;            // Display name
+    xyPosition: { x: number; y: number }; // Current XY pad state (0.0-1.0)
+    isActive: boolean;             // Whether effect is currently engaged (finger down)
   };
   slots: Array<{
     id: string;                    // UUID
@@ -313,8 +376,19 @@ interface AppState {
     volume: number;                // 0.0 - 1.0
     pan: number;                   // -1.0 to 1.0
     name: string;
+    instrumentCategory: string;    // What produced this slot's audio
+    presetId: string;              // Which preset was used
+    userId: string;                // Who recorded this slot (multi-user)
     pluginChain: PluginInstance[];
     lastError?: number;            // Error code if slot has an active error
+  }>;
+  riffHistory: Array<{
+    id: string;                    // UUID
+    timestamp: number;
+    name: string;
+    layers: number;                // Number of active slots when committed
+    colors: string[];              // Layer cake colors (source-based)
+    userId: string;                // Who committed
   }>;
   system: {
     cpuLoad: number;               // 0.0 - 1.0 (DSP time / buffer time)
@@ -356,6 +430,8 @@ struct RiffSnapshot {
     *   Client sends a **4-byte ACK** after *every received frame*.
     *   If `pendingFrameCount > 3`, server skips sending the next frame.
     *   Fast clients get ~30fps; slow clients (phone on WiFi) gracefully degrade.
+
+> **Note:** If a client never sends ACKs, `pendingFrameCount` will reach the threshold and the server simply stops sending frames to that client. This is **silent degradation, not an error** — the UI works fine without visualization data, it just won’t show meters/waveforms. No error is logged for this condition.
 
 ### **3.8. Adaptive Visualization Degradation**
 
@@ -410,7 +486,7 @@ Strict adherence for Agent clarity.
 │   ├── /engine              # C++ unit tests
 │   └── /web_client          # React component tests
 ├── /assets
-└── CMakeLists.txt
+└── FlowZone.jucer
 ```
 
 ### **4.2. DiskWriter Failure Strategy (Tiered)**
@@ -472,6 +548,10 @@ Agents must strictly use these codes. New codes must be registered here before u
     *   `2001`: `ERR_AUDIO_DROPOUT` (XRUN)
     *   `2010`: `ERR_SLOT_BUSY`
     *   `2020`: `ERR_TEMPO_OUT_OF_RANGE`
+    *   `2030`: `ERR_INVALID_SCALE`
+    *   `2040`: `ERR_NO_INPUT` (No audio input device available)
+    *   `2050`: `ERR_INVALID_LOOP_LENGTH`
+    *   `2060`: `ERR_PRESET_NOT_FOUND`
 *   `3000-3999`: Plugins
     *   `3001`: `ERR_PLUGIN_CRASH`
     *   `3002`: `ERR_PLUGIN_TIMEOUT`
@@ -479,6 +559,8 @@ Agents must strictly use these codes. New codes must be registered here before u
     *   `3020`: `ERR_PLUGIN_OVERLOAD` (IPC ring buffer drops)
 *   `4000-4999`: Session
     *   `4001`: `ERR_NOTHING_TO_UNDO`
+    *   `4010`: `ERR_NOTHING_TO_COMMIT`
+    *   `4011`: `ERR_RIFF_NOT_FOUND`
 
 ### **5.2. Structured Log Format (JSONL)**
 
@@ -592,7 +674,7 @@ Example: Adding `MUTE_SLOT`.
 
 #### **Phone Mode (`< 768px`)**
 
-*   **Navigation:** Bottom Tab Bar (Dash | Inst | FX | Mixer | **Settings**).
+*   **Navigation:** Bottom Tab Bar (Mode | Sound | Adjust | Mixer). Settings accessed via "More" button in Mixer tab (§7.6.8).
 *   **Dashboard:** Vertical Stack.
 *   **Mixer:** Scrollable.
 
@@ -700,9 +782,9 @@ When the app enters Safe Mode (any level), the UI presents a specific "Recovery"
 
 ---
 
-## **7.6. Mobile Layout Specification**
+## **7.6. UI Layout Specification**
 
-This section defines the mobile-specific UI implementation details. For the complete JSON structure, see [Mobile_Layout_Reference.md](file:///Users/tribble/Sites/FlowZone/Spec%20versions/Mobile_Layout_Reference.md).
+This section defines the UI layout implementation details. For the complete JSON structure, see [UI_Layout_Reference.md](./UI_Layout_Reference.md).
 
 ### **7.6.1. Global UI Elements**
 
@@ -719,7 +801,7 @@ This section defines the mobile-specific UI implementation details. For the comp
 *   **Layout:** Horizontal tab bar
 *   **Position:** Bottom of content area (above riff history indicators)
 *   **Tabs:** 4 tabs in fixed order
-    1.  **Instrument** — Grid icon
+    1.  **Mode** — Grid icon
     2.  **Sound** — Wave icon
     3.  **Adjust** — Knob icon  
     4.  **Mixer** — Sliders icon
@@ -764,7 +846,7 @@ This section defines the mobile-specific UI implementation details. For the comp
 
 ---
 
-### **7.6.2. Instrument Tab Layout**
+### **7.6.2. Mode Tab Layout**
 
 #### **Category Selector**
 *   **Layout:** 2×4 grid
@@ -793,7 +875,7 @@ This section defines the mobile-specific UI implementation details. For the comp
 #### **Pad Grid**
 *   **Structure:** 4×4 grid (16 pads total)
 *   **Position:** Bottom section
-*   **Content Variations by Instrument:**
+*   **Content Variations by Mode:**
     *   **Drums:** Icon-based pads
         *   Icons: double_diamond, cylinder, tall_cylinder, tripod, hand, snare, lollipop
         *   Each pad represents a specific drum sound
@@ -809,6 +891,44 @@ This section defines the mobile-specific UI implementation details. For the comp
     *   Text: `"Add a new Plugin"`
     *   Action: Opens VST browser
 
+#### **FX Mode (Resampling)**
+
+When the user selects **FX** from the Mode category selector, the app enters FX Mode — a real-time resampling workflow where existing layers are processed through effects and bounced into a new slot.
+
+**Workflow:**
+
+1.  **Enter FX Mode:** User taps **FX** in the Mode category selector (§7.6.2).
+2.  **Select Source Layers:** The bottom panel shows loop slot indicators as **oblong loop symbols** (with rounded edges). Each has a **square selector indicator** that toggles selection on/off. User taps to select which layers are fed through the FX chain.
+3.  **Select Effect:** The Sound tab (§7.6.3) shows the main FX selector. Only one effect is active at a time — this is an FX *selector*, not a chain. The XY pad controls the selected effect's parameters in real-time.
+4.  **Real-Time Processing:** While in FX Mode, selected layers are continuously routed through the active effect and output to the audio buffer. The user hears the processed audio in real-time.
+5.  **Commit Resampled Layer:** When the user commits (records), the FX-processed audio is captured for one loop cycle and written to the **next empty slot**. The source slots that were selected are then **deleted**.
+6.  **Auto-Merge:** If all 8 slots are full when committing the resampled layer, the standard auto-merge rule applies first (sum Slots 1-8 into Slot 1), then the resampled audio goes into the next available slot.
+
+**UI Layout in FX Mode:**
+
+*   **Top:** FX preset selector (same as Sound tab §7.6.3 — Core FX + Infinite FX banks)
+*   **Middle:** XY Pad for real-time effect control
+*   **Bottom:** Loop slot indicators with square selection toggles
+    *   **Selected:** Square border highlighted (accent color)
+    *   **Unselected:** Square border dim/transparent
+    *   Empty slots are not selectable
+
+**Audio Routing:**
+
+```
+[Selected Slots] → [Sum] → [Active Effect (XY controlled)] → [Audio Output]
+                                                            → [Record Buffer (on commit)]
+```
+
+**Commands:**
+
+*   `SELECT_MODE` with `category: 'fx'` enters FX Mode
+*   `SELECT_EFFECT` chooses the active effect
+*   Existing slot selection uses `TRIGGER_SLOT` with a mode-specific flag
+*   `COMMIT_RIFF` in FX Mode triggers the resample-and-replace behavior
+
+> **Note:** FX Mode uses the same main FX chain as the Sound tab — it is not a separate system. The Audio In slot has its own independent FX chain (simple reverb for vocals), which is only accessible from the Audio In / Microphone mode and is not related to FX Mode.
+
 ---
 
 ### **7.6.3. Sound / FX Tab Layout**
@@ -816,7 +936,7 @@ This section defines the mobile-specific UI implementation details. For the comp
 #### **Preset Selector**
 *   **Layout:** 3×4 grid
 *   **Position:** Top section
-*   **Active Preset Display:** Top with attribution (same as Instrument tab)
+*   **Active Preset Display:** Top with attribution (same as Mode tab)
 *   **Preset Banks:**
     *   **Core FX:** Lowpass, Highpass, Reverb, Gate, Buzz, GoTo, Saturator, Delay, Comb, Distortion, Smudge, Channel
     *   **Infinite FX:** Keymasher, Ripper, Ringmod, Bitcrusher, Degrader, Pitchmod, Multicomb, Freezer, Zap Delay, Dub Delay, Compressor
@@ -868,7 +988,7 @@ This section defines the mobile-specific UI implementation details. For the comp
 #### **Pad Grid**
 *   **Structure:** 4×4 grid
 *   **Position:** Below knob controls
-*   **Content:** Instrument-specific pads (same as Instrument tab)
+*   **Content:** Mode-specific pads (same as Mode tab)
 
 ---
 
@@ -910,7 +1030,7 @@ This section defines the mobile-specific UI implementation details. For the comp
 ### **7.6.6. Microphone Tab Layout**
 
 #### **Category Selector**
-*   Same 2×4 grid as Instrument tab (§7.6.2)
+*   Same 2×4 grid as Mode tab (§7.6.2)
 *   **Microphone** category highlighted to indicate active state
 
 #### **Monitor Settings**
@@ -1116,40 +1236,442 @@ The following emojis are used for random assignment to new Jams:
 ]
 ```
 
-## **8. Task Breakdown**
+## **8. Risk Mitigations & Bead Planning Guide**
 
-### **Phase 1: Core Foundation**
-1.  **Task 1.1:** CMake Setup with aggressive compiler warnings (`-Wall -Wextra`) + CrashGuard sentinel.
-2.  **Task 1.2:** Implement `SharedMemoryManager` (RingBuffers) & `PluginProcessManager` (Child spawning).
-3.  **Task 1.3:** Build `TransportService` with unit tests (independent of Audio).
-4.  **Task 1.4:** Implement `FlowEngine` audio graph.
-5.  **Task 1.5:** `StateBroadcaster` with patch/snapshot protocol.
-6.  **Task 1.6:** `DiskWriter` with tiered failure mode.
-7.  **Task 1.7:** `CommandQueue` + `CommandDispatcher`.
-8.  **Task 1.8:** `SessionStateManager` (undo/redo/autosave).
+> **Source:** These mitigations are derived from the [FlowZone Risk Assessment](./FlowZone_Risk_Assessment.md) and are integrated here so that any agent planning or executing beads has the full safety context in one place.
 
-### **Phase 2: Frontend Infrastructure**
-9.  **Task 2.1:** Vite + React + TS setup.
-10. **Task 2.2:** WebSocket client with full connection lifecycle.
-11. **Task 2.3:** Binary stream decoder + visualization canvas.
-12. **Task 2.4:** Responsive layout wrapper.
+### **8.1. Key Principle**
 
-### **Phase 3: Internal Engines**
-13. **Task 3.1:** Implement `InternalSynth` (with Microtuning/Scala support) & `InternalFX`.
-14. **Task 3.2:** Expose parameters via Configure Mode.
+> **Every bead must produce something testable.** If a bead's output can only be verified by running it together with another bead that doesn't exist yet, the bead is too small or poorly scoped. Merge it with the bead it depends on, or add a stub/mock that makes it independently verifiable.
 
-### **Phase 4: Sandboxing & VST**
-15. **Task 4.1:** Implement `PluginHostApp`.
-16. **Task 4.2:** Implement IPC with shared memory.
+This is the single most effective way to prevent the "it compiles but doesn't work" failure mode.
 
-### **Phase 5: UI Implementation**
-17. **Task 5.1:** Build Dashboard (responsive Grid/Stack).
-18. **Task 5.2:** Build Instruments, FX, Mixer views.
-19. **Task 5.3:** Build Settings panel (4 tabs).
-20. **Task 5.4:** Safe Mode recovery UI (graduated levels).
+---
 
-### **Phase 6: Polish & Verification**
-21. **Task 6.1:** Error boundary integration.
-22. **Task 6.2:** Chaos monkey testing (random child process kills).
-23. **Task 6.3:** Health endpoint + developer overlay.
-24. **Task 6.4:** Log rotation + telemetry verification.
+### **8.2. 🔴 Critical Risk Mitigations**
+
+#### **M1: Dual-Language Schema Sync (Risk: Drift between `schema.ts` and `commands.h`)**
+
+Every command, state field, and error code must be mirrored across C++ and TypeScript. Code compiles on both sides independently but fails at runtime when messages don't deserialize.
+
+**Required bead practices:**
+- Every bead that touches commands or state must explicitly name **both** files (`schema.ts` AND `commands.h`) in its scope, even if the bead is "C++ only."
+- Create an early **"Schema Foundation" bead** that establishes the full `Command` union and `AppState` interface in both languages — with a verification step that counts type members on each side.
+- Consider a code-generation approach: write schema in one language and generate the other. This is extra work but eliminates the class of bugs entirely.
+
+#### **M2: Audio Thread Safety (Risk: Lock-free violations in `processBlock`)**
+
+The audio thread must never allocate memory, lock mutexes, or do I/O. Operations that silently allocate include `std::function`, `juce::String` copy, `std::vector::push_back`, and `DBG()`. These don't crash during development but cause audio glitches under load.
+
+**Required bead practices:**
+- Create an explicit **"Audio Thread Contract" bead** early that documents exactly which functions are called on the audio thread and which types/operations are forbidden.
+- Every bead targeting `src/engine/` that touches the audio callback path must include a verification step: *"Confirm no heap allocation, no mutex, no I/O in the processBlock path."*
+- Add `JUCE_ASSERT_MESSAGE_THREAD` / custom audio-thread assertions to catch violations at debug time. Make this part of the foundation bead.
+
+#### **M3: IPC / Plugin Isolation (Risk: Untestable incrementally)**
+
+The plugin isolation architecture requires a separate binary (`PluginHostApp`), shared memory ring buffers, and a heartbeat protocol. This can't be built incrementally the way UI components can.
+
+**Required bead practices:**
+- **Defer plugin isolation to a later phase.** Get the engine working with internal instruments first. This removes the hardest integration risk from the critical path.
+- When IPC is built, structure it as a **vertical slice**: one bead that creates the host binary, configures the CMake target, establishes shared memory, and successfully passes one audio buffer round-trip. Only then fan out to watchdog/respawn/hot-swap beads.
+- The IPC bead must be large and self-contained — not split across multiple agents.
+
+#### **M4: Build System (Resolved: Projucer)**
+
+**Decision:** Projucer (`FlowZone.jucer`) is the authoritative build system. It generates the Xcode project for the main application.
+
+**Required bead practices:**
+- The **very first bead must be "Project Skeleton"** — producing a compiling, running JUCE standalone app with an empty `processBlock` and the web view loading a "Hello World" React page. This validates the entire build chain end-to-end.
+- Every bead that adds C++ source files must add them to the Projucer project (`FlowZone.jucer`).
+
+---
+
+### **8.3. 🟠 High Risk Mitigations**
+
+#### **M5: WebSocket Protocol (Risk: Not incrementally testable)**
+
+The StateBroadcaster uses JSON Patch (RFC 6902) with complex rules about patches vs snapshots. Both sides must run simultaneously to test.
+
+**Required bead practices:**
+- Create a **"Protocol Stub" bead** that implements the WebSocket server sending hardcoded `STATE_FULL` messages and the React client receiving and rendering them. No diffs, no patches — just full state snapshots. This gets both sides talking.
+- Add patches as a second bead, with the stub still available as a fallback.
+- Include a **"Protocol Conformance Test" bead** that sends canned patch sequences to the React client and validates the resulting state.
+
+#### **M6: Audio Effects & Synth Surface Area (Risk: ~75 implementations accumulating subtle bugs)**
+
+12 core FX, 11 infinite FX, 24 synth presets, 16 drum sounds × 4 kits, plus a sample engine.
+
+**Required bead practices:**
+- Group effects/presets by **implementation similarity**, not UI category:
+  - *"All filter-based effects"* (Lowpass, Highpass, Comb, Multicomb)
+  - *"All delay-based effects"* (Delay, Zap Delay, Dub Delay)
+  - *"All noise-based drums"* (hihats, cymbals, snares)
+- Each bead must include a **parameter range validation test** — feed min, max, and mid values to every parameter and confirm no NaN, no infinity, no denormals.
+- Accept that V1 effects will be simple. The spec already says "simple procedural implementations for V1." Don't over-engineer.
+
+#### **M7: Mobile UI Custom Components (Risk: Hard to verify without engine)**
+
+Custom touch controls (XY pads, circular faders, waveform timelines) need Canvas rendering and careful touch event handling.
+
+**Required bead practices:**
+- Structure UI beads as **component-level** (one bead per major component: XY Pad, Circular Fader, Pad Grid, Riff History Indicator, Waveform Timeline).
+- Each bead must produce a **standalone storybook-style demo** that works without the engine backend (using mock state).
+- Defer "touch-and-hold" interactions to a polish bead. Get tap-only working first.
+- The responsive breakpoint system (§7.6.10) should be a **single foundational bead** that establishes the `ResponsiveContainer` and navigation shell before any view-specific beads.
+
+#### **M8: Shared File Coordination (Risk: Merge conflicts on bottleneck files)**
+
+> **Note:** This risk is significantly reduced for this project — only 1-2 agents will be used (likely one to start). The mitigations below are still good practice for code structure, but are not urgent blockers.
+
+Bottleneck files include `schema.ts`, `commands.h`, `FlowEngine.cpp`, `CommandDispatcher.cpp`, and `AppState`.
+
+**Recommended practices:**
+- Serialize schema changes. Schema beads should be completed and pushed before dependent feature beads start.
+- Structure `CommandDispatcher` so each command handler is in its **own file** (`handleMuteSlot.cpp`, `handleSetVol.cpp`). The dispatcher just calls them. This eliminates merge conflicts.
+- `FlowEngine` should delegate to sub-managers (`TransportService`, `SessionStateManager`). Make this delegation explicit so new code goes into sub-managers, not FlowEngine itself.
+
+---
+
+### **8.4. 🟡 Medium Risk Mitigations**
+
+#### **M9: CrashGuard / Safe Mode (Risk: Rabbit hole)**
+
+The graduated 3-level safe mode is important for production but irrelevant to getting the core loop working.
+
+**Required bead practice:** Make CrashGuard the **last** Phase 1 bead, not the first. Create the sentinel read/write as a stub and fill in the graduated logic later. The engine must be running before crash recovery can be tested.
+
+#### **M10: DiskWriter Tiered Failure (Risk: Requires real disk I/O testing)**
+
+The 4-tier failure strategy (256MB ring buffer, 1GB overflow, partial FLAC flushing) can't be unit-tested meaningfully.
+
+**Required bead practice:** Implement DiskWriter with **Tier 1 (normal writes) only** for the first bead. Add overflow/partial-save tiers as a separate bead with an explicit "simulate slow disk" test.
+
+#### **M11: Binary Visualization Stream (Risk: Separate binary protocol)**
+
+The binary visualization stream is a fully separate protocol from JSON commands, with per-client backpressure.
+
+**Required bead practice:** This is **optional for MVP**. Get JSON state sync working first. Add the binary stream as a Phase 2 enhancement. Waveforms and VU meters can be deferred.
+
+#### **M12: Microtuning Support (Risk: Niche feature with hidden complexity)**
+
+`.scl`/`.kbm` parsing, MTS-ESP integration, and non-12TET frequency mapping add significant complexity.
+
+**Required bead practice:** Implement all synths in **12TET first**. Add microtuning as a Phase 3+ bead that modifies the frequency lookup table. Don't let it block synth beads.
+
+---
+
+### **8.5. 🟢 Lower Risk Notes**
+
+| Item | Mitigation |
+|:---|:---|
+| **Emoji Skin Tone Preference** | Small but easily forgotten. Make it a chore bead at the end. |
+| **Log Rotation + JSONL Logging** | Well-defined but easy to skip. Wrap into a "Production Polish" epic. |
+| **HTTP Health Endpoint** | Simple to implement, but agents may forget to wire up live metric values. Bundle with telemetry bead. |
+
+---
+
+### **8.6. Recommended Bead Ordering (Risk-Aware)**
+
+The task breakdown in §9 should follow this risk-aware phasing:
+
+```
+PHASE 0: SKELETON (one bead, run first, blocks everything)
+├── Projucer project configured (FlowZone.jucer)
+├── Empty JUCE app compiles → launches → opens WebBrowserComponent
+├── Empty React app loads inside WebBrowserComponent
+├── WebSocket handshake succeeds (hardcoded "hello")
+└── Both build systems verified (C++ and Vite)
+
+PHASE 1: CONTRACTS (serial beads, must complete before fanout)
+├── schema.ts + commands.h — full type definitions
+├── ErrorCodes.h — all error codes registered
+├── Audio Thread Contract doc — forbidden operations list
+└── AppState round-trip test — C++ serializes, TS deserializes, values match
+
+PHASE 2: ENGINE CORE (can parallelize after contracts)
+├── TransportService (independent, testable)
+├── CommandQueue + CommandDispatcher (handler-per-file structure)
+├── FlowEngine skeleton (empty processBlock, wired to dispatcher)
+├── StateBroadcaster (full snapshot only, no patches yet)
+└── DiskWriter (Tier 1 only)
+
+PHASE 3: UI SHELL (can parallelize with Phase 2)
+├── WebSocket client with reconnection
+├── ResponsiveContainer + navigation shell
+├── Mock state provider (for UI development without engine)
+└── Individual UI components (XY Pad, Pad Grid, Faders, etc.)
+
+PHASE 4: AUDIO ENGINES (after Phase 2 engine core works)
+├── Filter-based effects (Lowpass, Highpass, Comb, Multicomb)
+├── Delay-based effects
+├── Distortion/saturation effects
+├── Synth presets — 12TET only (Notes, Bass)
+├── Drum engine
+└── Sample engine (basic playback)
+
+PHASE 5: INTEGRATION (serial, combines engine + UI)
+├── StateBroadcaster patches (RFC 6902)
+├── Full command flow: UI → WS → CommandQueue → Dispatcher → Engine → State → UI
+├── SessionStateManager (undo/redo, autosave)
+└── Binary visualization stream (optional for MVP)
+
+PHASE 6: PLUGIN ISOLATION (defer until core works)
+├── PluginHostApp binary + CMake target (single vertical-slice bead)
+├── Shared memory ring buffers
+├── Process lifecycle + watchdog
+└── Hot-swap + exponential backoff
+
+PHASE 7: POLISH
+├── CrashGuard + Safe Mode (graduated levels)
+├── DiskWriter Tiers 2-4
+├── Microtuning support
+├── Log rotation + telemetry
+├── Settings panel
+└── Health endpoint
+```
+
+---
+
+### **8.7. Testing Strategy**
+
+FlowZone does not need exhaustive test coverage for V1. Instead, testing is focused on the **dangerous boundaries** — where C++ meets TypeScript, where the audio thread meets the message thread, and where components integrate. Each bead must include its own verification, but the scope is kept practical.
+
+#### **8.7.1. Test Frameworks**
+
+Both frameworks must be configured and verified in the **Phase 0 Skeleton bead** before any feature work begins.
+
+| Side | Framework | Config | Run Command |
+|:---|:---|:---|:---|
+| **C++ (Engine)** | [Catch2](https://github.com/catchorg/Catch2) v3 | Add as separate Projucer Console Application or Xcode test target. Test binary: `FlowZoneTests` | `./build/Debug/FlowZoneTests` |
+| **React (Web Client)** | [Vitest](https://vitest.dev/) | Already Vite-native. Add `vitest` to `devDependencies` | `npm test` (in `src/web_client/`) |
+
+#### **8.7.2. What To Test (By Bead Type)**
+
+| Bead Type | What To Test | Example |
+|:---|:---|:---|
+| **Schema / Contract** | Round-trip serialization: C++ → JSON → TypeScript → validate all fields match | Task 1.4: `AppState` round-trip |
+| **Engine Component** | Construct the component, call its public methods, assert state changes. No audio hardware needed. | `TransportService`: call `setBPM(120)`, assert `getBPM() == 120`. Call `play()`, assert `isPlaying() == true`. |
+| **Command Handler** | Push a command through `CommandDispatcher`, assert the correct state mutation occurred. | Push `MUTE_SLOT { slot: 0 }`, assert `slots[0].state == MUTED`. |
+| **Audio Effect / Synth** | **Parameter range validation**: feed min, max, and mid values to every parameter. Assert no `NaN`, no `Inf`, no denormals in output buffer. | Process 1024 samples with filter cutoff at 0.0, 0.5, and 1.0. Check output buffer for invalid values. |
+| **React Component** | Render with mock state, assert correct DOM output. No engine backend needed. | `<XYPad value={{x: 0.5, y: 0.5}} />` renders a crosshair at center. |
+| **WebSocket / Protocol** | Send canned JSON messages, assert client state updates correctly. | Send `STATE_FULL` with 2 slots, assert UI renders 2 slot controls. |
+| **Integration** | End-to-end command flow. Requires both engine and UI running. | UI sends `SET_VOL` → verify `StateBroadcaster` emits updated state → UI reflects new volume. |
+
+#### **8.7.3. Test File Locations**
+
+```
+/tests
+├── /engine                        # C++ unit & integration tests
+│   ├── test_transport.cpp         # TransportService tests
+│   ├── test_command_dispatch.cpp  # CommandDispatcher + handler tests
+│   ├── test_state_roundtrip.cpp   # Schema serialization round-trip
+│   ├── test_effects.cpp           # Parameter range validation for FX
+│   └── test_synths.cpp            # Parameter range validation for synths
+└── /web_client                    # React / TypeScript tests
+    ├── components/                # Component render tests
+    ├── hooks/                     # WebSocket hook tests
+    └── protocol/                  # Protocol conformance tests
+```
+
+#### **8.7.4. Rules for Agents**
+
+1. **Every bead must include a verification step.** This can be an automated test *or* a documented manual check (e.g., "Launch app, tap pad, confirm sound plays"). Automated is preferred.
+2. **Tests must pass before a bead is marked complete.** Run `ctest` and/or `npm test` as the final step.
+3. **Don't write tests for UI aesthetics.** Visual correctness is checked manually or via storybook-style demos.
+4. **Don't aim for coverage percentages.** Write tests for logic, boundaries, and parameter ranges. Skip trivial getters/setters.
+5. **Audio thread tests are special.** You can't easily unit-test real-time behaviour. Instead, add debug-mode assertions (`JUCE_ASSERT_MESSAGE_THREAD`, custom `isAudioThread()` checks) that fire during manual testing if a violation occurs.
+
+#### **8.7.5. Catch2 Test Example (C++)**
+
+```cpp
+// tests/engine/test_transport.cpp
+#include <catch2/catch_test_macros.hpp>
+#include "engine/transport/TransportService.h"
+
+TEST_CASE("TransportService manages BPM", "[transport]") {
+    TransportService transport;
+    
+    SECTION("Default BPM is 120") {
+        REQUIRE(transport.getBPM() == Catch::Approx(120.0));
+    }
+    
+    SECTION("setBPM clamps to valid range") {
+        transport.setBPM(300.0);
+        REQUIRE(transport.getBPM() == Catch::Approx(300.0));
+        
+        transport.setBPM(10.0);  // Below minimum (20)
+        REQUIRE(transport.getBPM() == Catch::Approx(20.0));
+    }
+    
+    SECTION("Play/Pause toggles state") {
+        REQUIRE_FALSE(transport.isPlaying());
+        transport.play();
+        REQUIRE(transport.isPlaying());
+        transport.pause();
+        REQUIRE_FALSE(transport.isPlaying());
+    }
+}
+```
+
+#### **8.7.6. Vitest Test Example (TypeScript)**
+
+```typescript
+// src/web_client/src/hooks/__tests__/useAppState.test.ts
+import { describe, it, expect } from 'vitest';
+import { applyStatePatch } from '../useAppState';
+
+describe('applyStatePatch', () => {
+  it('applies a volume change patch', () => {
+    const state = {
+      slots: [{ id: '1', state: 'PLAYING', volume: 0.5 }]
+    };
+    
+    const patch = [
+      { op: 'replace', path: '/slots/0/volume', value: 0.8 }
+    ];
+    
+    const result = applyStatePatch(state, patch);
+    expect(result.slots[0].volume).toBe(0.8);
+  });
+  
+  it('rejects patches with invalid paths', () => {
+    const state = { slots: [] };
+    const patch = [
+      { op: 'replace', path: '/nonexistent/field', value: 42 }
+    ];
+    
+    expect(() => applyStatePatch(state, patch)).toThrow();
+  });
+});
+```
+
+### **8.8. Human Testing Checkpoints**
+
+Development must pause at these checkpoints for manual verification before proceeding. These are the minimum gates required to catch integration failures early.
+
+#### **Checkpoint 1: After Phase 0** — *"Does it build and run?"*
+
+| Verify | How |
+|:---|:---|
+| JUCE app compiles and launches | Build in Xcode, run standalone |
+| WebBrowserComponent shows React "Hello World" | Visual check |
+| WebSocket connection establishes | Check browser DevTools console |
+| Catch2 test passes | Run `FlowZoneTests` |
+| Vitest test passes | Run `npm test` in `web_client/` |
+
+**Stop criteria:** Do NOT proceed to Phase 1 until this passes.
+
+#### **Checkpoint 2: After Phase 1 + Task 2.4** — *"Does state flow from C++ to React?"*
+
+| Verify | How |
+|:---|:---|
+| App launches, React UI appears | Visual check |
+| WebSocket messages visible | Browser DevTools → Network → WS |
+| `STATE_FULL` contains valid `AppState` | Inspect message payload |
+| State changes in C++ reflect in React | Trigger transport play, verify UI updates |
+| All Catch2 + Vitest tests pass | `FlowZoneTests` + `npm test` |
+
+**Stop criteria:** Do NOT proceed to UI work until both sides agree on state.
+
+#### **Checkpoint 3: After Phase 3 + Phase 5** — *"Does it look right?"*
+
+| Verify | How |
+|:---|:---|
+| All 4 tabs visible on desktop | Visual check |
+| Resize to phone width → tabs move to bottom | Responsive layout check |
+| Custom components render with mock data | XY pad, pad grid, faders displayed |
+| Design matches "studio minimalism" aesthetic | Subjective visual check |
+| No layout breakage at various widths | Resize browser window |
+
+**Stop criteria:** Layout and navigation must be correct before integration.
+
+#### **Checkpoint 4: After Task 6.2** — *"Does the loop work?"*
+
+| Verify | How |
+|:---|:---|
+| Tap Play → transport starts | Bar phase animates |
+| Trigger pad → hear audio | Internal synth produces sound |
+| Adjust fader → state updates in real-time | Responsive volume change |
+| Open on phone (LAN WebSocket) → same state | Connect from mobile browser |
+| Multiple tabs → state syncs | Open 2+ browser tabs |
+
+**Stop criteria:** Audio must play. Commands must flow. State must sync.
+
+#### **Checkpoint 5: After Phase 8** — *"Is it shippable?"*
+
+| Verify | How |
+|:---|:---|
+| Full session workflow | Create jam → play → record → commit → load from history |
+| Crash recovery | Kill app mid-session → relaunch → verify recovery |
+| Settings panel | Change audio device, verify effect |
+| Stress test | 8 slots playing → CPU load stays reasonable |
+| Overall feel | Premium, responsive, inspires flow |
+
+**Stop criteria:** Final sign-off before declaring V1 complete.
+
+---
+
+## **9. Task Breakdown**
+
+> **Important:** This task breakdown should be read in conjunction with the risk mitigations in §8. Each task/bead must follow the applicable mitigation practices listed above.
+
+### **Phase 0: Project Skeleton** *(Blocks everything — complete first)*
+1.  **Task 0.1:** Set up Projucer project (`FlowZone.jucer`) with aggressive compiler warnings (`-Wall -Wextra`). Configure **Catch2** (as a separate Projucer Console Application or Xcode test target) and **Vitest** (in `web_client/`). Produce a compiling JUCE standalone app with empty `processBlock` + WebBrowserComponent loading a "Hello World" React page. Verify both C++ and Vite build chains end-to-end. Run one trivial Catch2 test and one trivial Vitest test to confirm test infrastructure works.
+
+### **Phase 1: Contracts & Foundations** *(Serial — must complete before fanout)*
+2.  **Task 1.1:** **Schema Foundation** — Define full `Command` union and `AppState` interface in both `schema.ts` and `commands.h`. Include a verification step that counts type members on each side.
+3.  **Task 1.2:** **Error Codes** — Register all error codes in `ErrorCodes.h`.
+4.  **Task 1.3:** **Audio Thread Contract** — Document forbidden operations on the audio thread. Add `JUCE_ASSERT_MESSAGE_THREAD` / custom assertions. Define which functions are audio-thread-callable.
+5.  **Task 1.4:** **AppState Round-Trip Test** — C++ serializes `AppState` to JSON, TypeScript deserializes and validates. Confirms both sides agree on the schema.
+
+### **Phase 2: Engine Core** *(Can begin after Phase 1)*
+6.  **Task 2.1:** Build `TransportService` with unit tests (independent of audio).
+7.  **Task 2.2:** `CommandQueue` + `CommandDispatcher` — structure dispatcher with one handler per file (`handleMuteSlot.cpp`, `handleSetVol.cpp`, etc.).
+8.  **Task 2.3:** `FlowEngine` skeleton — empty `processBlock`, wired to dispatcher. Verify no audio-thread violations.
+9.  **Task 2.4:** `StateBroadcaster` — full snapshot mode only (`STATE_FULL`). No patches yet.
+10. **Task 2.5:** `DiskWriter` — Tier 1 (normal writes) only.
+
+### **Phase 3: Frontend Infrastructure** *(Can parallelize with Phase 2)*
+11. **Task 3.1:** Vite + React + TS setup.
+12. **Task 3.2:** WebSocket client with full connection lifecycle (reconnection, exponential backoff). Connect to `StateBroadcaster` stub sending hardcoded `STATE_FULL`.
+13. **Task 3.3:** `ResponsiveContainer` + navigation shell (breakpoint system from §7.6.10).
+14. **Task 3.4:** Mock state provider for UI development without engine backend.
+
+### **Phase 4: Internal Audio Engines** *(After Phase 2 engine core works)*
+15. **Task 4.1:** Filter-based effects (Lowpass, Highpass, Comb, Multicomb) — with parameter range validation tests.
+16. **Task 4.2:** Delay-based effects (Delay, Zap Delay, Dub Delay) — with parameter range validation tests.
+17. **Task 4.3:** Remaining effects (distortion, saturation, modulation, etc.) grouped by implementation similarity.
+18. **Task 4.4:** Synth presets (Notes, Bass) — **12TET only**. Microtuning deferred to Phase 7.
+19. **Task 4.5:** Drum engine (4 kits, 16 sounds each) — group by synthesis type (noise-based, tonal, etc.).
+20. **Task 4.6:** Sample engine (basic playback: WAV, FLAC, MP3, AIFF).
+
+### **Phase 5: UI Components** *(After Phase 3 shell is complete)*
+21. **Task 5.1:** XY Pad component — standalone demo with mock state. Tap-only first; touch-and-hold deferred.
+22. **Task 5.2:** Pad Grid component — standalone demo.
+23. **Task 5.3:** Circular Fader / Knob component — standalone demo.
+24. **Task 5.4:** Riff History Indicator — standalone demo.
+25. **Task 5.5:** Waveform Timeline — standalone demo.
+26. **Task 5.6:** Assemble views: Dashboard (responsive Grid/Stack), Mode, FX, Mixer.
+
+### **Phase 6: Integration** *(Serial — combines engine + UI)*
+27. **Task 6.1:** `StateBroadcaster` patches (RFC 6902). Protocol Conformance Test bead (canned patch sequences → validate resulting state).
+28. **Task 6.2:** Full command flow: UI → WS → CommandQueue → Dispatcher → Engine → State → UI.
+29. **Task 6.3:** `SessionStateManager` (undo/redo, autosave).
+
+### **Phase 7: Plugin Isolation** *(Defer until core works)*
+30. **Task 7.1:** **Vertical Slice** — `PluginHostApp` binary + CMake target + shared memory + one audio buffer round-trip. Single self-contained bead.
+31. **Task 7.2:** Process lifecycle + watchdog + exponential backoff respawn.
+32. **Task 7.3:** Hot-swap + plugin scanning.
+
+### **Phase 8: Polish & Production** *(Final phase)*
+33. **Task 8.1:** CrashGuard + Safe Mode (graduated levels). Sentinel stub → full implementation.
+34. **Task 8.2:** DiskWriter Tiers 2-4. Include "simulate slow disk" test.
+35. **Task 8.3:** Microtuning support (`.scl`/`.kbm` parsing, frequency table modification).
+36. **Task 8.4:** Binary visualization stream + Canvas decoder.
+37. **Task 8.5:** Settings panel (4 tabs).
+38. **Task 8.6:** Safe Mode recovery UI.
+39. **Task 8.7:** Health endpoint + developer overlay + telemetry.
+40. **Task 8.8:** Log rotation + JSONL verification.
+41. **Task 8.9:** Emoji skin tone preference.
+42. **Task 8.10:** Error boundary integration + chaos monkey testing.

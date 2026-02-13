@@ -52,7 +52,7 @@ If that audit trail is missing, then you must act as if the operation never happ
 - **Code Authoring:** Antigravity (AI-assisted coding → passed to Xcode for compilation)
 - **Platform:** macOS (Apple Silicon Native), Standalone App
 - **Frontend:** React 18.3.1 (TypeScript 5.x) — embedded via `juce::WebBrowserComponent`
-- **Reference:** See `Spec_FlowZone_Looper1.3.md` for the full technical design
+- **Reference:** See `Spec_FlowZone_Looper1.6.md` for the full technical design
 
 ### Architecture Summary
 
@@ -62,7 +62,7 @@ If that audit trail is missing, then you must act as if the operation never happ
 | **Transport Service** | `src/engine/transport/` | C++20, Ableton Link |
 | **Plugin Host (IPC)** | `src/host/` | C++20, Shared Memory RingBuffers |
 | **Shared Types** | `src/shared/` | C++ primitives (no JUCE deps) |
-| **Web Client (UI)** | `src/web_client/` | React 18.3.1, TypeScript, Vite, Tailwind CSS |
+| **Web Client (UI)** | `src/web_client/` | React 18.3.1, TypeScript, Vite, Tailwind CSS v4 (base utilities + custom design tokens per Spec §7.1) |
 | **Project Config** | `FlowZone.jucer` | Projucer → Xcode |
 
 ### ⚠️ CRITICAL PLATFORM RULES
