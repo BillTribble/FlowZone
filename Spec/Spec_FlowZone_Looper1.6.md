@@ -215,7 +215,7 @@ graph TD
     5.  **Disconnect:** Client shows "Reconnecting…" overlay. Audio continues unaffected. Reconnect uses exponential backoff: 100ms → 200ms → 400ms → … → max 5s.
     6.  **Reconnect:** Client → `WS_RECONNECT` with last known `revisionId`. Server sends diff if revision is recent, or full snapshot if stale. Reconnection retries indefinitely (no maximum) with exponential backoff. During reconnection, user input is discarded — audio continues unaffected, but the UI is non-interactive. The "Reconnecting…" overlay includes a countdown.
     7.  **First Launch:** The React client must handle initial WebSocket connection failure gracefully (e.g., if CivetWeb is still starting). On first connection attempt, if the server is not ready, the client retries using the same strategy. "Connecting…" overlay is shown until success.
-    8.  **Production Content Serving:** In production builds, the React app artifacts (HTML/JS/CSS) should be served by CivetWeb from the local filesystem or via JUCE's `ResourceProvider` if preferred for simplification — but the **Command/State communication MUST remain over WebSocket**.
+    8.  **Production Content Serving:** CivetWeb serves the Vite build output from the local filesystem (`~/Library/Application Support/FlowZone/web_client/` or bundled alongside the app). In development, `WebBrowserComponent::goToURL("http://localhost:5173")` enables Vite HMR. Command/State communication always uses WebSocket regardless of content serving method.
 
 #### **M. Internal Audio Engines (Native C++)**
 
@@ -258,12 +258,10 @@ CrashGuard → Config Load → Audio Device Init → FlowEngine → TransportSer
 
 **Shutdown sequence:**
 ```
-SessionStateManager (auto-save) → FeatureExtractor → StateBroadcaster
-→ WebServer → DiskWriter → PluginProcessManager → FlowEngine → Audio Device
 → CrashGuard (clear sentinel)
+```
 
 > **Shutdown Note:** DiskWriter shutdown is blocking — the app waits for all buffered audio to be flushed to disk before proceeding. Maximum wait time: 30 seconds. If DiskWriter cannot flush within this timeout, remaining audio is written as a `*_PARTIAL.flac` file and the app proceeds with shutdown.
-```
 
 ---
 
@@ -336,7 +334,7 @@ type Command =
   | { cmd: 'NEW_JAM' }                                              // Create a new jam session. Stops playback, clears all slots, resets transport/mode to defaults, and saves the previous session file.
   | { cmd: 'LOAD_JAM'; sessionId: string }                         // Load an existing jam session
   | { cmd: 'RENAME_JAM'; sessionId: string; name: string; emoji?: string } // Rename a jam session. Optional emoji updates the session icon.
-  | { cmd: 'DELETE_JAM'; sessionId: string }                       // Delete a jam session. **Destructive Action:** Immediately removes session metadata and riff history entries. No Trash/Undo in V1. **User must confirm via irreversible warning dialog.**
+  | { cmd: 'DELETE_JAM'; sessionId: string }                       // Delete a jam session. **Destructive Action:** Immediately removes session metadata and riff history entries. No Trash/Undo in V1. **User must confirm via irreversible warning dialog.** If `sessionId` is the currently active session, the engine automatically creates a new empty session (equivalent to `NEW_JAM`) before deleting the old one. This ensures the app is never in a session-less state.
   // UI Settings (UI-only, stored in localStorage — not sent to engine)
   // TOGGLE_NOTE_NAMES handled locally in React (V2 Feature)
 
@@ -424,6 +422,7 @@ Every command has a defined set of possible error responses:
 | `SET_STORAGE_LOCATION` | `1003: STORAGE_PATH_INVALID` | Show error toast. |
 | `SET_RIFF_SWAP_MODE` | None (always succeeds) | Optimistic update. |
 | `WS_RECONNECT` | `1100: PROTOCOL_MISMATCH` | Full page reload. |
+| `GENERATE_SUPPORT_BUNDLE` | `1001: ERR_DISK_FULL` | Show error toast. On success, show path to generated zip. |
 
 ### **3.4. App State**
 
@@ -592,7 +591,7 @@ struct RiffSnapshot {
 
 ### **3.9. Optimistic UI Pattern**
 
-For low-latency commands (`SET_VOL`, `SET_PAN`, `SET_TEMPO`), the client updates its local state optimistically before receiving server confirmation. On the next `STATE_PATCH`, the client reconciles. If the server sends an `ERROR`, the client reverts to the last confirmed state. Apply this consistently to all "always succeeds" or "range-clampable" commands.
+For low-latency commands (`SET_VOL`, `SET_TEMPO`), the client updates its local state optimistically before receiving server confirmation. On the next `STATE_PATCH`, the client reconciles. If the server sends an `ERROR`, the client reverts to the last confirmed state. Apply this consistently to all "always succeeds" or "range-clampable" commands.
 
 ### **3.10. Retrospective Capture (Always-On Recording)**
 
@@ -1190,12 +1189,22 @@ When the active category is **Microphone**, the Adjust tab shows a simplified la
 #### **Channel Strips**
 *   **Layout:** Vertical fader strips (one per active slot)
 *   **Channel Strips:** Horizontal row, **scrollable if > 8 channels**. Each strip corresponds to a slot.
-    *   **Layout:** "Zigzag staggered layout" (Odd slots top, Even slots bottom) to fit 8 slots without scrolling on wider screens, or scrollable on narrower ones. This matches the UI Layout Reference.ical slider bar for volume control (`SET_VOL` command)
+    *   **Layout:** "Zigzag staggered layout" (Odd slots top, Even slots bottom) to fit 8 slots without scrolling on wider screens, or scrollable on narrower ones. This matches the UI Layout Reference.
+    *   **Vertical slider bar** for volume control (`SET_VOL` command)
     *   **Integrated VU meter:** Real-time level display within the same bar area as the fader.
     *   Mute toggle per strip. (No Pan or Solo controls in V1).
 *   **Display Info (per channel):**
     *   Instrument/preset name (e.g., "Keymasher")
     *   User attribution (e.g., "bill_tribble")
+
+#### **Smart Mix (Auto-Leveling)**
+*   **Concept:** "Focus Fader" behavior to prevent clipping and maintain mix balance without manual adjustment of all stems.
+*   **Behavior (Client-Side Logic):**
+    *   **Trigger:** Active when the user drags a fader **UP** and the total mix sum exceeds a headroom threshold (e.g., > 3.0 combined amplitude or similar heuristic).
+    *   **Action:** As the active fader ("Focus") rises, all *other* non-zero, unmuted faders are proportionally lowered ("ducked") to make room.
+    *   **Visual:** The other faders animate downwards automatically while the user actively drags the focus fader up.
+    *   **Constraint:** This only applies to *increasing* volume. Decreasing volume does not inversely raise others.
+    *   **Toggle:** Optional toggle in the "More" settings or a UI modifier (e.g., double-tap fader handle to enter "Focus Mode" - TBD in implementation). For V1, this behavior can be standard when nearing the clipping point.
 
 ---
 

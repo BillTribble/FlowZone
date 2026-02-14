@@ -58,7 +58,7 @@
     *   Parameters: Width (0.0 - 2.0, where 1.0 = normal stereo), Pan (-1.0 to +1.0)
     *   XY Mapping: X = Width, Y = Pan
 
-### **1.2. Infinite FX Bank (11 Effects)**
+### **1.2. Infinite FX Bank (12 Effects)**
 
 1.  **Keymasher** — 12-button performance sampler (§7.6.3 button grid)
     *   No XY Pad — uses 3×4 button grid instead

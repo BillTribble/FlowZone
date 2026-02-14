@@ -15,6 +15,11 @@ Summarized from mobile design reference materials.
           "left_section": ["Home"],
           "center_section": ["Metronome", "Play/Pause"],
           "right_section": []
+        },
+        "clip_indicator": {
+          "description": "Red 'CLIP' label/icon. Hidden by default. Visible only when audio output > 0dBFS. Latching.",
+          "behavior": "Stays visible for ~2s after clipping occurs, or until reset.",
+          "position": "header_bar"
         }
       },
       "navigation_tabs": {
