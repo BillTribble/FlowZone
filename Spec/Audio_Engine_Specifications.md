@@ -177,6 +177,7 @@ Maps to Adjust Tab knobs (§7.6.4 in main spec):
 *   All presets support `.scl` (Scala scale) and `.kbm` (keyboard mapping) files
 *   Default: 12-tone equal temperament (12TET)
 *   Preset tunings included: Just Intonation, Pythagorean, Slendro, Pelog (as specified in §1.1 of main spec)
+*   **Included in V1.**
 
 ---
 
@@ -261,7 +262,7 @@ Adjust Tab controls:
 *   **Reverb** → Reverb send amount (0.0 - 1.0)
 *   **Speed** → Tape speed (pitch/time).
 *   **Bounce** → Granular repeat rate.
-*   **Note:** In Drum Mode, **Bounce** and **Speed** knobs are **Hidden** (or disabled) in the UI as they are not used by the drum engine in V1.
+*   **Note:** In Drum Mode, **Bounce** and **Speed** knobs are **Removed** from the UI in V1 (not just hidden).
 
 ---
 

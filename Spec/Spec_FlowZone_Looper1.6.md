@@ -38,7 +38,7 @@
 *   **Dual Build Target:** Built simultaneously as a Standalone App and a VST3 Plugin from the same Projucer project. When running as a VST3, the app provides multi-channel output for DAW recording of riffs. **VST3 target is output-only ("recorder" mode).** Internal plugin hosting (Phase 7) is **disabled** in VST3 mode and available only in Standalone.
 *   **Retrospective "Always-On" Capture:** Implement a lock-free circular buffer (~96s, enough for 8 bars at 20 BPM).
 *   **Hybrid Sound Engine:** VST3 Hosting, Internal Procedural Instruments, Mic Input Processing.
-*   **Microtuning Support:** Internal synths must support microtuning via `.scl` (Scala) and `.kbm` files, with standard presets (Just Intonation, Pythagorean, Slendro, Pelog, 12TET).
+*   **Microtuning Support:** Internal synths must support microtuning via `.scl` (Scala) and `.kbm` files, with standard presets (Just Intonation, Pythagorean, Slendro, Pelog, 12TET). **Included in V1.**
 *   **"Configure Mode" for VST Parameters:** Users must explicitly "touch" a VST knob to expose it to the React UI.
 *   **Smart Layering (Auto-Merge):** The "9th Loop" trigger automatically sums Slots 1-8 into Slot 1.
 *   **FX Mode / Resampling:** Route specific layers through FX and resample into a new layer (see §7.6.2 FX Mode).
@@ -133,6 +133,7 @@ graph TD
     *   Unknown `cmd` values → log warning + send `ERROR { code: 1200, msg: 'UNKNOWN_COMMAND' }`.
     *   Returns `reqId` in error/ack responses when present on the command.
     *   **Note on MIDI:** External MIDI input does NOT pass through the WebSocket `CommandQueue`. MIDI events from JUCE's `MidiInput` callback are queued on a **separate** lock-free SPSC FIFO (`MidiQueue`) dedicated to MIDI input. The `CommandDispatcher` drains both queues (CommandQueue and MidiQueue) on each audio callback. MIDI note messages are converted to the same internal `NoteOn`/`NoteOff` event format used by UI commands, ensuring identical sound generation regardless of input source.
+    *   **Knob Routing:** The dispatcher must implement a strict routing table mapping `KnobParameter` (pitch, length, etc.) to specific Engine properties based on `activeMode.category`. Invalid knobs for a mode (e.g., `speed` in Mic mode) must be ACKed but ignored (no-op).
 
 #### **E. StateBroadcaster** — `src/engine/StateBroadcaster.cpp`
 *   **Mechanism:** Maintains a `StateRevisionID` (monotonically increasing `uint64_t`).
@@ -141,7 +142,7 @@ graph TD
     *   **Snapshot:** Sends a **Full Snapshot** (`STATE_FULL`) when:
         *   A new client connects.
         *   A client reconnects with a stale `revisionId`.
-        *   A patch would exceed **20 operations or 4 KB** (at which point a snapshot is cheaper).
+        *   A patch would exceed **20 operations or 4 KB** (calculated as UTF-8 byte length of the serialized patch array). at which point a snapshot is cheaper.
     *   **Decision:** The `StateBroadcaster` always decides patch-vs-snapshot — clients never request patches.
 
 #### **F. CrashGuard** — `src/engine/CrashGuard.cpp`
@@ -155,7 +156,7 @@ graph TD
 
 | Level | Trigger | Behavior |
 | :--- | :--- | :--- |
-| **Level 1: Plugin-Only** | Plugin crash loop (same manufacturer 3× in 60s) | Disable all VSTs. Engine + audio I/O continue normally. |
+| **Level 1: Plugin-Only** | Plugin crash loop (same manufacturer 3× in 60s rolling window) | Disable all VSTs. Engine + audio I/O continue normally. |
 | **Level 2: Audio Reset** | Audio driver failure at boot | Disable VSTs + reset to default audio device. |
 | **Level 3: Full Recovery** | Config corruption or crash counter ≥ 3 | Disable VSTs, default audio, no session auto-load. Factory defaults offered. |
 
@@ -163,10 +164,10 @@ graph TD
 *   **Role:** Auto-save, crash-recovery snapshots, session loading, riff history management.
 *   **Implementation:**
     *   Manages the riff history (commit, load, delete operations).
-    *   Audio files are **never deleted immediately** — only marked for garbage collection on clean exit. `DELETE_JAM` immediately removes session metadata and riff history entries; associated audio files are marked for GC and deleted on next clean exit.
+    *   **DELETE_JAM Behavior:** `DELETE_JAM` is a destructive action. It **immediately** removes session metadata, riff history entries, **and all associated audio files** from disk. There is no Undo or Trash folder in V1.
     *   **Auto-save:** Writes a recovery snapshot every 30 seconds to `~/Library/Application Support/FlowZone/backups/autosave.json`.
     *   **No Undo/Redo in V1:** Riff History serves as the primary recovery mechanism — every committed riff is preserved and can be loaded at any time. Undo/Redo is deferred to V2 (see §1.3).
-    *   **Threading Note:** CivetWeb runs its own internal thread pool. WebSocket message handlers (`on_message`) execute on CivetWeb worker threads — not the JUCE message thread. Thread safety is ensured by the `CommandQueue` SPSC FIFO. Outgoing state broadcasts are queued by `StateBroadcaster` on the message thread and sent via CivetWeb's thread-safe `mg_websocket_write()`.
+    *   **Threading Note:** CivetWeb runs its own internal thread pool. WebSocket message handlers (`on_message`) execute on CivetWeb worker threads. **Critical:** All outgoing `mg_websocket_write()` calls must be serialized on a **single writer thread** (the Message Thread) to avoid CivetWeb concurrency issues. `StateBroadcaster` handles this queuing.
 
 #### **H. FeatureExtractor** — `src/engine/FeatureExtractor.cpp`
 *   **Optimization:** Double-buffered atomic exchange.
@@ -175,7 +176,7 @@ graph TD
 #### **I. DiskWriter** — `src/engine/DiskWriter.cpp`
 *   Background thread with tiered reliability (see §4.2 for full failure strategy):
     1.  **Primary:** 256MB RingBuffer.
-    2.  **Overflow:** Temporary RAM blocks (up to 1GB).
+    2.  **Overflow:** Temporary RAM blocks (up to **512MB** hard cap on 8GB systems).
     3.  **Critical:** Flush partial file, stop recording, alert UI.
 
 #### **J. PluginProcessManager** — `src/engine/PluginProcessManager.cpp`
@@ -313,7 +314,7 @@ type Command =
   | { cmd: 'SELECT_MODE'; category: string; presetId: string }
   | { cmd: 'SELECT_EFFECT'; effectId: string }
   | { cmd: 'SET_KNOB'; param: KnobParameter; val: number }         // Adjust tab knob. Routed based on current activeMode.category — e.g., 'reverb_mix' in Microphone mode adjusts the mic's built-in reverb, while in Notes mode it adjusts the synth's reverb send.
-  | { cmd: 'LOAD_VST'; slot: number; pluginId: string }
+  | { cmd: 'LOAD_VST'; slot: number; pluginId: string }            // Load VST3 plugin into slot. **Disabled in VST3 mode** (returns error).
   | { cmd: 'SET_XY_PAD'; x: number; y: number }                    // XY pad position (0.0-1.0 each)
   | { cmd: 'FX_ENGAGE' }                                           // Finger down on XY pad — activate FX
   | { cmd: 'FX_DISENGAGE' }                                        // Finger up on XY pad — bypass FX
@@ -326,7 +327,7 @@ type Command =
   | { cmd: 'TOGGLE_MONITOR_UNTIL_LOOPED' }                         // Toggle monitor-until-looped on/off
 
   // Session & Riff Management
-  | { cmd: 'COMMIT_RIFF' }                                         // Save the current session state (volumes, mutes) as a new entry in riff history. Does NOT capture audio from the retrospective buffer — use loop length buttons (SET_LOOP_LENGTH) for audio capture. Only available from the Mixer tab, and only enabled when the user has changed mix levels or mute states since the last commit. In FX Mode, captures FX-processed audio and deletes source slots (see §7.6.2 FX Mode).
+  | { cmd: 'COMMIT_RIFF' }                                         // **Mixer Snapshot:** Creates a new riff history entry with the current mixer state (volume, pan, mute) applied to the existing audio. It does **NOT** re-record audio or capture from retrospective buffer. In FX Mode, captures FX-processed audio and deletes source slots (see §7.6.2 FX Mode).
   | { cmd: 'LOAD_RIFF'; riffId: string }                           // Load riff from history
   | { cmd: 'DELETE_RIFF'; riffId: string }                         // Delete riff from history
   | { cmd: 'NEW_JAM' }                                              // Create a new jam session. Stops playback, clears all slots, resets transport/mode to defaults, and saves the previous session file.
@@ -353,6 +354,7 @@ type Command =
   // System
   | { cmd: 'PANIC'; scope: 'ALL' | 'ENGINE' }                     // ALL: silence + reset all slots + stop transport. ENGINE: silence audio output only, preserve state.
   | { cmd: 'AUTH'; pin: string }                                    // Optional PIN auth
+  | { cmd: 'GENERATE_SUPPORT_BUNDLE' }                              // Generate zip with logs/config/metadata (no audio) for troubleshooting.
   | { cmd: 'WS_RECONNECT'; revisionId: number; clientId: string }; // Client reconnection with last known state revision
 
 // Valid Keymasher button actions
@@ -387,13 +389,13 @@ Every command has a defined set of possible error responses:
 | `SET_KEY` | `2030: INVALID_SCALE` | Revert to previous key/scale. Valid scales: `major`, `minor`, `minor_pentatonic`, `major_pentatonic`, `dorian`, `mixolydian`, `blues`, `chromatic`. |
 | `MUTE_SLOT` / `UNMUTE_SLOT` | None (always succeeds) | Optimistic toggle. |
 | `NOTE_ON` / `NOTE_OFF` | None (always succeeds) | Trigger/release immediately. Local audio feedback optional (engine is source of truth for sound). |
-| `SET_LOOP_LENGTH` | `2050: ERR_INVALID_LOOP_LENGTH`, `2051: ERR_BUFFER_EMPTY` | Revert to current length. If retro buffer is empty, engine sends `2051`. UI shows "Nothing to capture". |
+| `SET_LOOP_LENGTH` | `2050: ERR_INVALID_LOOP_LENGTH`, `2051: ERR_BUFFER_EMPTY` | Revert to current length. If retro buffer is empty, engine sends `2051`. **UI Behavior:** Disable capture controls + dim waveform. **Do NOT** show a warning toast. |
 | `SELECT_MODE` | `2060: PRESET_NOT_FOUND` | Show error toast. |
 | `SELECT_EFFECT` | `2060: PRESET_NOT_FOUND` | Show error toast. |
 | `SET_KNOB` | None (always succeeds) | Optimistic update. |
 | `LOAD_VST` | `3001: PLUGIN_CRASH`, `3010: PLUGIN_NOT_FOUND` | Show error in slot UI panel. |
 | `KEYMASHER_ACTION` | None (always succeeds) | Trigger immediately. |
-| `COMMIT_RIFF` | `4010: NOTHING_TO_COMMIT` | Button only visible when mix state has changed. If triggered without changes, engine sends `msg: "NO_MIX_CHANGES"`. UI shows "No changes to commit". |
+| `COMMIT_RIFF` | `4010: NOTHING_TO_COMMIT` | Button visibility and "Nothing to commit" logic is driven by a deterministic **"Mix Dirty" hash** (vol + pan + mute) stored in session metadata. |
 | `LOAD_RIFF` | `4011: RIFF_NOT_FOUND` | Show error toast. |
 | `DELETE_RIFF` | `4011: RIFF_NOT_FOUND` | Show error toast. |
 | `NEW_JAM` | None (always succeeds) | Navigate to new empty session. |
@@ -566,7 +568,7 @@ struct RiffSnapshot {
     *   If `pendingFrameCount > 3`, server skips sending the next frame.
     *   Fast clients get ~30fps; slow clients (phone on WiFi) gracefully degrade.
 
-> **Note:** If a client never sends ACKs, `pendingFrameCount` will reach the threshold and the server simply stops sending frames to that client. This is **silent degradation, not an error** — the UI works fine without visualization data, it just won’t show meters/waveforms. No error is logged for this condition.
+> **Note:** If a client never sends ACKs, `pendingFrameCount` will reach the threshold and the server simply stops sending frames to that client. This is **silent degradation**. However, if a client stops ACKing for > 5 seconds, the UI should show a small "Visualizers Paused" badge to indicate network issues. No error is logged for this condition.
 
 ### **3.8. Adaptive Visualization Degradation**
 
@@ -1497,7 +1499,7 @@ The binary visualization stream is a fully separate protocol from JSON commands,
 
 `.scl`/`.kbm` parsing, MTS-ESP integration, and non-12TET frequency mapping add significant complexity.
 
-**Required bead practice:** Implement all synths in **12TET first**. Add microtuning as a Phase 3+ bead that modifies the frequency lookup table. Don't let it block synth beads.
+**Required bead practice:** Implement all synths with **Microtuning support** in Phase 4. Do not defer. Use `.scl` parsing logic from the start.
 
 ---
 
@@ -1520,7 +1522,7 @@ PHASE 0: SKELETON (one bead, run first, blocks everything)
 ├── Projucer project configured (FlowZone.jucer)
 ├── CivetWeb integrated as source files in libs/civetweb/ (added to Projucer as source group)
 ├── Empty JUCE app compiles → launches → opens WebBrowserComponent
-├── Empty React app loads inside WebBrowserComponent (dev: localhost:5173, prod: bundled resources)
+├── Empty React app loads inside WebBrowserComponent (dev: localhost:5173, prod: bundled resources via BinaryData or local file server — refer to JUCE `WebBrowserComponent` docs)
 ├── WebSocket handshake succeeds (hardcoded "hello")
 └── Both build systems verified (C++ and Vite, Catch2 and Vitest)
 
@@ -1547,7 +1549,7 @@ PHASE 4: INTERNAL AUDIO ENGINES (after Phase 2 engine core works)
 ├── Filter-based effects (Lowpass, Highpass, Comb, Multicomb)
 ├── Delay-based effects
 ├── Distortion/saturation effects
-├── Synth presets — 12TET only (Notes, Bass)
+├── Synth presets (Notes, Bass) + Microtuning support
 └── Drum engine
 
 PHASE 5: UI COMPONENTS (after Phase 3 shell is complete)
@@ -1571,7 +1573,6 @@ PHASE 7: PLUGIN ISOLATION (defer until core works)
 PHASE 8: POLISH & PRODUCTION
 ├── CrashGuard + Safe Mode (graduated levels)
 ├── DiskWriter Tiers 2-4
-├── Microtuning support
 ├── Log rotation + telemetry
 ├── Settings panel
 └── Health endpoint
@@ -1801,7 +1802,7 @@ Development must pause at these checkpoints for manual verification before proce
 15. **Task 4.1:** Filter-based effects (Lowpass, Highpass, Comb, Multicomb) — with parameter range validation tests.
 16. **Task 4.2:** Delay-based effects (Delay, Zap Delay, Dub Delay) — with parameter range validation tests.
 17. **Task 4.3:** Remaining effects (distortion, saturation, modulation, etc.) grouped by implementation similarity.
-18. **Task 4.4:** Synth presets (Notes, Bass) — **12TET only**. Microtuning deferred to Phase 8.
+18. **Task 4.4:** Synth presets (Notes, Bass) — **Include Microtuning support**. Implement `.scl`/`.kbm` parsing and frequency table modification here.
 19. **Task 4.5:** Drum engine (4 kits, 16 sounds each) — group by synthesis type (noise-based, tonal, etc.).
 
 > **Note:** Sample engine deferred to V2. See §1.3 Future Goals.
@@ -1828,7 +1829,7 @@ Development must pause at these checkpoints for manual verification before proce
 ### **Phase 8: Polish & Production** *(Final phase)*
 33. **Task 8.1:** CrashGuard + Safe Mode (graduated levels). Sentinel stub → full implementation.
 34. **Task 8.2:** DiskWriter Tiers 2-4. Include "simulate slow disk" test.
-35. **Task 8.3:** Microtuning support (`.scl`/`.kbm` parsing, frequency table modification).
+35. **Task 8.3:** [Removed - moved to Task 4.4]
 36. **Task 8.4:** Binary visualization stream + Canvas decoder.
 37. **Task 8.5:** Settings panel (4 tabs).
 38. **Task 8.6:** Safe Mode recovery UI.

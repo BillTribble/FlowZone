@@ -47,13 +47,20 @@ Summarized from mobile design reference materials.
             { "length": "4_bars", "position": "third_from_right" },
             { "length": "8_bars", "position": "leftmost_section" }
           ],
-          "note": "Waveform sections act as buttons. Labels (8 BARS, etc.) overlay the sections.",
+          "note": "Waveform sections act as buttons. Labels (8 BARS, etc.) overlay the sections. **Visual State:** Dimmed/Disabled if Retrospective Buffer is empty.",
           "interaction": "tap specific waveform section to loop that length AND capture audio",
           "action": "absolute_set_loop_length"
         },
         "toolbar": {
           "items": ["Riff History Indicators", "Expand"],
           "position": "between_tabs_and_waveform"
+        }
+      },
+      "error_surfacing": {
+        "levels": {
+          "low": { "style": "toast", "duration": "3s", "example": "Preset not found" },
+          "medium": { "style": "banner_top", "dismissible": true, "example": "Audio device disconnected" },
+          "critical": { "style": "modal_dialog", "blocking": true, "example": "Disk Full / Safe Mode / Delete Confirmation" }
         }
       }
     },
@@ -227,8 +234,8 @@ Summarized from mobile design reference materials.
         },
         "channel_strips": {
           "layout": "vertical_fader_strips",
-          "arrangement": "scales_to_fit_screen",
-          "note": "No horizontal scrolling required for V1.",
+          "arrangement": "zigzag_staggered_layout",
+          "note": "Faders arranged in alternating zigzag pattern (Odd slots top, Even slots bottom) to fit 8 slots without scrolling.",
           "channels_note": "Channel strip names shown below are illustrative — see Audio_Engine_Specifications.md for actual preset names.",
           "channels": [
             { "name": "Saw Lead", "user": "bill_tribble", "type": "vertical_fader" },
