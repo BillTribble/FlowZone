@@ -87,6 +87,7 @@ If that audit trail is missing, then you must act as if the operation never happ
 
 ### C++ / JUCE Engine
 
+- **Documentation:** Always consult the JUCE documentation via the `juce-docs` MCP server when implementing or modifying C++ engine code. This is mandatory for all JUCE-related work.
 - **Audio Thread Safety:** The audio thread is sacred. **Never** allocate memory, lock mutexes, or perform I/O on the audio thread.
 - **RAII:** Use smart pointers (`std::unique_ptr`, `juce::OwnedArray`) for resource management.
 - **Lock-Free Queues:** Use SPSC FIFOs for cross-thread communication (audio ↔ message thread).
