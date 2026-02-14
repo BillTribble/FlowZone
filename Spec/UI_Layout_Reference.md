@@ -350,7 +350,7 @@ Summarized from mobile design reference materials.
           "position": "below_tabs",
           "always_visible": true,
           "options": [
-            { "label": "Note Names", "type": "toggle", "default": "off", "command": "TOGGLE_NOTE_NAMES" }
+            
           ]
         },
         "user_preferences": {

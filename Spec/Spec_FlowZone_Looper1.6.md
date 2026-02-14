@@ -35,7 +35,7 @@
 *   **Responsive Design:** The UI must adapt fluidly to the client device's form factor (Phone vs. Tablet/Desktop).
 *   **Centralized Audio Processing:** All audio processing happens on the main macOS computer.
 *   **Multi-Channel Output:** 8 stereo pairs (16 channels) for DAW recording via the VST3 plugin target. Each slot maps to one stereo pair, enabling multi-track capture of live sessions.
-*   **Dual Build Target:** Built simultaneously as a Standalone App and a VST3 Plugin from the same Projucer project. When running as a VST3, the app provides multi-channel output for DAW recording of riffs. VST3 hosting (Phase 7) is only available in Standalone mode.
+*   **Dual Build Target:** Built simultaneously as a Standalone App and a VST3 Plugin from the same Projucer project. When running as a VST3, the app provides multi-channel output for DAW recording of riffs. **VST3 target is output-only ("recorder" mode).** Internal plugin hosting (Phase 7) is **disabled** in VST3 mode and available only in Standalone.
 *   **Retrospective "Always-On" Capture:** Implement a lock-free circular buffer (~96s, enough for 8 bars at 20 BPM).
 *   **Hybrid Sound Engine:** VST3 Hosting, Internal Procedural Instruments, Mic Input Processing.
 *   **Microtuning Support:** Internal synths must support microtuning via `.scl` (Scala) and `.kbm` files, with standard presets (Just Intonation, Pythagorean, Slendro, Pelog, 12TET).
@@ -297,7 +297,7 @@ type Command =
   | { cmd: 'PAUSE' }
   | { cmd: 'SET_TEMPO'; bpm: number }                              // bpm: 20.0 - 300.0
   | { cmd: 'TOGGLE_METRONOME' }
-  | { cmd: 'TOGGLE_QUANTISE' }                                     // Toggle quantise on/off
+  | { cmd: 'TOGGLE_QUANTISE' }                                     // Toggle quantise on/off. Affects **note input timing** only (snaps to 1/16th grid). Does NOT affect loop capture (SET_LOOP_LENGTH is always bar-aligned).
   | { cmd: 'SET_KEY'; rootNote: number; scale: Scale }
 
   // Slot Control (no explicit record start/stop — see §3.10 Retrospective Capture)
@@ -332,9 +332,9 @@ type Command =
   | { cmd: 'NEW_JAM' }                                              // Create a new jam session. Stops playback, clears all slots, resets transport/mode to defaults, and saves the previous session file.
   | { cmd: 'LOAD_JAM'; sessionId: string }                         // Load an existing jam session
   | { cmd: 'RENAME_JAM'; sessionId: string; name: string }         // Rename a jam session
-  | { cmd: 'DELETE_JAM'; sessionId: string }                       // Delete a jam session. Immediately removes session metadata and riff history entries. Audio files are marked for garbage collection and deleted on next clean exit (per §2.2.G GC policy).
+  | { cmd: 'DELETE_JAM'; sessionId: string }                       // Delete a jam session. **Destructive Action:** Immediately removes session metadata and riff history entries. No Trash/Undo in V1. **User must confirm via irreversible warning dialog.**
   // UI Settings (UI-only, stored in localStorage — not sent to engine)
-  // TOGGLE_NOTE_NAMES handled locally in React
+  // TOGGLE_NOTE_NAMES handled locally in React (V2 Feature)
 
   // Engine Settings (sent to engine via WebSocket)
   | { cmd: 'SET_AUDIO_DEVICE'; deviceType: 'input' | 'output'; deviceId: string }
@@ -387,7 +387,7 @@ Every command has a defined set of possible error responses:
 | `SET_KEY` | `2030: INVALID_SCALE` | Revert to previous key/scale. Valid scales: `major`, `minor`, `minor_pentatonic`, `major_pentatonic`, `dorian`, `mixolydian`, `blues`, `chromatic`. |
 | `MUTE_SLOT` / `UNMUTE_SLOT` | None (always succeeds) | Optimistic toggle. |
 | `NOTE_ON` / `NOTE_OFF` | None (always succeeds) | Trigger/release immediately. Local audio feedback optional (engine is source of truth for sound). |
-| `SET_LOOP_LENGTH` | `2050: INVALID_LOOP_LENGTH`, `4010: NOTHING_TO_COMMIT` | Revert to current length. If retro buffer is empty, engine sends `msg: "BUFFER_EMPTY"`. UI shows "Nothing to capture". |
+| `SET_LOOP_LENGTH` | `2050: ERR_INVALID_LOOP_LENGTH`, `2051: ERR_BUFFER_EMPTY` | Revert to current length. If retro buffer is empty, engine sends `2051`. UI shows "Nothing to capture". |
 | `SELECT_MODE` | `2060: PRESET_NOT_FOUND` | Show error toast. |
 | `SELECT_EFFECT` | `2060: PRESET_NOT_FOUND` | Show error toast. |
 | `SET_KNOB` | None (always succeeds) | Optimistic update. |
@@ -435,7 +435,7 @@ interface AppState {
     version: string;              // e.g. "1.0.0"
     isVstMode: boolean;           // True when running as VST3 plugin (read-only). Set during FlowEngine construction via preprocessor.
     memoryBudgetMB: number;       // Estimated peak (2GB)
-    protocolVersion: number;      // V1 protocol version is 1. Must match client expectation.
+
   };
   sessions: Array<{                // List of all available sessions (for Jam Manager)
     id: string;
@@ -455,7 +455,7 @@ interface AppState {
     barPhase: number;              // 0.0 - 1.0
     loopLengthBars: number;        // Current loop length (1, 2, 4, 8)
     metronomeEnabled: boolean;
-    quantiseEnabled: boolean;      // Whether input is quantised to grid
+    quantiseEnabled: boolean;      // Whether note input is quantised to 16th grid. Loop capture is always bar-aligned.
     rootNote: number;              // 0-11 (C=0)
     scale: Scale;                  // e.g., 'minor_pentatonic'. See Scale type definition above.
   };
@@ -481,10 +481,10 @@ interface AppState {
     id: string;                    // UUID
     state: 'EMPTY' | 'PLAYING' | 'MUTED';  // No RECORDING or STOPPED states. Retrospective buffer is always capturing (§3.10). Slots transition directly from EMPTY to PLAYING on commit. When transport is paused, PLAYING slots simply pause in place — they remain PLAYING and resume when transport resumes. MUTED slots stay MUTED regardless of transport state.
     volume: number;                // 0.0 - 1.0
-    name: string;
+    name: string;                  // Default: "Slot {N}"
     instrumentCategory: string;    // What produced this slot's audio. Values: 'drums', 'notes', 'bass', 'fx', 'mic', 'ext_inst', 'ext_fx', 'merge' (auto-merge result).
     presetId: string;              // Which preset was used. For mic recordings: 'mic_input'. For auto-merge: 'auto_merge'.
-    userId: string;                // Who recorded this slot (multi-user)
+    userId: string;                // Who recorded this slot (Default: "local")
     pluginChain: PluginInstance[];
     loopLengthBars: number;        // Length of the loop in bars (1, 2, 4, 8)
     originalBpm: number;           // BPM when this slot was recorded
@@ -724,6 +724,7 @@ Agents must strictly use these codes. New codes must be registered here before u
     *   `2030`: `ERR_INVALID_SCALE`
     *   `2040`: `ERR_NO_INPUT` (No audio input device available)
     *   `2050`: `ERR_INVALID_LOOP_LENGTH`
+    *   `2051`: `ERR_BUFFER_EMPTY`
     *   `2060`: `ERR_PRESET_NOT_FOUND`
     *   `2070`: `ERR_AUDIO_DEVICE_NOT_FOUND`
     *   `2071`: `ERR_INVALID_SAMPLE_RATE`
@@ -878,8 +879,9 @@ Example: Adding `MUTE_SLOT`.
       "density": "high"
     },
     "palette": {
-      "bg_app": "#252525",
-      "bg_panel": "#333333",
+      "bg_app": "neutral-900",
+      "bg_panel": "neutral-800",
+      "note": "Use Tailwind CSS default 'neutral' palette.",
       "drums": "#5E35B1",
       "synth": "#00897B",
       "input": "#FFB300",
@@ -929,7 +931,7 @@ This section defines the UI layout implementation details. For the complete JSON
     *   Position: Top center
     *   Typography: Small caps, secondary color
 *   **Top Bar Controls:** 3-section horizontal layout
-    *   **Left Section:** Home button (navigates to Jam Manager §7.7)
+    *   **Left Section:** Home button (navigates to Jam Manager §7.7 and **stops** the active session)
     *   **Center Section:** Metronome toggle, Play/Pause toggle
     *   **Right Section:** *(Reserved for V2 — e.g., Share, Undo when implemented)*
 
@@ -967,7 +969,7 @@ This section defines the UI layout implementation details. For the complete JSON
 *   **Dual-Function Interaction:** Tapping a specific waveform section performs two actions simultaneously:
     1.  Sets the loop length to that duration (e.g., tapping the left-most section sets length to 8 bars).
     2.  **Immediately captures** that duration from the retrospective buffer into the next empty slot (fires `SET_LOOP_LENGTH`).
-*   **Visual:** Waveform rendered as filled path with accent color. Labels (`8 BARS`, `4 BARS`, etc.) overlay the corresponding sections. Sections flash heavily on tap to indicate capture.
+*   **Visual:** Waveform rendered as filled path with accent color. Labels (`8 BARS`, `4 BARS`, etc.) overlay the corresponding sections. Sections flash heavily on tap to indicate capture. **Note:** Visualizes **capturable signal only**. Does not show the full mix or playback of existing slots.
 
 #### **Toolbar**
 *   **Position:** Between navigation tabs and waveform display
@@ -1000,7 +1002,11 @@ When the user selects **FX** from the Mode category selector, the app enters FX 
 3.  **Select Effect:** The Play tab (§7.6.3) shows the main FX selector. Only one effect is active at a time — this is an FX *selector*, not a chain. The XY pad (visible only in FX Mode) controls the selected effect's parameters in real-time.
 4.  **Real-Time Processing:** While in FX Mode, selected layers are continuously routed through the active effect and output to the audio buffer. **Unselected slots continue playing normally** alongside the FX-processed audio. The user **cannot play instruments** while in FX Mode (V1).
 5.  **FX Activation:** The effect is engaged only while the user's finger is held down on the XY pad (`FX_ENGAGE` on touch-down, `FX_DISENGAGE` on touch-up). When disengaged, the selected layers play through unprocessed.
-6.  **Commit Resampled Layer:** When the user taps a **Timeline Section** (1, 2, 4, or 8 Bars), the FX-processed audio is captured for that duration and written to the **next empty slot**. The source slots that were selected are then set to `EMPTY` state (destructive — this is the only option). Their audio files remain on disk per the garbage collection policy (§2.2.G). This is safe because the currently playing riff (the pre-FX state) is already the latest entry in Riff History — the user committed it when they originally recorded those layers. Loading that riff from history instantly restores the individual layers.
+6.  **Commit Resampled Layer:** When the user taps a **Timeline Section** (1, 2, 4, or 8 Bars), the FX-processed audio is captured for that duration and written to the **next empty slot**.
+    *   **Destructive Sequence:**
+        1.  **Clear Sources:** The source slots that were selected are set to `EMPTY` state.
+        2.  **Write Result:** The captured FX audio is written to the first available slot (which may be one of the slots just cleared).
+    *   **Safety Note:** Entering FX Mode does **NOT** auto-commit the session. The user should commit the riff (using `COMMIT_RIFF` in the Mixer tab) *before* entering FX Mode if they want a guaranteed recovery point. The retrospective buffer captures the FX output, but the source layers are destroyed to free up the slot.
 7.  **Auto-Merge:** If all 8 slots are full when committing the resampled layer, the standard auto-merge rule applies first (see §7.6.2.1 Auto-Merge Algorithm), then the resampled audio goes into the next available slot.
 
 **Audio Routing in FX Mode:**
@@ -1057,7 +1063,10 @@ Used for all melodic and rhythmic instrument modes.
 *   **Pad Grid (Bottom):** 4×4 performative pad grid.
     *   **Pad-to-Note Mapping:**
         *   **Traversal:** Left-to-right, bottom-to-top. Pad (4,1) is bottom-left (Root).
-        *   **Algorithm:** `padIndex` (0-15) maps to `rootNote + scaleDegree(padIndex)`.
+        *   **Base Octave:**
+            *   **Notes Mode:** Base = C3 (MIDI 48).
+            *   **Bass Mode:** Base = C2 (MIDI 36).
+        *   **Algorithm:** `padIndex` (0-15) maps to `baseNote + rootNote + scaleDegree(padIndex)`.
         *   **Octave Coloring:** Pads representing root notes (octaves) are colored brighter than other notes.
         *   **Wrap:** Scale degrees wrap to next octave.
 *   **Slot Indicators:** Performance-row of loops (mute/unmute toggles).
@@ -1134,7 +1143,7 @@ When the active category is **Microphone**, the Adjust tab shows a simplified la
         *   **Action:** Uses `COMMIT_RIFF` command to save the current volume/mute state as a new Riff History entry.
         *   **Visibility:** This button is **only visible when the user has changed mix levels (volume) or toggled a mute** since the last commit or riff load. It is hidden when no mix changes have been made.
         *   **Auto-Commit:** There is no auto-commit on exit or tab switch. If the user exits the jam or leaves the Levels/Mixer mode without committing, uncommitted changes are lost.
-        *   **Panic Button:** Long-pressing the Play/Pause button in any tab (or the header) triggers a **Panic** (stops all audio, resets all synth voices). (Uses `STOP` or dedicated `PANIC` command).
+        *   **Panic Button:** Long-pressing the Play/Pause button in any tab (or the header) triggers a **Panic** (stops all audio, resets all synth voices). (Uses `PANIC` command).
 
 #### **Channel Strips**
 *   **Layout:** Vertical fader strips (one per active slot)
@@ -1250,7 +1259,7 @@ Accessed via the "More" button in Mixer tab transport controls. This is the **on
 *   **Storage Location:** Path selector for Recordings/Project History.
 
 #### **Section: Quick Toggles** (below tabs, always visible)
-*   **Note Names** — Toggle (default: OFF) — Shows note names on pads. Uses `TOGGLE_NOTE_NAMES` command.
+*   **Note Names** — Toggle (default: OFF, V2 Feature - Disabled in V1) — Shows note names on pads.
 
 #### **Section: User Preferences** (below Quick Toggles, always visible)
 *   **Riff Swap Mode** — Radio button [`Instant` | `Swap on Bar`] (Default: `Instant`) — Controls how riff history taps switch playback. Uses `SET_RIFF_SWAP_MODE` command.
@@ -1397,6 +1406,7 @@ The audio thread must never allocate memory, lock mutexes, or do I/O. Operations
 - Create an explicit **"Audio Thread Contract" bead** early that documents exactly which functions are called on the audio thread and which types/operations are forbidden.
 - Every bead targeting `src/engine/` that touches the audio callback path must include a verification step: *"Confirm no heap allocation, no mutex, no I/O in the processBlock path."*
 - Add `JUCE_ASSERT_MESSAGE_THREAD` / custom audio-thread assertions to catch violations at debug time. Make this part of the foundation bead.
+- **Validation off-thread:** JSON parsing and validation must happen in CommandDispatcher (or earlier), never in processBlock. Audio thread receives pre-validated fixed-size structs.
 
 #### **M3: IPC / Plugin Isolation (Risk: Untestable incrementally)**
 

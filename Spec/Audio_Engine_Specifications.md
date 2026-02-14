@@ -224,22 +224,22 @@ Same as Notes Mode (§2.2).
 
 | Pad (Row, Col) | Icon | Sound Type | Synthesis Method |
 |:---|:---|:---|:---|
-| (1,1) | `double_diamond` | Kick 1 | Sine wave, pitch envelope (80Hz → 30Hz), short decay (0.3s) |
-| (1,2) | `cylinder` | Tom Low | Sine wave, pitch envelope (120Hz → 80Hz), medium decay (0.5s) |
-| (1,3) | `tall_cylinder` | Tom Mid | Sine wave, pitch envelope (200Hz → 150Hz), medium decay (0.4s) |
-| (1,4) | `tripod` | Cymbal | Metallic noise (bandpass: 3kHz - 12kHz), long decay (2.0s) |
-| (2,1) | `double_diamond_outline`| Kick 2 | Sine + triangle blend, pitch envelope (100Hz → 40Hz), punchier attack |
-| (2,2) | `double_diamond_dotted` | Kick 3 | Sine wave, pitch envelope (60Hz → 25Hz), longer decay (0.5s) |
-| (2,3) | `double_diamond_striped`| Kick 4 | Square wave, pitch envelope (90Hz → 35Hz), distorted |
-| (2,4) | `cylinder_short` | Tom High | Sine wave, pitch envelope (300Hz → 220Hz), short decay (0.3s) |
-| (3,1) | `hand` | Clap | Filtered noise burst (bandpass: 800Hz - 3kHz), multiple hits (3×), medium decay (0.2s) |
-| (3,2) | `hand` | Snap | Filtered noise burst (bandpass: 2kHz - 8kHz), single hit, very short (0.05s) |
-| (3,3) | `snare` | Snare 1 | Filtered noise (1kHz - 5kHz) + sine tone (200Hz), snappy envelope (0.15s) |
-| (3,4) | `snare` | Snare 2 | Filtered noise (800Hz - 4kHz) + triangle tone (180Hz), longer tail (0.25s) |
-| (4,1) | `lollipop` | Hi-Hat Closed | High-freq noise (5kHz - 15kHz), very short decay (0.05s) |
-| (4,2) | `lollipop` | Hi-Hat Open | High-freq noise (4kHz - 12kHz), medium decay (0.3s) |
-| (4,3) | `lollipop` | Hi-Hat Pedal | High-freq noise (3kHz - 10kHz), short decay (0.1s) |
-| (4,4) | `lollipop` | Ride | Metallic noise (2kHz - 8kHz), long sustain (1.0s) |
+| (1,1) | `double_diamond` | Kick 1 | 36 | Sine wave, pitch envelope (80Hz → 30Hz), short decay (0.3s) |
+| (1,2) | `cylinder` | Tom Low | 37 | Sine wave, pitch envelope (120Hz → 80Hz), medium decay (0.5s) |
+| (1,3) | `tall_cylinder` | Tom Mid | 38 | Sine wave, pitch envelope (200Hz → 150Hz), medium decay (0.4s) |
+| (1,4) | `tripod` | Cymbal | 39 | Metallic noise (bandpass: 3kHz - 12kHz), long decay (2.0s) |
+| (2,1) | `double_diamond_outline`| Kick 2 | 40 | Sine + triangle blend, pitch envelope (100Hz → 40Hz), punchier attack |
+| (2,2) | `double_diamond_dotted` | Kick 3 | 41 | Sine wave, pitch envelope (60Hz → 25Hz), longer decay (0.5s) |
+| (2,3) | `double_diamond_striped`| Kick 4 | 42 | Square wave, pitch envelope (90Hz → 35Hz), distorted |
+| (2,4) | `cylinder_short` | Tom High | 43 | Sine wave, pitch envelope (300Hz → 220Hz), short decay (0.3s) |
+| (3,1) | `hand` | Clap | 44 | Filtered noise burst (bandpass: 800Hz - 3kHz), multiple hits (3×), medium decay (0.2s) |
+| (3,2) | `hand` | Snap | 45 | Filtered noise burst (bandpass: 2kHz - 8kHz), single hit, very short (0.05s) |
+| (3,3) | `snare` | Snare 1 | 46 | Filtered noise (1kHz - 5kHz) + sine tone (200Hz), snappy envelope (0.15s) |
+| (3,4) | `snare` | Snare 2 | 47 | Filtered noise (800Hz - 4kHz) + triangle tone (180Hz), longer tail (0.25s) |
+| (4,1) | `lollipop` | Hi-Hat Closed | 48 | High-freq noise (5kHz - 15kHz), very short decay (0.05s) |
+| (4,2) | `lollipop` | Hi-Hat Open | 49 | High-freq noise (4kHz - 12kHz), medium decay (0.3s) |
+| (4,3) | `lollipop` | Hi-Hat Pedal | 50 | High-freq noise (3kHz - 10kHz), short decay (0.1s) |
+| (4,4) | `lollipop` | Ride | 51 | Metallic noise (2kHz - 8kHz), long sustain (1.0s) |
 
 ### **4.2. 4 Drum Kit Presets**
 
@@ -265,7 +265,7 @@ Adjust Tab controls:
 
 ---
 
-## **5. SampleEngine — Sample Playback System**
+## **5. SampleEngine — Sample Playback System (Future / V2)**
 
 \u003e **V2 Feature:** The Sample Engine is deferred to V2. This section documents the full design for future reference. V1 uses procedural instruments only (InternalSynth + DrumEngine).
 
