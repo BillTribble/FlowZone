@@ -61,6 +61,7 @@
 *   **MIDI Clock Sync:** External MIDI Clock as transport source.
 *   **Multi-User Retrospective Buffers:** V1 uses a single global retrospective buffer (single-user). V2 will add per-user buffers for multi-user jamming — each connected user gets their own capture buffer. This requires a session settings item to configure the number of active users (2-4+), with each user's buffer pre-allocated on session start.
 *   **Undo/Redo:** Session-level undo/redo. Deferred from V1 because Riff History (always-on capture + commit history) provides the primary recovery mechanism.
+*   **Trash Folder:** Deleted jams are permanently removed in V1. V2 will implement a "Trash" folder where deleted jams are held for 30 days before permanent deletion.
 
 ---
 
@@ -119,6 +120,7 @@ graph TD
 #### **B. TransportService** — `src/engine/transport/TransportService.cpp`
 *   **Role:** Manages Transport state (Play/Pause, BPM, Phase). 
 *   **Isolation:** Decoupled from Engine for independent testing.
+*   **Pitch Behavior:** Changing BPM changes the playback speed and pitch of all recorded loops (varispeed). This is intentional behavior for a creative "flow machine." Audio is not time-stretched; it is re-sampled. To maintain pitch while changing tempo, the user must re-record or use the V2 Time Stretch feature (future goal).
 
 #### **C. CommandQueue** — `src/engine/CommandQueue.h`
 *   **Role:** Lock-free SPSC FIFO. Moves raw command bytes from the WebSocket thread to the audio thread *without locking*.
@@ -130,6 +132,7 @@ graph TD
     *   Validates all required fields are present and within range.
     *   Unknown `cmd` values → log warning + send `ERROR { code: 1200, msg: 'UNKNOWN_COMMAND' }`.
     *   Returns `reqId` in error/ack responses when present on the command.
+    *   **Note on MIDI:** External MIDI input does NOT pass through the WebSocket `CommandQueue`. MIDI events from JUCE's `MidiInput` callback are queued on a **separate** lock-free SPSC FIFO (`MidiQueue`) dedicated to MIDI input. The `CommandDispatcher` drains both queues (CommandQueue and MidiQueue) on each audio callback. MIDI note messages are converted to the same internal `NoteOn`/`NoteOff` event format used by UI commands, ensuring identical sound generation regardless of input source.
 
 #### **E. StateBroadcaster** — `src/engine/StateBroadcaster.cpp`
 *   **Mechanism:** Maintains a `StateRevisionID` (monotonically increasing `uint64_t`).
@@ -163,6 +166,7 @@ graph TD
     *   Audio files are **never deleted immediately** — only marked for garbage collection on clean exit. `DELETE_JAM` immediately removes session metadata and riff history entries; associated audio files are marked for GC and deleted on next clean exit.
     *   **Auto-save:** Writes a recovery snapshot every 30 seconds to `~/Library/Application Support/FlowZone/backups/autosave.json`.
     *   **No Undo/Redo in V1:** Riff History serves as the primary recovery mechanism — every committed riff is preserved and can be loaded at any time. Undo/Redo is deferred to V2 (see §1.3).
+    *   **Threading Note:** CivetWeb runs its own internal thread pool. WebSocket message handlers (`on_message`) execute on CivetWeb worker threads — not the JUCE message thread. Thread safety is ensured by the `CommandQueue` SPSC FIFO. Outgoing state broadcasts are queued by `StateBroadcaster` on the message thread and sent via CivetWeb's thread-safe `mg_websocket_write()`.
 
 #### **H. FeatureExtractor** — `src/engine/FeatureExtractor.cpp`
 *   **Optimization:** Double-buffered atomic exchange.
@@ -205,8 +209,9 @@ graph TD
     3.  **Version check:** If `protocolVersion` doesn't match, server sends `ERROR { code: 1100, msg: 'PROTOCOL_MISMATCH' }` and closes.
     4.  **Steady state:** Server → `STATE_PATCH` ops. Client → commands.
     5.  **Disconnect:** Client shows "Reconnecting…" overlay. Audio continues unaffected. Reconnect uses exponential backoff: 100ms → 200ms → 400ms → … → max 5s.
-    6.  **Reconnect:** Client → `WS_RECONNECT` with last known `revisionId`. Server sends diff if revision is recent, or full snapshot if stale.
-    7.  **Optional PIN auth:** If `config.json` has `"requirePin": true`, client must send `{ cmd: 'AUTH', pin: '…' }` before any other command is accepted. Prevents accidental LAN access during live performance.
+    6.  **Reconnect:** Client → `WS_RECONNECT` with last known `revisionId`. Server sends diff if revision is recent, or full snapshot if stale. Reconnection retries indefinitely (no maximum) with exponential backoff. During reconnection, user input is discarded — audio continues unaffected, but the UI is non-interactive. The "Reconnecting…" overlay includes a countdown.
+    7.  **First Launch:** The React client must handle initial WebSocket connection failure gracefully (e.g., if CivetWeb is still starting). On first connection attempt, if the server is not ready, the client retries using the same strategy. "Connecting…" overlay is shown until success.
+    8.  **Optional PIN auth:** If `config.json` has `"requirePin": true`, client must send `{ cmd: 'AUTH', pin: '…' }` before any other command is accepted. Prevents accidental LAN access during live performance.
 
 #### **M. Internal Audio Engines (Native C++)**
 
@@ -267,6 +272,9 @@ All commands and state shapes are defined in a **Schema Registry** that acts as 
 *   **C++ Mirror:** `src/shared/protocol/commands.h`
 
 These must be kept in sync. Changes to one **must** be reflected in the other.
+*   **Constants:**
+    *   `MAX_SLOTS = 8`: The slot count is a compile-time constant. `AppState.slots` always contains exactly 8 entries.
+    *   `PROTOCOL_VERSION = 1`: V1 protocol version is 1. Increment on breaking changes.
 
 ### **3.2. Command Schema (TypeScript Definition)**
 
@@ -324,7 +332,7 @@ type Command =
   | { cmd: 'NEW_JAM' }                                              // Create a new jam session. Stops playback, clears all slots, resets transport/mode to defaults, and saves the previous session file.
   | { cmd: 'LOAD_JAM'; sessionId: string }                         // Load an existing jam session
   | { cmd: 'RENAME_JAM'; sessionId: string; name: string }         // Rename a jam session
-  | { cmd: 'DELETE_JAM'; sessionId: string }                       // Delete a jam session and its audio
+  | { cmd: 'DELETE_JAM'; sessionId: string }                       // Delete a jam session. Immediately removes session metadata and riff history entries. Audio files are marked for garbage collection and deleted on next clean exit (per §2.2.G GC policy).
   // UI Settings (UI-only, stored in localStorage — not sent to engine)
   // TOGGLE_NOTE_NAMES handled locally in React
 
@@ -425,9 +433,16 @@ interface AppState {
     serverTime: number;           // For jitter compensation
     mode: 'NORMAL' | 'SAFE_MODE';
     version: string;              // e.g. "1.0.0"
-    isVstMode: boolean;           // True when running as VST3 plugin (read-only)
+    isVstMode: boolean;           // True when running as VST3 plugin (read-only). Set during FlowEngine construction via preprocessor.
     memoryBudgetMB: number;       // Estimated peak (2GB)
+    protocolVersion: number;      // V1 protocol version is 1. Must match client expectation.
   };
+  sessions: Array<{                // List of all available sessions (for Jam Manager)
+    id: string;
+    name: string;
+    emoji: string;
+    createdAt: number;
+  }>;
   session: {
     id: string;                    // UUID
     name: string;                  // e.g., "Jam 12 Feb 2026"
@@ -471,6 +486,8 @@ interface AppState {
     presetId: string;              // Which preset was used. For mic recordings: 'mic_input'. For auto-merge: 'auto_merge'.
     userId: string;                // Who recorded this slot (multi-user)
     pluginChain: PluginInstance[];
+    loopLengthBars: number;        // Length of the loop in bars (1, 2, 4, 8)
+    originalBpm: number;           // BPM when this slot was recorded
     lastError?: number;            // Error code if slot has an active error
   }>;
   riffHistory: Array<{
@@ -523,8 +540,10 @@ struct RiffSnapshot {
     double tempo;
     int rootKey;
     // ... RigState ...
-    std::array<SlotState, 8> slots;
+    std::array<SlotState, 8> slots; // Each SlotState includes loopLengthBars, originalBpm, etc.
 };
+// Note: RiffSnapshot is the full internal representation stored on disk. AppState.riffHistory is a lightweight summary derived from RiffSnapshot for UI display.
+// Mapping: riffHistory.id = RiffSnapshot.id; riffHistory.layers = number of non-EMPTY slots; riffHistory.colors = list of instrumentCategory colors.
 ```
 
 ### **3.6. Audio Persistence Strategy**
@@ -573,6 +592,7 @@ FlowZone uses **always-on capture** — there is no explicit "record start" or "
 *   **Size:** Pre-allocated at startup. Approximately **96 seconds** of stereo audio at the session sample rate (e.g., 48kHz × 2 channels × 4 bytes × 96s ≈ 36.9 MB). This ensures 8 bars can be captured even at the minimum tempo of 20 BPM (8 bars at 20 BPM = 96 seconds). This is a fixed allocation — the buffer never resizes.
 *   **Count:** V1 uses a **single global buffer** (single-user). See §1.3 for V2 multi-user buffer plans.
 *   **Content:** Continuously records the output of the currently selected instrument/mode. **Note:** Mode switching does NOT clear the retrospective buffer. The buffer always contains the most recent audio regardless of which mode produced it.
+*   **Capture Source (Clarification):** The retrospective buffer captures **only** the live instrument output (the audio generated by the active mode's engine in response to note/pad input). It does NOT capture playback audio from existing filled slots. This prevents audio doubling when captured loops are layered. In FX Mode, the buffer captures the FX output bus (sum of selected slots processed through the active effect) — this is the one exception where existing slot audio enters the capture path, by design.
 
 **How recording works:**
 
@@ -636,6 +656,8 @@ Strict adherence for Agent clarity.
     *   **Content:** Full `AppState` snapshot (JSON) excluding transient fields (system metrics, barPhase).
 *   **Riff Audio:** `~/Library/Application Support/FlowZone/sessions/[session_id]/audio/riff_{timestamp}_slot_{index}.flac`
 *   **Autosave:** `~/Library/Application Support/FlowZone/backups/autosave.json` (Full AppState snapshot).
+*   **Configuration:** `~/Library/Application Support/FlowZone/config.json`. Application-level settings (Audio Device, VST Paths). Not per-session.
+    *   **V2 Goal:** Portable Preferences (export/import) to move settings between machines.
 
 ### **4.2. DiskWriter Failure Strategy (Tiered)**
 
@@ -666,6 +688,7 @@ Strict adherence for Agent clarity.
 | **Web Server Crash** | Low | Thread watchdog | Audio continues. UI disconnects. | Restart WebServer thread. |
 | **Config Corrupt** | Medium | JSON parse failure | Log error. | Load `state.backup.1.json`. |
 | **Config Outdated** | Low | `configVersion` mismatch | Run migration function. | If migration fails → load defaults, archive as `config.legacy.json`. |
+| **Audio Device Disconnect** | High | `AudioDeviceManager` error callback | Pause transport. UI banner: "Audio device disconnected." | Auto-reconnect when device reappears. If user switches device in Settings, resume. |
 
 ### **4.5. Config File Versioning**
 
@@ -936,12 +959,12 @@ This section defines the UI layout implementation details. For the complete JSON
 
 #### **Retrospective Timeline / Loop Length Controls**
 *   **Flow Direction:** Right-to-left
-*   **Section Layout:** The waveform display is divided into 4 clickable sections representing different loop lengths:
+*   **Section Layout:** The waveform display is divided into 4 clickable sections representing different loop lengths. **There are no separate buttons; the waveform sections themselves act as the controls.**
     1.  **1 Bar** (rightmost section) — Most recent audio
     2.  **2 Bars** (second from right)
     3.  **4 Bars** (third from right)
     4.  **8 Bars** (leftmost section) — Oldest visible audio
-*   **Interaction:** Tapping a specific waveform section performs two actions simultaneously:
+*   **Dual-Function Interaction:** Tapping a specific waveform section performs two actions simultaneously:
     1.  Sets the loop length to that duration (e.g., tapping the left-most section sets length to 8 bars).
     2.  **Immediately captures** that duration from the retrospective buffer into the next empty slot (fires `SET_LOOP_LENGTH`).
 *   **Visual:** Waveform rendered as filled path with accent color. Labels (`8 BARS`, `4 BARS`, etc.) overlay the corresponding sections. Sections flash heavily on tap to indicate capture.
@@ -1013,6 +1036,8 @@ When a user attempts to record into a 9th slot (all 8 slots are occupied), the a
     *   `userId`: The user who triggered the merge.
 5.  **Proceed:** Recording begins into Slot 2 (first empty slot after merge).
 
+> **Loop Length Handling:** The merge output length equals the longest active slot's loop duration. Shorter slots are repeated (looped) to fill the merge duration. The resulting merged audio in Slot 1 has `loopLengthBars` equal to the longest source slot.
+
 > **Note:** This merge is destructive to the individual slot contents. The user can always load a previous riff to recover individual layers if they were previously committed.
 
 > **Implementation Note:** The auto-merge operation must be non-blocking from the audio thread's perspective. During merge, the 8 existing loops continue playing. The merge computation (summing and writing) happens on a background thread. Once complete, the slot states are atomically swapped on the next audio callback. The retrospective buffer continues capturing during the merge, so no audio is lost — the capture begins from the next available slot once the merge finalizes.
@@ -1065,7 +1090,8 @@ Used for all melodic and rhythmic instrument modes.
     | Row | Col 1 | Col 2 | Col 3 | Col 4 |
     |:---|:---|:---|:---|:---|
     | 1 | Pitch | Length | Tone | Level |
-    | 2 | Bounce | Speed | *(empty — reserved for future parameter)* | Reverb |
+    | 2 | Bounce | Speed | *(empty)* | Reverb |
+*   **Drum Mode Exception:** In Drum mode, the **Bounce** and **Speed** knobs are **Hidden** (or rendered as disabled/blank) because they are not used by the drum engine in V1.
 *   **Additional Reverb Controls:** (displayed when Reverb knob is touched)
     *   Reverb Mix (knob)
     *   Room Size (knob)

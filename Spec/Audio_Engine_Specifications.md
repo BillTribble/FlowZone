@@ -259,7 +259,9 @@ Adjust Tab controls:
 *   **Level** → Output gain globally (applies to all pads)
 *   **Length** → Drum decay multiplier (0.1x - 5.0x) - affects all pads
 *   **Reverb** → Reverb send amount (0.0 - 1.0)
-*   **Bounce/Speed** → NOT USED for Drum Mode in V1.
+*   **Speed** → Tape speed (pitch/time).
+*   **Bounce** → Granular repeat rate.
+*   **Note:** In Drum Mode, **Bounce** and **Speed** knobs are **Hidden** (or disabled) in the UI as they are not used by the drum engine in V1.
 
 ---
 

@@ -191,6 +191,7 @@ Summarized from mobile design reference materials.
             { "row": 2, "col": 3, "label": "reserved", "type": "empty" },
             { "row": 2, "col": 4, "label": "Reverb", "type": "knob" }
           ],
+          "note": "In Drum Mode, Bounce and Speed knobs are Hidden/Disabled.",
           "additional_knobs": {
             "reverb_section": [
               { "label": "Reverb Mix", "type": "knob" },
