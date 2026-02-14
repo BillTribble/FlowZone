@@ -141,7 +141,7 @@ Summarized from mobile design reference materials.
           "active_preset_display": "top_with_attribution",
           "preset_examples": {
             "fx": ["Lowpass", "Highpass", "Reverb", "Gate", "Buzz", "GoTo", "Saturator", "Delay", "Comb", "Distortion", "Smudge", "Channel"],
-            "infinite_fx": ["Keymasher", "Ripper", "Ringmod", "Bitcrusher", "Degrader", "Pitchmod", "Multicomb", "Freezer", "Zap Delay", "Dub Delay", "Compressor"]
+            "infinite_fx": ["Keymasher", "Ripper", "Ringmod", "Bitcrusher", "Degrader", "Pitchmod", "Multicomb", "Freezer", "Zap Delay", "Dub Delay", "Compressor", "Trance Gate"]
           }
         },
         "effect_control_area": {
@@ -357,7 +357,7 @@ Summarized from mobile design reference materials.
           "position": "below_tabs",
           "always_visible": true,
           "options": [
-            { "label": "Note Names", "type": "toggle", "default": "off", "command": "TOGGLE_NOTE_NAMES" }
+            { "label": "Note Names", "type": "toggle", "default": "off", "storage": "localStorage", "disabled": true, "note": "V2 Feature" }
           ]
         },
         "user_preferences": {

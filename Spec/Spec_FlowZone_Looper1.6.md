@@ -114,7 +114,7 @@ graph TD
 *   The singleton `juce::AudioProcessor`.
 *   **Role:** Real-time audio processing DAG.
 *   **Priority:** `Realtime` (macOS `UserInteractive` QoS).
-*   **Master Limiter:** A brickwall limiter is applied to the master stereo output as the final stage of `processBlock`. Active only in Standalone mode — **bypassed in VST3 multi-channel mode** so that dynamics are preserved for DAW recording. Ceiling: -0.3 dBFS, lookahead: 1ms.
+*   **Core Philosophy (No Master Limiter):** Latency is a key blocker for flow. To ensure minimum monitoring latency in Standalone mode, **no master dynamics processing (limiter/compressor)** is applied to the output. Users should manage gain staging within the mix.
 *   **Bus Configuration:** Use `#if JucePlugin_Build_VST3` preprocessor guards. In VST3 mode, declare 8 stereo output buses in `BusesProperties` (one per slot). In Standalone mode, declare a single stereo output bus (master only). This must be configured and tested in Phase 0.
 
 #### **B. TransportService** — `src/engine/transport/TransportService.cpp`
@@ -125,6 +125,7 @@ graph TD
 #### **C. CommandQueue** — `src/engine/CommandQueue.h`
 *   **Role:** Lock-free SPSC FIFO (using `juce::AbstractFifo`). Moves raw command bytes from the WebSocket thread to the audio thread *without locking*.
 *   **Contract:** This is a data structure only — no validation, no routing.
+*   **Capacity Note:** `juce::AbstractFifo` manages `bufferSize - 1` items. Allocate one extra slot to ensure desired capacity.
 
 #### **D. CommandDispatcher** — `src/engine/CommandDispatcher.cpp`
 *   **Role:** Reads from `CommandQueue` on the audio thread. Validates command payloads, rejects unknown commands, and routes to the correct handler (`FlowEngine`, `TransportService`, `PluginProcessManager`).
@@ -178,6 +179,7 @@ graph TD
     1.  **Primary:** 256MB RingBuffer.
     2.  **Overflow:** Temporary RAM blocks (up to **512MB** hard cap on systems < 16GB RAM, **1GB** on systems >= 16GB RAM).
     3.  **Critical:** Flush partial file, stop recording, alert UI.
+*   **Thread Safety Note:** FLAC encoding is performed on this background thread, decoupled from the audio thread via the RingBuffer. Real-time encoding latency typically does not affect audio I/O.
 
 #### **J. PluginProcessManager** — `src/engine/PluginProcessManager.cpp`
 *   **Grouping:** One child process per VST Manufacturer.
@@ -201,6 +203,7 @@ graph TD
     *   **UI:** React DOM.
     *   **Visualizers:** Canvas API (via `requestAnimationFrame`).
 *   **Network Configuration:**
+    *   **Architecture Decision:** We deliberately use **CivetWeb + WebSockets** (instead of JUCE 8's native bridge) to ensure future V2 compatibility with remote clients (phones/tablets) and to support efficient binary streaming for 30fps visualizers.
     *   Default port: `8765` (configurable via `config.json` field `"serverPort": 8765`).
     *   React dev mode connects to `ws://localhost:8765`.
     *   Health endpoint at `http://localhost:8765/api/health`.
@@ -212,7 +215,7 @@ graph TD
     5.  **Disconnect:** Client shows "Reconnecting…" overlay. Audio continues unaffected. Reconnect uses exponential backoff: 100ms → 200ms → 400ms → … → max 5s.
     6.  **Reconnect:** Client → `WS_RECONNECT` with last known `revisionId`. Server sends diff if revision is recent, or full snapshot if stale. Reconnection retries indefinitely (no maximum) with exponential backoff. During reconnection, user input is discarded — audio continues unaffected, but the UI is non-interactive. The "Reconnecting…" overlay includes a countdown.
     7.  **First Launch:** The React client must handle initial WebSocket connection failure gracefully (e.g., if CivetWeb is still starting). On first connection attempt, if the server is not ready, the client retries using the same strategy. "Connecting…" overlay is shown until success.
-    8.  **Optional PIN auth:** If `config.json` has `"requirePin": true`, client must send `{ cmd: 'AUTH', pin: '…' }` before any other command is accepted. Prevents accidental LAN access during live performance.
+    8.  **Production Content Serving:** In production builds, the React app artifacts (HTML/JS/CSS) should be served by CivetWeb from the local filesystem or via JUCE's `ResourceProvider` if preferred for simplification — but the **Command/State communication MUST remain over WebSocket**.
 
 #### **M. Internal Audio Engines (Native C++)**
 
@@ -227,7 +230,7 @@ graph TD
     *   **Preset Tunings:** Just Intonation, Pythagorean, Slendro, Pelog, 12TET (Default).
 *   **`InternalFX`:**
     *   **Core FX (12):** Lowpass, Highpass, Reverb, Gate, Buzz, GoTo, Saturator, Delay, Comb, Distortion, Smudge, Channel.
-    *   **Infinite FX (11):** Keymasher, Ripper, Ringmod, Bitcrusher, Degrader, Pitchmod, Multicomb, Freezer, Zap Delay, Dub Delay, Compressor.
+    *   **Infinite FX (12):** Keymasher, Ripper, Ringmod, Bitcrusher, Degrader, Pitchmod, Multicomb, Freezer, Zap Delay, Dub Delay, Compressor, Trance Gate.
     *   All effects support XY Pad mapping (except Keymasher which uses 3×4 button grid).
 *   **`SampleEngine` (V2):** Deferred to V2. See §1.3 Future Goals and `Audio_Engine_Specifications.md` §5 for full design.
 *   **`MicProcessor`:**
@@ -345,7 +348,7 @@ type Command =
   | { cmd: 'SET_OUTPUT_CHANNELS'; channels: number[] }             // Enable specific output channels
   | { cmd: 'PLAY_TEST_TONE' }                                      // Play test tone through output
   | { cmd: 'SET_MIDI_INPUT_ACTIVE'; portId: string; active: boolean }
-  | { cmd: 'SET_CLOCK_SOURCE'; source: 'internal' }                // External MIDI Clock is V2 feature.
+  // SET_CLOCK_SOURCE removed (V2 feature, will use native MIDI input)
   | { cmd: 'SET_VST_SEARCH_PATHS'; paths: string[] }               // Update VST3 search directories
   | { cmd: 'RESCAN_PLUGINS' }                                      // Trigger full plugin rescan
   | { cmd: 'SET_STORAGE_LOCATION'; path: string }                  // Set recordings storage path
@@ -402,7 +405,6 @@ Every command has a defined set of possible error responses:
 | `RENAME_JAM` | `4020: SESSION_NOT_FOUND` | Show error toast. |
 | `DELETE_JAM` | `4020: SESSION_NOT_FOUND` | Show error toast. |
 | `PANIC` | None (always succeeds) | `ALL`: Full UI reset animation. `ENGINE`: silence output, preserve UI state. |
-| `AUTH` | `1101: AUTH_FAILED` | Show "Incorrect PIN" prompt. |
 | `TOGGLE_QUANTISE` | None (always succeeds) | Optimistic toggle. |
 | `SET_XY_PAD` | None (always succeeds) | Optimistic update. |
 | `FX_ENGAGE` | None (always succeeds) | Show crosshair, activate effect. |
@@ -417,7 +419,6 @@ Every command has a defined set of possible error responses:
 | `SET_INPUT_CHANNELS` / `SET_OUTPUT_CHANNELS` | None (always succeeds) | Optimistic update. |
 | `PLAY_TEST_TONE` | None (always succeeds) | Show "Playing..." indicator. |
 | `SET_MIDI_INPUT_ACTIVE` | None (always succeeds) | Optimistic toggle. |
-| `SET_CLOCK_SOURCE` | None (always succeeds) | Optimistic update. |
 | `SET_VST_SEARCH_PATHS` | None (always succeeds) | Update paths list. |
 | `RESCAN_PLUGINS` | None (always succeeds) | Show scanning indicator. |
 | `SET_STORAGE_LOCATION` | `1003: STORAGE_PATH_INVALID` | Show error toast. |
@@ -513,10 +514,10 @@ interface AppState {
     bufferSize: number;            // Current buffer size (16, 32, 64, 128, 256, 512, 1024)
     sampleRate: number;            // Current sample rate (44100, 48000, 88200, 96000)
     storageLocation: string;       // Path for recordings storage
-    clockSource: 'internal' | 'external_midi';
+    // clockSource removed (V2 will handle via native MIDI)
   };
   ui: {
-    noteNamesEnabled: boolean;     // Show note names on pads
+    // noteNamesEnabled removed from state (client-side localStorage only)
   };
   system: {
     cpuLoad: number;               // 0.0 - 1.0 (DSP time / buffer time)
@@ -744,7 +745,6 @@ Agents must strictly use these codes. New codes must be registered here before u
     *   `1011`: `ERR_CONFIG_MIGRATION_FAILED`
 *   `1100-1199`: Protocol
     *   `1100`: `ERR_PROTOCOL_MISMATCH`
-    *   `1101`: `ERR_AUTH_FAILED`
     *   `1200`: `ERR_UNKNOWN_COMMAND`
 *   `2000-2999`: Audio Engine
     *   `2001`: `ERR_AUDIO_DROPOUT` (XRUN)
@@ -1129,11 +1129,24 @@ Used for all melodic and rhythmic instrument modes.
     |:---|:---|:---|:---|:---|
     | 1 | Pitch | Length | Tone | Level |
     | 2 | Bounce | Speed | *(empty)* | Reverb |
-*   **Drum Mode Exception:** In Drum mode, the **Bounce** and **Speed** knobs are **Hidden** (or rendered as disabled/blank) because they are not used by the drum engine in V1.
+*   **Drum Mode Exception:** In Drum mode, the **Bounce** and **Speed** knobs are **Removed** (blank) in V1 because they are not used by the drum engine in V1.
 *   **Additional Reverb Controls:** (displayed when Reverb knob is touched)
     *   Reverb Mix (knob)
     *   Room Size (knob)
     *   Layout: Same 2-row grid pattern below main controls
+
+### **7.6.4a Adjust Tab - FX Mode Knob Mapping**
+
+When `activeMode.category` is `'fx'` (Resampling Mode), the Adjust tab knobs map to the active effect's parameters.
+*   **Effects with 2 parameters:**
+    *   Param 1 → Knob (1,1)
+    *   Param 2 → Knob (1,2)
+    *   All other knobs → Blank
+*   **Effects with >2 parameters:**
+    *   Map sequentially starting from Knob (1,1) through (1,4), then (2,1).
+    *   Example (Trance Gate): Pattern → (1,1), Depth → (1,2).
+    *   Example (Compressor): Threshold → (1,1), Ratio → (1,2), Attack → (1,3), Release → (1,4).
+*   **Note:** These mappings are specific to the Adjust tab grid and are separate from the XY Pad mappings defined in `Audio_Engine_Specifications.md`.
 
 #### **Knob Controls (Microphone Mode)**
 When the active category is **Microphone**, the Adjust tab shows a simplified layout:
@@ -1278,7 +1291,7 @@ Accessed via the "More" button in Mixer tab transport controls. This is the **on
 
 #### **Tab C: MIDI & Sync**
 *   **MIDI Inputs:** List of detected ports with "Active" checkboxes.
-*   **Clock Source:** Radio button [Internal | External MIDI Clock].
+*   **Clock Source:** Radio button [Internal | External MIDI Clock] — `"disabled": true, "note": "Coming Soon (V2)"`.
 *   **Ableton Link:** Toggle — *Disabled for V1. Shows "Coming Soon" label.* (See §1.3)
 
 #### **Tab D: Library & VST**
@@ -1362,11 +1375,7 @@ The Home screen is the **first screen** the user sees on every app launch. It is
     *   **Emoji:** A randomly assigned emoji from the master list (see below).
     *   **Name:** Editable title (defaults to date string).
     *   **Date:** Simple format (e.g., `12 Feb 2026`).
-*   **Knob Layout (2×4 Grid):**
-    *   **FX Mode:** The Adjust tab shows effect-specific parameters (e.g., Feedback, Cutoff) mapped to the same 2×4 knob grid. Unmapped positions are blank. Parameter mapping is defined per-effect in `Audio_Engine_Specifications.md`.
-    *   **Drums Mode:** Pitch, Tone, Level, Length, Reverb. (Bounce/Speed removed).
-    *   **Notes/Bass Mode:** Pitch, Length, Tone, Level, Bounce, Speed, Reverb.
-    *   **Microphone Mode:** Gain, Reverb Mix, Room Size.
+*   **Note:** All instrument types share this physical knob layout, but specific parameter labels change. See §7.6.4 (Adjust Tab) for per-instrument mapping.
 *   **Actions per Jam:**
     *   **Open:** Load the jam into the active session.
     *   **Rename:** Inline editing of the jam name.
@@ -1551,7 +1560,7 @@ The task breakdown in §9 should follow this risk-aware phasing:
 ```
 PHASE 0: SKELETON (one bead, run first, blocks everything)
 ├── Projucer project configured (FlowZone.jucer)
-├── CivetWeb integrated as source files in libs/civetweb/ (added to Projucer as source group)
+├── CivetWeb integrated as source files in libs/civetweb/ (added to Projucer as source group; **Pin to v1.16**)
 ├── Empty JUCE app compiles → launches → opens WebBrowserComponent
 ├── Empty React app loads inside WebBrowserComponent (dev: localhost:5173, prod: bundled resources via BinaryData or local file server — refer to JUCE `WebBrowserComponent` docs)
 ├── WebSocket handshake succeeds (hardcoded "hello")
