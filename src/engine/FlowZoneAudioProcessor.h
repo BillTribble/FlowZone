@@ -1,7 +1,7 @@
 #pragma once
 
+#include "FlowEngine.h"
 #include "server/WebSocketServer.h"
-#include "transport/TransportService.h"
 #include <JuceHeader.h>
 
 // Forward declarations
@@ -15,11 +15,13 @@ public:
 
   //==============================================================================
   // Accessors for sub-components
-  TransportService &getTransportService() { return transportService; }
+  FlowEngine &getEngine() { return engine; }
+  // Proxy transport accessor for Editor if needed
+  TransportService &getTransportService() { return engine.getTransport(); }
 
 private:
   //==============================================================================
-  TransportService transportService;
+  FlowEngine engine;
   WebSocketServer server{50001};
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FlowZoneAudioProcessor)

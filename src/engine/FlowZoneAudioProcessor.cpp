@@ -73,7 +73,7 @@ void FlowZoneAudioProcessor::changeProgramName(int index,
 
 void FlowZoneAudioProcessor::prepareToPlay(double sampleRate,
                                            int samplesPerBlock) {
-  transportService.prepareToPlay(sampleRate, samplesPerBlock);
+  engine.prepareToPlay(sampleRate, samplesPerBlock);
 }
 
 void FlowZoneAudioProcessor::releaseResources() {
@@ -128,7 +128,7 @@ void FlowZoneAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
     buffer.clear(i, 0, buffer.getNumSamples());
 
-  transportService.processBlock(buffer, midiMessages);
+  engine.processBlock(buffer, midiMessages);
 }
 
 bool FlowZoneAudioProcessor::hasEditor() const {
