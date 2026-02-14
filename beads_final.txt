@@ -1,0 +1,54 @@
+○ bd-1dg [● P0] [task] - Task 11: Ensure Agent Mail is Running
+○ bd-3en [● P0] [task] - Task 1.4: AppState Round-Trip Test
+○ bd-13w [● P0] [task] - Task 1.3: Audio Thread Contract
+○ bd-34b [● P0] [task] - Task 1.2: Error Codes
+○ bd-3g0 [● P0] [task] - Task 1.1: Schema Foundation
+○ bd-jne [● P0] [epic] - Phase 1: Contracts & Foundations
+○ bd-174 [● P0] [task] - Task 0.3: Skeleton App Verification
+○ bd-2oo [● P0] [task] - Task 0.2: Dual Build Targets
+○ bd-1gs [● P0] [task] - Task 0.1: Projucer & Libs Setup
+○ bd-36e [● P0] [epic] - Phase 0: Project Skeleton
+○ bd-hdu [● P1] [task] - Task 3.4: Mock state provider
+○ bd-111 [● P1] [task] - Task 3.3: ResponsiveContainer + navigation
+○ bd-34p [● P1] [task] - Task 3.2: WebSocket client
+○ bd-vtl [● P1] [task] - Task 3.1: Vite + React + TS setup
+○ bd-2xf [● P1] [epic] - Phase 3: Frontend Infrastructure
+○ bd-n3n [● P1] [task] - Task 2.6: SessionStateManager
+○ bd-31s [● P1] [task] - Task 2.5: DiskWriter Tier 1
+○ bd-34z [● P1] [task] - Task 2.4: StateBroadcaster
+○ bd-3uw [● P1] [task] - Task 2.3: FlowEngine skeleton
+○ bd-14c [● P1] [task] - Task 2.2: CommandQueue + CommandDispatcher
+○ bd-7wy [● P1] [task] - Task 2.1: TransportService
+○ bd-6mv [● P1] [epic] - Phase 2: Engine Core
+○ bd-uvj [● P2] [task] - Task 6.3: SessionStateManager Integration
+○ bd-1pb [● P2] [task] - Task 6.2: Full command flow
+○ bd-anw [● P2] [task] - Task 6.1: StateBroadcaster patches
+○ bd-lk7 [● P2] [epic] - Phase 6: Integration
+○ bd-2q7 [● P2] [task] - Task 5.7: Assemble views
+○ bd-1qe [● P2] [task] - Task 5.6: Slot Indicator oblongs
+○ bd-xuz [● P2] [task] - Task 5.5: Waveform Timeline
+○ bd-1bg [● P2] [task] - Task 5.4: Riff History Indicator
+○ bd-18s [● P2] [task] - Task 5.3: Vertical Fader / VU Meter / Knob
+○ bd-o3p [● P2] [task] - Task 5.2: Pad Grid component
+○ bd-2k4 [● P2] [task] - Task 5.1: XY Pad component
+○ bd-287 [● P2] [epic] - Phase 5: UI Components
+○ bd-153 [● P2] [task] - Task 4.5: Drum engine
+○ bd-2yy [● P2] [task] - Task 4.4: Synth presets (Notes, Bass)
+○ bd-21s [● P2] [task] - Task 4.3: Remaining effects
+○ bd-1g5 [● P2] [task] - Task 4.2: Delay-based effects
+○ bd-kp3 [● P2] [task] - Task 4.1: Filter-based effects
+○ bd-7sx [● P2] [epic] - Phase 4: Internal Audio Engines
+○ bd-2w2 [● P3] [task] - Task 8.10: Error boundary integration
+○ bd-3vb [● P3] [task] - Task 8.9: Emoji skin tone
+○ bd-3ks [● P3] [task] - Task 8.8: Log rotation
+○ bd-3sk [● P3] [task] - Task 8.7: Health endpoint + telemetry
+○ bd-24f [● P3] [task] - Task 8.6: Safe Mode recovery UI
+○ bd-3qx [● P3] [task] - Task 8.5: Settings panel
+○ bd-kll [● P3] [task] - Task 8.4: Binary visualization stream
+○ bd-llc [● P3] [task] - Task 8.2: DiskWriter Tiers 2-4
+○ bd-26d [● P3] [task] - Task 8.1: CrashGuard + Safe Mode
+○ bd-1yu [● P3] [epic] - Phase 8: Polish & Production
+○ bd-278 [● P3] [task] - Task 7.3: Hot-swap + scanning
+○ bd-1yj [● P3] [task] - Task 7.2: Process lifecycle
+○ bd-8ap [● P3] [task] - Task 7.1: PluginHostApp Vertical Slice
+○ bd-lxy [● P3] [epic] - Phase 7: Plugin Isolation
