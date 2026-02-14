@@ -123,7 +123,7 @@ graph TD
 *   **Pitch Behavior:** Changing BPM changes the playback speed and pitch of all recorded loops (varispeed). This is intentional behavior for a creative "flow machine." Audio is not time-stretched; it is re-sampled. To maintain pitch while changing tempo, the user must re-record or use the V2 Time Stretch feature (future goal).
 
 #### **C. CommandQueue** — `src/engine/CommandQueue.h`
-*   **Role:** Lock-free SPSC FIFO. Moves raw command bytes from the WebSocket thread to the audio thread *without locking*.
+*   **Role:** Lock-free SPSC FIFO (using `juce::AbstractFifo`). Moves raw command bytes from the WebSocket thread to the audio thread *without locking*.
 *   **Contract:** This is a data structure only — no validation, no routing.
 
 #### **D. CommandDispatcher** — `src/engine/CommandDispatcher.cpp`
@@ -176,7 +176,7 @@ graph TD
 #### **I. DiskWriter** — `src/engine/DiskWriter.cpp`
 *   Background thread with tiered reliability (see §4.2 for full failure strategy):
     1.  **Primary:** 256MB RingBuffer.
-    2.  **Overflow:** Temporary RAM blocks (up to **512MB** hard cap on 8GB systems).
+    2.  **Overflow:** Temporary RAM blocks (up to **512MB** hard cap on systems < 16GB RAM, **1GB** on systems >= 16GB RAM).
     3.  **Critical:** Flush partial file, stop recording, alert UI.
 
 #### **J. PluginProcessManager** — `src/engine/PluginProcessManager.cpp`
@@ -327,25 +327,25 @@ type Command =
   | { cmd: 'TOGGLE_MONITOR_UNTIL_LOOPED' }                         // Toggle monitor-until-looped on/off
 
   // Session & Riff Management
-  | { cmd: 'COMMIT_RIFF' }                                         // **Mixer Snapshot:** Creates a new riff history entry with the current mixer state (volume, pan, mute) applied to the existing audio. It does **NOT** re-record audio or capture from retrospective buffer. In FX Mode, captures FX-processed audio and deletes source slots (see §7.6.2 FX Mode).
+  | { cmd: 'COMMIT_RIFF' }                                         // **Mixer Snapshot:** Creates a new riff history entry with the current mixer state (volume, mute) applied to the existing audio. It does **NOT** re-record audio or capture from retrospective buffer. In FX Mode, captures FX-processed audio and deletes source slots (see §7.6.2 FX Mode).
   | { cmd: 'LOAD_RIFF'; riffId: string }                           // Load riff from history
   | { cmd: 'DELETE_RIFF'; riffId: string }                         // Delete riff from history
   | { cmd: 'NEW_JAM' }                                              // Create a new jam session. Stops playback, clears all slots, resets transport/mode to defaults, and saves the previous session file.
   | { cmd: 'LOAD_JAM'; sessionId: string }                         // Load an existing jam session
-  | { cmd: 'RENAME_JAM'; sessionId: string; name: string }         // Rename a jam session
+  | { cmd: 'RENAME_JAM'; sessionId: string; name: string; emoji?: string } // Rename a jam session. Optional emoji updates the session icon.
   | { cmd: 'DELETE_JAM'; sessionId: string }                       // Delete a jam session. **Destructive Action:** Immediately removes session metadata and riff history entries. No Trash/Undo in V1. **User must confirm via irreversible warning dialog.**
   // UI Settings (UI-only, stored in localStorage — not sent to engine)
   // TOGGLE_NOTE_NAMES handled locally in React (V2 Feature)
 
   // Engine Settings (sent to engine via WebSocket)
   | { cmd: 'SET_AUDIO_DEVICE'; deviceType: 'input' | 'output'; deviceId: string }
-  | { cmd: 'SET_SAMPLE_RATE'; rate: number }                       // 44100, 48000, 88200, 96000
+  | { cmd: 'SET_SAMPLE_RATE'; rate: number }                       // 44100, 48000, 88200, 96000. **Note:** Changing rate requires brief engine reset; retrospective buffer is cleared.
   | { cmd: 'SET_BUFFER_SIZE'; size: number }                       // 16, 32, 64, 128, 256, 512, 1024
   | { cmd: 'SET_INPUT_CHANNELS'; channels: number[] }              // Enable specific input channels
   | { cmd: 'SET_OUTPUT_CHANNELS'; channels: number[] }             // Enable specific output channels
   | { cmd: 'PLAY_TEST_TONE' }                                      // Play test tone through output
   | { cmd: 'SET_MIDI_INPUT_ACTIVE'; portId: string; active: boolean }
-  | { cmd: 'SET_CLOCK_SOURCE'; source: 'internal' | 'external_midi' }
+  | { cmd: 'SET_CLOCK_SOURCE'; source: 'internal' }                // External MIDI Clock is V2 feature.
   | { cmd: 'SET_VST_SEARCH_PATHS'; paths: string[] }               // Update VST3 search directories
   | { cmd: 'RESCAN_PLUGINS' }                                      // Trigger full plugin rescan
   | { cmd: 'SET_STORAGE_LOCATION'; path: string }                  // Set recordings storage path
@@ -353,7 +353,6 @@ type Command =
 
   // System
   | { cmd: 'PANIC'; scope: 'ALL' | 'ENGINE' }                     // ALL: silence + reset all slots + stop transport. ENGINE: silence audio output only, preserve state.
-  | { cmd: 'AUTH'; pin: string }                                    // Optional PIN auth
   | { cmd: 'GENERATE_SUPPORT_BUNDLE' }                              // Generate zip with logs/config/metadata (no audio) for troubleshooting.
   | { cmd: 'WS_RECONNECT'; revisionId: number; clientId: string }; // Client reconnection with last known state revision
 
@@ -395,7 +394,7 @@ Every command has a defined set of possible error responses:
 | `SET_KNOB` | None (always succeeds) | Optimistic update. |
 | `LOAD_VST` | `3001: PLUGIN_CRASH`, `3010: PLUGIN_NOT_FOUND` | Show error in slot UI panel. |
 | `KEYMASHER_ACTION` | None (always succeeds) | Trigger immediately. |
-| `COMMIT_RIFF` | `4010: NOTHING_TO_COMMIT` | Button visibility and "Nothing to commit" logic is driven by a deterministic **"Mix Dirty" hash** (vol + pan + mute) stored in session metadata. |
+| `COMMIT_RIFF` | `4010: NOTHING_TO_COMMIT` | Button visibility and "Nothing to commit" logic is driven by a deterministic **"Mix Dirty" hash** (vol + mute) stored in session metadata. |
 | `LOAD_RIFF` | `4011: RIFF_NOT_FOUND` | Show error toast. |
 | `DELETE_RIFF` | `4011: RIFF_NOT_FOUND` | Show error toast. |
 | `NEW_JAM` | None (always succeeds) | Navigate to new empty session. |
@@ -455,7 +454,7 @@ interface AppState {
     bpm: number;
     isPlaying: boolean;
     barPhase: number;              // 0.0 - 1.0
-    loopLengthBars: number;        // Current loop length (1, 2, 4, 8)
+    loopLengthBars: number;        // Current loop length (1, 2, 4, 8). Represents the longest active slot length, which determines the transport cycle.
     metronomeEnabled: boolean;
     quantiseEnabled: boolean;      // Whether note input is quantised to 16th grid. Loop capture is always bar-aligned.
     rootNote: number;              // 0-11 (C=0)
@@ -497,7 +496,16 @@ interface AppState {
     timestamp: number;
     name: string;
     layers: number;                // Number of active slots when committed
-    colors: string[];              // Layer cake colors (source-based)
+    colors: string[];              // Layer cake colors (source-based). See Mapping below.
+                                   // Mapping:
+                                   // drums: Indigo (#5E35B1)
+                                   // notes: Teal (#00897B)
+                                   // bass:  Teal Light (#26A69A)
+                                   // mic:   Amber (#FFB300)
+                                   // fx:    Vermilion (#E65100)
+                                   // ext_inst: Dark Cyan (#006064)
+                                   // ext_fx:   Deep Orange (#BF360C)
+                                   // merge:    Reflects dominant source or avg color
     userId: string;                // Who committed
   }>;
   settings: {
@@ -591,7 +599,7 @@ FlowZone uses **always-on capture** — there is no explicit "record start" or "
 
 **Buffer Design:**
 
-*   **Size:** Pre-allocated at startup. Approximately **96 seconds** of stereo audio at the session sample rate (e.g., 48kHz × 2 channels × 4 bytes × 96s ≈ 36.9 MB). This ensures 8 bars can be captured even at the minimum tempo of 20 BPM (8 bars at 20 BPM = 96 seconds). This is a fixed allocation — the buffer never resizes.
+*   **Size:** Pre-allocated at startup. Approximately **97 seconds** of stereo audio at the session sample rate (e.g., 48kHz × 2 channels × 4 bytes × 97s). This ensures 8 bars can be captured at 20 BPM with a small safety margin. This is a fixed allocation — the buffer never resizes.
 *   **Count:** V1 uses a **single global buffer** (single-user). See §1.3 for V2 multi-user buffer plans.
 *   **Content:** Continuously records the output of the currently selected instrument/mode. **Note:** Mode switching does NOT clear the retrospective buffer. The buffer always contains the most recent audio regardless of which mode produced it.
 *   **Capture Source (Clarification):** The retrospective buffer captures **only** the live instrument output (the audio generated by the active mode's engine in response to note/pad input). It does NOT capture playback audio from existing filled slots. This prevents audio doubling when captured loops are layered. In FX Mode, the buffer captures the FX output bus (sum of selected slots processed through the active effect) — this is the one exception where existing slot audio enters the capture path, by design.
@@ -611,6 +619,25 @@ FlowZone uses **always-on capture** — there is no explicit "record start" or "
 This model ensures **zero-latency creative flow** — the user never waits for recording to start or misses the beginning of a performance. Tapping a length button instantly captures what was just played.
 
 > **Note:** V1 does not include a per-slot clear command. Users who want to remove a single layer should load a previous riff from history. A per-slot clear could be added as a V2 feature.
+
+### **3.11. Slot Population on Capture**
+
+When audio is committed to a slot (via `SET_LOOP_LENGTH`), the engine auto-populates the slot metadata:
+1.  **instrumentCategory:** Derived from `activeMode.category`.
+2.  **presetId:** Derived from `activeMode.presetId`.
+3.  **name:** Derived from `activeMode.presetName` (or "Slot N" fallback).
+4.  **userId:** "local".
+5.  **loopLengthBars:** From command parameter.
+6.  **originalBpm:** Current `transport.bpm`.
+
+### **3.12. LOAD_RIFF Behavior**
+
+Executing `LOAD_RIFF { riffId }`:
+1.  **Replaces State:** Replaces all 8 `SlotStates` with the riff's saved state. Slots not in the riff are set to `EMPTY`.
+2.  **Audio:** Loads the corresponding audio files for active slot layers.
+3.  **Retrospective Buffer:** Is **NOT** cleared. The user can capture immediately after loading.
+4.  **Transport Settings:** Restores tempo and key from the riff (unless "Lock Tempo" feature is added in V2).
+5.  **Swap Mode:** Respects `settings.riffSwapMode`. If `swap_on_bar`, the load waits for the next bar boundary.
 
 ---
 
@@ -1009,7 +1036,7 @@ When the user selects **FX** from the Mode category selector, the app enters FX 
         1.  **Clear Sources:** The source slots that were selected are set to `EMPTY` state.
         2.  **Write Result:** The captured FX audio is written to the first available slot (which may be one of the slots just cleared).
     *   **Safety Note:** Entering FX Mode does **NOT** auto-commit the session. The user should commit the riff (using `COMMIT_RIFF` in the Mixer tab) *before* entering FX Mode if they want a guaranteed recovery point. The retrospective buffer captures the FX output, but the source layers are destroyed to free up the slot.
-7.  **Auto-Merge:** If all 8 slots are full when committing the resampled layer, the standard auto-merge rule applies first (see §7.6.2.1 Auto-Merge Algorithm), then the resampled audio goes into the next available slot.
+7.  **Auto-Merge (Exception):** If auto-merge would normally trigger (because all slots are full), the FX commit action takes precedence (it clears source slots, so space is usually created). If the result *still* requires a new slot and none are available, the standard auto-merge logic applies. resampled audio goes into the next available slot.
 
 **Audio Routing in FX Mode:**
 
@@ -1149,9 +1176,8 @@ When the active category is **Microphone**, the Adjust tab shows a simplified la
 
 #### **Channel Strips**
 *   **Layout:** Vertical fader strips (one per active slot)
-*   **Arrangement:** Horizontal row, scrollable if > 8 channels
-*   **Fader Style:**
-    *   Vertical slider bar for volume control (`SET_VOL` command)
+*   **Channel Strips:** Horizontal row, **scrollable if > 8 channels**. Each strip corresponds to a slot.
+    *   **Layout:** "Zigzag staggered layout" (Odd slots top, Even slots bottom) to fit 8 slots without scrolling on wider screens, or scrollable on narrower ones. This matches the UI Layout Reference.ical slider bar for volume control (`SET_VOL` command)
     *   **Integrated VU meter:** Real-time level display within the same bar area as the fader.
     *   Mute toggle per strip. (No Pan or Solo controls in V1).
 *   **Display Info (per channel):**
@@ -1336,6 +1362,11 @@ The Home screen is the **first screen** the user sees on every app launch. It is
     *   **Emoji:** A randomly assigned emoji from the master list (see below).
     *   **Name:** Editable title (defaults to date string).
     *   **Date:** Simple format (e.g., `12 Feb 2026`).
+*   **Knob Layout (2×4 Grid):**
+    *   **FX Mode:** The Adjust tab shows effect-specific parameters (e.g., Feedback, Cutoff) mapped to the same 2×4 knob grid. Unmapped positions are blank. Parameter mapping is defined per-effect in `Audio_Engine_Specifications.md`.
+    *   **Drums Mode:** Pitch, Tone, Level, Length, Reverb. (Bounce/Speed removed).
+    *   **Notes/Bass Mode:** Pitch, Length, Tone, Level, Bounce, Speed, Reverb.
+    *   **Microphone Mode:** Gain, Reverb Mix, Room Size.
 *   **Actions per Jam:**
     *   **Open:** Load the jam into the active session.
     *   **Rename:** Inline editing of the jam name.

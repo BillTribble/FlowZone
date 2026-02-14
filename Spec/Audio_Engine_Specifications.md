@@ -31,7 +31,7 @@
     *   XY Mapping: X = Frequency, Y = Depth
 
 6.  **GoTo** — Playhead jump effect
-    *   Parameters: Jump Probability (0.0 - 1.0), Quantize Grid (1/16, 1/8, 1/4, 1/2)
+    *   Parameters: Jump Probability (0.0 - 1.0), Quantize Grid (1/16, 1/8, 1/4, 1/2). **Note:** Jumps the internal effector read position, NOT the global transport.
     *   XY Mapping: X = Probability, Y = Grid Size
 
 7.  **Saturator** — Soft-clip waveshaper
@@ -104,6 +104,10 @@
 11. **Compressor** — Dynamics processor
     *   Parameters: Threshold (-40dB - 0dB), Ratio (1:1 - 20:1), Attack (0.1ms - 100ms), Release (10ms - 1000ms)
     *   XY Mapping: X = Threshold, Y = Ratio
+
+12. **Trance Gate** — Rhythmic gating effect
+    *   Parameters: Pattern (1-8 discrete patterns), Depth (0.0 - 1.0)
+    *   XY Mapping: X = Pattern Select, Y = Depth
 
 ---
 
@@ -223,7 +227,7 @@ Same as Notes Mode (§2.2).
 
 ### **4.1. Pad Layout \u0026 Sound Mapping**
 
-| Pad (Row, Col) | Icon | Sound Type | Synthesis Method |
+| Pad (Row, Col) | Icon | Sound Type | MIDI Note | Synthesis Method |
 |:---|:---|:---|:---|
 | (1,1) | `double_diamond` | Kick 1 | 36 | Sine wave, pitch envelope (80Hz → 30Hz), short decay (0.3s) |
 | (1,2) | `cylinder` | Tom Low | 37 | Sine wave, pitch envelope (120Hz → 80Hz), medium decay (0.5s) |
