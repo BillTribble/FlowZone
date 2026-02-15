@@ -1494,7 +1494,7 @@ The StateBroadcaster uses JSON Patch (RFC 6902) with complex rules about patches
 
 #### **M6: Audio Effects & Synth Surface Area (Risk: ~75 implementations accumulating subtle bugs)**
 
-12 core FX, 11 infinite FX, 24 synth presets, 16 drum sounds × 4 kits, plus a sample engine.
+12 core FX, 12 infinite FX, 24 synth presets, 16 drum sounds × 4 kits, plus a sample engine.
 
 **Required bead practices:**
 - Group effects/presets by **implementation similarity**, not UI category:
