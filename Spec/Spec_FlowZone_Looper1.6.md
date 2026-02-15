@@ -114,7 +114,7 @@ graph TD
 *   The singleton `juce::AudioProcessor`.
 *   **Role:** Real-time audio processing DAG.
 *   **Priority:** `Realtime` (macOS `UserInteractive` QoS).
-*   **Core Philosophy (No Master Limiter):** Latency is a key blocker for flow. To ensure minimum monitoring latency in Standalone mode, **no master dynamics processing (limiter/compressor)** is applied to the output. Users should manage gain staging within the mix.
+*   **Core Philosophy (No Master Limiter):** Latency is a key blocker for flow. To ensure minimum monitoring latency in Standalone mode, **no master dynamics processing (limiter/compressor)** is applied to the output. Users should manage gain staging within the mix. **Clipping Mitigation:** The UI will display a red "CLIP" indicator in the transport bar if the output sums exceed 0dB. V2 may explore a zero-latency hard clipper or safety limiter, but V1 accepts the risk of digital clipping to prioritize absolute lowest latency.
 *   **Bus Configuration:** Use `#if JucePlugin_Build_VST3` preprocessor guards. In VST3 mode, declare 8 stereo output buses in `BusesProperties` (one per slot). In Standalone mode, declare a single stereo output bus (master only). This must be configured and tested in Phase 0.
 
 #### **B. TransportService** — `src/engine/transport/TransportService.cpp`
@@ -215,7 +215,7 @@ graph TD
     5.  **Disconnect:** Client shows "Reconnecting…" overlay. Audio continues unaffected. Reconnect uses exponential backoff: 100ms → 200ms → 400ms → … → max 5s.
     6.  **Reconnect:** Client → `WS_RECONNECT` with last known `revisionId`. Server sends diff if revision is recent, or full snapshot if stale. Reconnection retries indefinitely (no maximum) with exponential backoff. During reconnection, user input is discarded — audio continues unaffected, but the UI is non-interactive. The "Reconnecting…" overlay includes a countdown.
     7.  **First Launch:** The React client must handle initial WebSocket connection failure gracefully (e.g., if CivetWeb is still starting). On first connection attempt, if the server is not ready, the client retries using the same strategy. "Connecting…" overlay is shown until success.
-    8.  **Production Content Serving:** CivetWeb serves the Vite build output from the local filesystem (`~/Library/Application Support/FlowZone/web_client/` or bundled alongside the app). In development, `WebBrowserComponent::goToURL("http://localhost:5173")` enables Vite HMR. Command/State communication always uses WebSocket regardless of content serving method.
+    8.  **Production Content Serving:** CivetWeb serves the Vite build output from the local filesystem (`~/Library/Application Support/FlowZone/web_client/` or bundled alongside the app). In development, `WebBrowserComponent::goToURL("http://localhost:5173")` enables Vite HMR. The app detects the environment and chooses the appropriate URL. There is no `ResourceProvider` fallback; strict separation of concerns validation.
 
 #### **M. Internal Audio Engines (Native C++)**
 
@@ -518,6 +518,8 @@ interface AppState {
   };
   ui: {
     // noteNamesEnabled removed from state (client-side localStorage only)
+    // Field intentionally left empty: UI-specific state that needs persistence should generally be handled in localStorage.
+    // If global UI state synchronization is required in V2 (for remote control), fields will be added here.
   };
   system: {
     cpuLoad: number;               // 0.0 - 1.0 (DSP time / buffer time)

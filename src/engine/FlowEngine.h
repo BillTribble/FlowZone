@@ -1,6 +1,6 @@
-#pragma once
 #include "CommandDispatcher.h"
 #include "CrashGuard.h"
+#include "state/StateBroadcaster.h"
 #include "transport/TransportService.h"
 #include <JuceHeader.h>
 
@@ -19,10 +19,14 @@ public:
 
   TransportService &getTransport() { return transport; }
   CommandDispatcher &getDispatcher() { return dispatcher; }
+  StateBroadcaster &getBroadcaster() { return broadcaster; }
+  SessionStateManager &getSessionManager() { return sessionManager; }
 
 private:
   TransportService transport;
   CommandDispatcher dispatcher;
+  StateBroadcaster broadcaster;
+  SessionStateManager sessionManager;
   CrashGuard crashGuard;
   // TODO: Add LooperGraph, effects chain
 };
