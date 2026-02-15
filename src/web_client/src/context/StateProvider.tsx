@@ -1,6 +1,6 @@
 // context/StateProvider.tsx
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { AppState } from '../../shared/protocol/schema';
+import { AppState } from '../../../shared/protocol/schema';
 import { WebSocketClient } from '../api/WebSocketClient';
 
 const defaultState: AppState = {
@@ -16,8 +16,9 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const client = new WebSocketClient();
 
     useEffect(() => {
-        client.connect();
-        // Setup listener to update setState
+        client.connect((newState: AppState) => {
+            setState(newState);
+        });
     }, []);
 
     return (

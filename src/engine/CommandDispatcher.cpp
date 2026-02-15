@@ -6,13 +6,22 @@ CommandDispatcher::CommandDispatcher() {}
 CommandDispatcher::~CommandDispatcher() {}
 
 void CommandDispatcher::dispatch(const juce::String &jsonCommand) {
-  // In a real impl, parse JSON here.
-  // Stub implementation:
-  if (jsonCommand.contains("Play")) {
+  auto jsonVar = juce::JSON::parse(jsonCommand);
+  if (!jsonVar.isObject())
+    return;
+
+  auto cmdType = jsonVar["cmd"].toString();
+
+  if (cmdType == "PLAY") {
     handlePlay();
-  } else if (jsonCommand.contains("Pause")) {
+  } else if (cmdType == "PAUSE") {
     handlePause();
+  } else if (cmdType == "SET_TEMPO") {
+    if (jsonVar.hasProperty("bpm")) {
+      handleSetBpm((double)jsonVar["bpm"]);
+    }
   }
+  // Add other commands here
 }
 
 void CommandDispatcher::handlePlay() {

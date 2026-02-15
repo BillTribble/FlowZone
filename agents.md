@@ -136,6 +136,17 @@ We optimize for a clean architecture now, not backwards compatibility.
 
 All issue tracking goes through **Beads**. No other TODO systems.
 
+### Tool Installation Paths
+
+- `br` lives at `/Users/billt/.local/bin/br`
+- `bv` lives at `/Users/billt/.local/bin/bv`
+
+Ensure `/Users/billt/.local/bin` is present in your `$PATH` (the default shell is `/bin/zsh`). If another agent cannot invoke the tools directly, have them add the following line to their shell profile and reload it:
+
+```bash
+export PATH="/Users/billt/.local/bin:$PATH"
+```
+
 Key invariants:
 
 - `.beads/` is authoritative state and **must always be committed** with code changes.

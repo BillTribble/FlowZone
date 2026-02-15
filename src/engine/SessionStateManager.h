@@ -1,5 +1,6 @@
 #pragma once
-#include "../../shared/protocol/schema.h"
+#include "../shared/protocol/schema.h"
+#include <JuceHeader.h>
 
 namespace flowzone {
 
@@ -13,6 +14,9 @@ public:
 
   void updateBpm(double bpm);
   void setPlaying(bool isPlaying);
+
+  void save(const juce::File &file);
+  void load(const juce::File &file);
 
 private:
   AppState currentState;
