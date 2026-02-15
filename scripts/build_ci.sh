@@ -8,23 +8,26 @@ echo "Building Web Client..."
 cd src/web_client
 npm install
 npm run build
-npm run test
+npm test
 cd ../..
 
-# 2. Check C++ Libs
-if [ ! -f "libs/civetweb/v1.16.tar.gz" ]; then
-    echo "Error: CivetWeb missing"
-    exit 1
-fi
-
-# 3. Build C++ (if Xcode project exists)
-XCODE_PROJ="Builds/MacOSX/FlowZone.xcodeproj"
-if [ -d "$XCODE_PROJ" ]; then
-    echo "Xcode project found. Building Standalone..."
-    xcodebuild -project "$XCODE_PROJ" -scheme "FlowZone - Standalone Plugin" -configuration Debug build
+# 2. Build Engine (Standalone)
+echo "Building Standalone..."
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # MacOS
+    # Assume Projucer has generated the Xcode project
+    # If not, we might need to run Projucer --resave FlowZone.jucer
+    
+    # Verify Xcode project exists
+    if [ -d "Builds/MacOSX/FlowZone.xcodeproj" ]; then
+        xcodebuild -project Builds/MacOSX/FlowZone.xcodeproj -scheme "FlowZone - Standalone Plugin" -configuration Release build
+    else
+        echo "Xcode project not found. Please open FlowZone.jucer and save to generate it."
+        # Optional: try to run Projucer if available
+        # /Applications/JUCE/Projucer.app/Contents/MacOS/Projucer --resave FlowZone.jucer
+    fi
 else
-    echo "⚠️  Xcode project not found at $XCODE_PROJ"
-    echo "👉  ACTION REQUIRED: Open FlowZone.jucer in Projucer and 'Save Project to Open in IDE' to generate it."
+    echo "Skipping Engine build (non-macOS currently)"
 fi
 
-echo "✅  CI Prep Verification Complete."
+echo "CI Build Complete."

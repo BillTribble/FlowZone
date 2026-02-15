@@ -1,4 +1,6 @@
 #pragma once
+#include "CommandDispatcher.h"
+#include "CrashGuard.h"
 #include "transport/TransportService.h"
 #include <JuceHeader.h>
 
@@ -16,9 +18,12 @@ public:
                     juce::MidiBuffer &midiMessages);
 
   TransportService &getTransport() { return transport; }
+  CommandDispatcher &getDispatcher() { return dispatcher; }
 
 private:
   TransportService transport;
+  CommandDispatcher dispatcher;
+  CrashGuard crashGuard;
   // TODO: Add LooperGraph, effects chain
 };
 

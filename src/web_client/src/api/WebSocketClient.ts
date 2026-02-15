@@ -5,13 +5,13 @@ export class WebSocketClient {
     private url: string;
     private onStateChange?: (state: any) => void;
 
+    private reconnectDelay = 1000;
+    private maxReconnectDelay = 30000;
+    // private isConnected = false; // Unused for now
+
     constructor(url: string = "ws://localhost:50001") {
         this.url = url;
     }
-
-    private reconnectDelay = 1000;
-    private maxReconnectDelay = 30000;
-    private isConnected = false;
 
     connect(onStateChange?: (state: any) => void) {
         this.onStateChange = onStateChange;
@@ -23,7 +23,7 @@ export class WebSocketClient {
 
         this.ws.onopen = () => {
             console.log("Connected to FlowZone Engine");
-            this.isConnected = true;
+            // this.isConnected = true;
             this.reconnectDelay = 1000; // Reset delay
 
             // Send reconnection info if implemented
@@ -32,7 +32,7 @@ export class WebSocketClient {
 
         this.ws.onclose = () => {
             console.log("Disconnected. Reconnecting in " + this.reconnectDelay + "ms");
-            this.isConnected = false;
+            // this.isConnected = false;
             setTimeout(() => {
                 this.reconnectDelay = Math.min(this.reconnectDelay * 2, this.maxReconnectDelay);
                 this.initSocket();

@@ -1,5 +1,5 @@
 import React, { ReactNode } from 'react';
-import { useAppState } from '../context/StateProvider';
+// import { useAppState } from '../context/StateProvider'; // Unused
 
 interface ResponsiveContainerProps {
     children: ReactNode;
