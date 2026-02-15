@@ -3,15 +3,7 @@
 
 FlowZoneAudioProcessorEditor::FlowZoneAudioProcessorEditor(
     FlowZoneAudioProcessor &p)
-    : AudioProcessorEditor(&p), audioProcessor(p),
-      webView(
-          juce::WebBrowserComponent::Options()
-              .withBackend(
-                  juce::WebBrowserComponent::Options::Backend::webview2)
-              .withWinWebView2Options(
-                  juce::WebBrowserComponent::Options::WinWebView2Options()
-                      .withUserDataFolder(juce::File::getSpecialLocation(
-                          juce::File::SpecialLocationType::tempDirectory)))) {
+    : AudioProcessorEditor(&p), audioProcessor(p) {
   addAndMakeVisible(webView);
 
   // In development, point to the Vite dev server

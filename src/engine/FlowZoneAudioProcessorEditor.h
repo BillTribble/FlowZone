@@ -13,11 +13,9 @@ public:
   void resized() override;
 
 private:
-  // This reference is provided as a quick way for your editor to
-  // access the processor object that created it.
   FlowZoneAudioProcessor &audioProcessor;
 
-  juce::WebBrowserComponent webView;
+  juce::WebBrowserComponent webView; // Uses default WebKit backend on macOS
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FlowZoneAudioProcessorEditor)
 };

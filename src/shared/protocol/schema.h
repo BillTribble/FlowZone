@@ -1,7 +1,6 @@
 #pragma once
 
 #include "ErrorCodes.h"
-#include <JuceHeader.h>
 #include <string>
 #include <vector>
 

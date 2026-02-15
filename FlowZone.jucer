@@ -13,6 +13,7 @@
         <FILE id="FlowZoneAudioProcessorEditor_cpp" name="FlowZoneAudioProcessorEditor.cpp" compile="1" resource="0" file="src/engine/FlowZoneAudioProcessorEditor.cpp"/>
         <GROUP id="{TRANSPORT}" name="transport">
            <FILE id="TransportService_h" name="TransportService.h" compile="0" resource="0" file="src/engine/transport/TransportService.h"/>
+           <FILE id="TransportService_cpp" name="TransportService.cpp" compile="1" resource="0" file="src/engine/transport/TransportService.cpp"/>
         </GROUP>
       </GROUP>
       <GROUP id="{SHARED}" name="shared">
@@ -26,6 +27,7 @@
         <FILE id="WebSocketServer_cpp" name="WebSocketServer.cpp" compile="1" resource="0" file="src/engine/server/WebSocketServer.cpp"/>
       </GROUP>
       <FILE id="AudioThreadUtils_h" name="AudioThreadUtils.h" compile="0" resource="0" file="src/engine/AudioThreadUtils.h"/>
+      <FILE id="CommandQueue_h" name="CommandQueue.h" compile="0" resource="0" file="src/engine/CommandQueue.h"/>
       <FILE id="CommandDispatcher_h" name="CommandDispatcher.h" compile="0" resource="0" file="src/engine/CommandDispatcher.h"/>
       <FILE id="CommandDispatcher_cpp" name="CommandDispatcher.cpp" compile="1" resource="0" file="src/engine/CommandDispatcher.cpp"/>
       <FILE id="FlowEngine_h" name="FlowEngine.h" compile="0" resource="0" file="src/engine/FlowEngine.h"/>
@@ -34,6 +36,9 @@
       <FILE id="SessionStateManager_cpp" name="SessionStateManager.cpp" compile="1" resource="0" file="src/engine/SessionStateManager.cpp"/>
       <FILE id="StateBroadcaster_h" name="StateBroadcaster.h" compile="0" resource="0" file="src/engine/StateBroadcaster.h"/>
       <FILE id="StateBroadcaster_cpp" name="StateBroadcaster.cpp" compile="1" resource="0" file="src/engine/StateBroadcaster.cpp"/>
+    </GROUP>
+    <GROUP id="{LIBS}" name="libs">
+      <FILE id="civetweb_c" name="civetweb.c" compile="1" resource="0" file="libs/civetweb/include/civetweb.c"/>
     </GROUP>
   </MAINGROUP>
   <MODULES>
