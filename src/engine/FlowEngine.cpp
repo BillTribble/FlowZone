@@ -20,16 +20,41 @@ void FlowEngine::processBlock(juce::AudioBuffer<float> &buffer,
 
 void FlowEngine::processCommands() {
   juce::String commandStr;
+  bool stateChanged = false;
   // Drain the queue
   while (commandQueue.pop(commandStr)) {
     dispatcher.dispatch(commandStr, *this);
+    stateChanged = true;
   }
+
+  if (stateChanged) {
+    broadcastState();
+  }
+}
+
+void FlowEngine::broadcastState() {
+  auto state = sessionManager.getCurrentState();
+
+  // Sync Transport
+  state.transport.isPlaying = transport.isPlaying();
+  state.transport.bpm = transport.getBpm();
+  state.transport.metronomeEnabled = transport.isMetronomeEnabled();
+  state.transport.loopLengthBars = transport.getLoopLengthBars();
+  state.transport.barPhase = transport.getBarPhase();
+
+  broadcaster.broadcastFullState(state);
 }
 
 void FlowEngine::loadPreset(const juce::String &category,
                             const juce::String &presetName) {
   juce::Logger::writeToLog("Load Preset: " + category + " / " + presetName);
-  // TODO: Phase 4 - Implement Preset Loading
+
+  sessionManager.updateState([&](AppState &s) {
+    s.activeMode.category = category;
+    s.activeMode.presetName = presetName;
+    // Also update presetId to match name for now, or look it up
+    s.activeMode.presetId = presetName.toLowerCase().replace(" ", "-");
+  });
 }
 
 void FlowEngine::triggerPad(int padIndex, float velocity) {
@@ -39,9 +64,11 @@ void FlowEngine::triggerPad(int padIndex, float velocity) {
 }
 
 void FlowEngine::updateXY(float x, float y) {
-  // juce::Logger::writeToLog("XY: " + juce::String(x) + ", " +
-  // juce::String(y));
-  // TODO: Phase 4 - Update FX Parameters
+  sessionManager.updateState([&](AppState &s) {
+    s.activeFX.xyPosition.x = x;
+    s.activeFX.xyPosition.y = y;
+    s.activeFX.isActive = true;
+  });
 }
 
 } // namespace flowzone

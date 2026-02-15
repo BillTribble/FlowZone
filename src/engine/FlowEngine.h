@@ -39,6 +39,7 @@ private:
   CommandQueue commandQueue;
 
   void processCommands();
+  void broadcastState();
 };
 
 } // namespace flowzone

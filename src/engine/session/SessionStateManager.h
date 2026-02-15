@@ -20,6 +20,11 @@ public:
   // Get current state
   AppState getCurrentState() const { return currentState; }
 
+  // Modify state safely
+  void updateState(std::function<void(AppState &)> modifier) {
+    modifier(currentState);
+  }
+
 private:
   AppState currentState;
 };
