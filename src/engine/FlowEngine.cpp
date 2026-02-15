@@ -7,10 +7,14 @@ FlowEngine::~FlowEngine() {}
 
 void FlowEngine::prepareToPlay(double sampleRate, int samplesPerBlock) {
   transport.prepareToPlay(sampleRate, samplesPerBlock);
+  retroBuffer.prepare(sampleRate, 60); // 60 seconds of history
 }
 
 void FlowEngine::processBlock(juce::AudioBuffer<float> &buffer,
                               juce::MidiBuffer &midiMessages) {
+  // Capture input before processing
+  retroBuffer.pushBlock(buffer);
+
   // Process incoming commands from Message Thread
   processCommands();
 

@@ -22,6 +22,7 @@ add_library(flowzone_engine STATIC
     src/engine/state/StateBroadcaster.cpp
     src/engine/state/StateBroadcaster.h
     src/engine/DiskWriter.cpp
+    src/engine/RetrospectiveBuffer.cpp
     src/engine/session/SessionStateManager.cpp
     src/engine/session/SessionStateManager.h
     src/engine/FlowEngine.cpp
@@ -48,6 +49,7 @@ target_compile_features(flowzone_engine PUBLIC cxx_std_20)
 add_executable(engine_tests
     tests/engine/TransportService_Test.cpp
     tests/engine/StateBroadcaster_Test.cpp
+    tests/engine/RetrospectiveBuffer_Test.cpp
     tests/engine/SessionStateManager_Test.cpp
 )
 

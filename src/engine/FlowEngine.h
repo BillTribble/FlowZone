@@ -1,6 +1,7 @@
 #include "CommandDispatcher.h"
 #include "CommandQueue.h"
 #include "CrashGuard.h"
+#include "RetrospectiveBuffer.h"
 #include "session/SessionStateManager.h"
 #include "state/StateBroadcaster.h"
 #include "transport/TransportService.h"
@@ -36,6 +37,7 @@ private:
   StateBroadcaster broadcaster;
   SessionStateManager sessionManager;
   CrashGuard crashGuard;
+  RetrospectiveBuffer retroBuffer;
   CommandQueue commandQueue;
 
   void processCommands();
