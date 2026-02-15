@@ -174,6 +174,41 @@ br update br-42 --status in_progress --json
 br update br-42 --priority 1 --json
 ```
 
+### Full Command List
+
+| Command | Description |
+|:---|:---|
+| `init` | Initialize a beads workspace |
+| `create` | Create a new issue |
+| `q` | Quick capture (create issue, print ID only) |
+| `list` | List issues |
+| `show` | Show issue details |
+| `update` | Update an issue |
+| `close` | Close an issue |
+| `reopen` | Reopen an issue |
+| `delete` | Delete an issue (creates tombstone) |
+| `ready` | List ready issues (unblocked, not deferred) |
+| `blocked` | List blocked issues |
+| `search` | Search issues |
+| `dep` | Manage dependencies |
+| `label` | Manage labels |
+| `epic` | Epic management commands |
+| `comments` | Manage comments |
+| `stats`/`status` | Show project statistics |
+| `count` | Count issues with optional grouping |
+| `stale` | List stale issues |
+| `lint` | Check issues for missing template sections |
+| `defer`/`undefer`| Defer/Undefer issues (schedule for later) |
+| `config` | Configuration management |
+| `sync` | Sync database with JSONL file |
+| `doctor`/`info` | Diagnostics and workspace metadata |
+| `schema` | Emit JSON Schemas for tool integration |
+| `where` | Show the active .beads directory |
+| `audit` | Record and label agent interactions |
+| `changelog` | Generate changelog from closed issues |
+| `graph` | Visualize dependency graph |
+| `agents` | Manage AGENTS.md workflow instructions |
+
 Complete:
 
 ```bash

@@ -1,5 +1,7 @@
 #include "CommandDispatcher.h"
 #include "FlowEngine.h"
+#include <JuceHeader.h>
+#include <string>
 
 namespace flowzone {
 
@@ -34,6 +36,14 @@ void CommandDispatcher::dispatch(const juce::String &jsonCommand,
     handleNoteOn(engine, (int)jsonVar["pad"], (float)jsonVar["val"]);
   } else if (cmdType == "XY_CHANGE") {
     handleXYChange(engine, (float)jsonVar["x"], (float)jsonVar["y"]);
+  } else if (cmdType == "SET_LOOP_LENGTH") {
+    handleSetLoopLength(engine, (int)jsonVar["bars"]);
+  } else if (cmdType == "MUTE_SLOT") {
+    handleSetSlotMuted(engine, (int)jsonVar["index"], true);
+  } else if (cmdType == "UNMUTE_SLOT") {
+    handleSetSlotMuted(engine, (int)jsonVar["index"], false);
+  } else if (cmdType == "SET_VOL") {
+    handleSetSlotVolume(engine, (int)jsonVar["index"], (float)jsonVar["val"]);
   }
 }
 
@@ -72,6 +82,20 @@ void CommandDispatcher::handleNoteOn(FlowEngine &engine, int pad,
 
 void CommandDispatcher::handleXYChange(FlowEngine &engine, float x, float y) {
   engine.updateXY(x, y);
+}
+
+void CommandDispatcher::handleSetLoopLength(FlowEngine &engine, int bars) {
+  engine.setLoopLength(bars);
+}
+
+void CommandDispatcher::handleSetSlotMuted(FlowEngine &engine, int index,
+                                           bool muted) {
+  engine.setSlotMuted(index, muted);
+}
+
+void CommandDispatcher::handleSetSlotVolume(FlowEngine &engine, int index,
+                                            float volume) {
+  engine.setSlotVolume(index, volume);
 }
 
 } // namespace flowzone

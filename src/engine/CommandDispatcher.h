@@ -25,6 +25,9 @@ private:
                        const juce::String &preset);
   void handleNoteOn(FlowEngine &engine, int pad, float velocity);
   void handleXYChange(FlowEngine &engine, float x, float y);
+  void handleSetLoopLength(FlowEngine &engine, int bars);
+  void handleSetSlotMuted(FlowEngine &engine, int index, bool muted);
+  void handleSetSlotVolume(FlowEngine &engine, int index, float volume);
 };
 
 } // namespace flowzone
