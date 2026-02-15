@@ -21,6 +21,7 @@ add_library(flowzone_engine STATIC
     src/engine/state/AppState.h
     src/engine/state/StateBroadcaster.cpp
     src/engine/state/StateBroadcaster.h
+    src/engine/DiskWriter.cpp
     src/engine/session/SessionStateManager.cpp
     src/engine/session/SessionStateManager.h
     src/engine/FlowEngine.cpp

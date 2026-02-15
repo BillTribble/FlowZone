@@ -1,85 +1,49 @@
 #pragma once
-#include "../shared/protocol/schema.h"
+
 #include <JuceHeader.h>
+#include <atomic>
 
 namespace flowzone {
 
 // bd-31s: DiskWriter Tier 1
-// Handles writing state to disk
-class DiskWriter {
+// Writes audio data to disk on a background thread
+class DiskWriter : public juce::Thread {
 public:
-  DiskWriter() {}
+  DiskWriter();
+  ~DiskWriter() override;
 
-  // Tier 1: Simple JSON dump
-  static void saveState(const AppState &state, const juce::File &file) {
-    juce::var json;
-    json.getDynamicObject()->setProperty("bpm", state.bpm);
-    json.getDynamicObject()->setProperty("isPlaying", state.isPlaying);
+  void prepareToPlay(double sampleRate, int samplesPerBlock);
 
-    // Riffs
-    juce::Array<juce::var> riffsArray;
-    for (const auto &riff : state.activeRiffs) {
-      juce::DynamicObject *obj = new juce::DynamicObject();
-      obj->setProperty("id", riff.id);
-      obj->setProperty("name", riff.name);
-      obj->setProperty("lengthBeats", riff.lengthBeats);
-      riffsArray.add(juce::var(obj));
-    }
-    json.getDynamicObject()->setProperty("activeRiffs", riffsArray);
+  // Start recording to a specific file
+  bool startRecording(const juce::File &file);
 
-    juce::FileOutputStream stream(file);
-    if (stream.openedOk()) {
-      stream.setPosition(0);
-      stream.truncate();
-      juce::JSON::writeToStream(stream, json);
-    }
-  }
+  // Stop recording
+  void stopRecording();
 
-  static AppState loadState(const juce::File &file) {
-    AppState state;
-    if (!file.existsAsFile())
-      return state;
+  // Push audio block (Audio Thread Safe)
+  void writeBlock(const juce::AudioBuffer<float> &buffer);
 
-    juce::var json = juce::JSON::parse(file);
-    if (json.isObject()) {
-      state.bpm = json["bpm"];
-      state.isPlaying = json["isPlaying"];
+  bool isRecording() const { return recording.load(); }
 
-      if (json["activeRiffs"].isArray()) {
-        auto riffsArray = *json["activeRiffs"].getArray();
-        for (auto &riffVar : riffsArray) {
-          Riff riff;
-          riff.id = riffVar["id"].toString().toStdString();
-          riff.name = riffVar["name"].toString().toStdString();
-          riff.lengthBeats = (double)riffVar["lengthBeats"];
-          state.activeRiffs.push_back(riff);
-        }
-      }
-    }
-    return state;
-  }
+  // Thread run loop
+  void run() override;
 
-  // Audio Writing (Tier 1)
-  static void writeAudio(const juce::AudioBuffer<float> &buffer,
-                         double sampleRate, const juce::File &file) {
-    // Ensure directory exists
-    file.getParentDirectory().createDirectory();
+private:
+  std::atomic<bool> recording{false};
+  std::unique_ptr<juce::AudioFormatWriter> writer;
+  juce::File currentFile;
 
-    if (file.existsAsFile())
-      file.deleteFile();
+  // Ring Buffer for passing data to background thread
+  // Using a simple lock + buffer for Tier 1, or AbstractFifo if avoiding locks
+  // Since we are C++20, we can use a lock-free queue or just use JUCE's
+  // AbstractFifo
 
-    juce::FlacAudioFormat flacFormat;
-    std::unique_ptr<juce::AudioFormatWriter> writer(flacFormat.createWriterFor(
-        new juce::FileOutputStream(file), sampleRate, buffer.getNumChannels(),
-        16, // bits per sample
-        {}, // metadata
-        0   // compression level (0 = fastest)
-        ));
+  juce::AbstractFifo fifo{48000 * 10}; // 10 seconds buffer
+  juce::AudioBuffer<float> fifoBuffer; // Circular buffer
 
-    if (writer) {
-      writer->writeFromAudioSampleBuffer(buffer, 0, buffer.getNumSamples());
-    }
-  }
+  double sampleRate = 44100.0;
+
+  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DiskWriter)
 };
 
 } // namespace flowzone
