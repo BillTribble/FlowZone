@@ -25,6 +25,11 @@ public:
   SessionStateManager &getSessionManager() { return sessionManager; }
   CommandQueue &getCommandQueue() { return commandQueue; }
 
+  // Command Handlers (called by Dispatcher)
+  void loadPreset(const juce::String &category, const juce::String &presetName);
+  void triggerPad(int padIndex, float velocity);
+  void updateXY(float x, float y);
+
 private:
   TransportService transport;
   CommandDispatcher dispatcher;

@@ -4,20 +4,27 @@
 
 namespace flowzone {
 
+class FlowEngine; // Forward declaration
+
 // bd-14c: Command Dispatcher
 class CommandDispatcher {
 public:
   CommandDispatcher();
   ~CommandDispatcher();
 
-  // Parse JSON command and return CommandType + Payload (concept)
-  // For Phase 2, we just stub the dispatch logic
-  void dispatch(const juce::String &jsonCommand);
+  // Parse JSON command and dispatch to Engine
+  void dispatch(const juce::String &jsonCommand, FlowEngine &engine);
 
 private:
-  void handlePlay();
-  void handlePause();
-  void handleSetBpm(double bpm);
+  void handlePlay(FlowEngine &engine);
+  void handlePause(FlowEngine &engine);
+  void handleTogglePlay(FlowEngine &engine);
+  void handleToggleMetronome(FlowEngine &engine);
+  void handleSetBpm(FlowEngine &engine, double bpm);
+  void handleSetPreset(FlowEngine &engine, const juce::String &category,
+                       const juce::String &preset);
+  void handleNoteOn(FlowEngine &engine, int pad, float velocity);
+  void handleXYChange(FlowEngine &engine, float x, float y);
 };
 
 } // namespace flowzone
