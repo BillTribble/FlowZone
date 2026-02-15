@@ -15,24 +15,89 @@ export enum CommandType {
     LoadRiff = "LoadRiff"
 }
 
-export interface Riff {
+export interface PluginInstance {
     id: string;
+    pluginId: string;
+    manufacturer: string;
     name: string;
-    lengthBeats: number;
+    bypass: boolean;
+    state: string; // Base64
+}
+
+export interface SlotState {
+    id: string;
+    state: "EMPTY" | "PLAYING" | "MUTED";
+    volume: number;
+    name: string;
+    instrumentCategory: string;
+    presetId: string;
+    userId: string;
+    pluginChain: PluginInstance[];
+    loopLengthBars: number;
+    originalBpm: number;
+    lastError: number;
+}
+
+export interface RiffHistoryEntry {
+    id: string;
+    timestamp: number;
+    name: string;
+    layers: number;
+    colors: string[];
+    userId: string;
 }
 
 export interface AppState {
-    bpm: number;
-    isPlaying: boolean;
-    activeRiffs: Riff[];
-}
-
-export interface Parameters {
-    bpm: number;
-}
-
-// Command Message Structure
-export interface CommandMessage {
-    type: CommandType;
-    payload?: any;
+    session: {
+        id: string;
+        name: string;
+        emoji: string;
+        createdAt: number;
+    };
+    transport: {
+        bpm: number;
+        isPlaying: boolean;
+        barPhase: number;
+        loopLengthBars: number;
+        metronomeEnabled: boolean;
+        quantiseEnabled: boolean;
+        rootNote: number;
+        scale: string;
+    };
+    activeMode: {
+        category: string;
+        presetId: string;
+        presetName: string;
+        isFxMode: boolean;
+        selectedSourceSlots: number[];
+    };
+    activeFX: {
+        effectId: string;
+        effectName: string;
+        xyPosition: {
+            x: number;
+            y: number;
+        };
+        isActive: boolean;
+    };
+    mic: {
+        inputGain: number;
+        monitorInput: boolean;
+        monitorUntilLooped: boolean;
+    };
+    slots: SlotState[];
+    riffHistory: RiffHistoryEntry[];
+    settings: {
+        riffSwapMode: string;
+        bufferSize: number;
+        sampleRate: number;
+        storageLocation: string;
+    };
+    system: {
+        cpuLoad: number;
+        diskBufferUsage: number;
+        memoryUsageMB: number;
+        activePluginHosts: number;
+    };
+    ui: any; // Empty object per spec
 }

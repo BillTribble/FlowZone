@@ -1,18 +1,12 @@
-// context/StateProvider.tsx
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { AppState } from '../../../shared/protocol/schema';
+import { initialMockState } from '../api/MockStateProvider';
 import { WebSocketClient } from '../api/WebSocketClient';
 
-const defaultState: AppState = {
-    bpm: 120,
-    isPlaying: false,
-    activeRiffs: []
-};
-
-const StateContext = createContext<AppState>(defaultState);
+const StateContext = createContext<AppState>(initialMockState);
 
 export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [state, setState] = useState<AppState>(defaultState);
+    const [state, setState] = useState<AppState>(initialMockState);
     const client = new WebSocketClient();
 
     useEffect(() => {
