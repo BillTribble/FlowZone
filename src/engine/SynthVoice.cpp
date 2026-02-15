@@ -23,8 +23,15 @@ void SynthVoice::startNote(int midiNoteNumber, float velocity,
   juce::ignoreUnused(sound, currentPitchWheelPosition);
   level = velocity * 0.5f;
 
-  auto cyclesPerSecond =
-      juce::MidiMessage::getMidiNoteInHertz(midiNoteNumber) * pitchRatio;
+  double cyclesPerSecond;
+  if (tuningManager) {
+    cyclesPerSecond =
+        tuningManager->getFrequencyForMidiNote(midiNoteNumber) * pitchRatio;
+  } else {
+    cyclesPerSecond =
+        juce::MidiMessage::getMidiNoteInHertz(midiNoteNumber) * pitchRatio;
+  }
+
   auto cyclesPerSample = cyclesPerSecond / currentSampleRate;
   angleDelta = (float)(cyclesPerSample * 2.0 * juce::MathConstants<double>::pi);
 
@@ -80,6 +87,10 @@ void SynthVoice::setADSR(float a, float d, float s, float r) {
 }
 
 void SynthVoice::setPitchRatio(float ratio) { pitchRatio = ratio; }
+
+void SynthVoice::setTuningManager(const TuningManager *tm) {
+  tuningManager = tm;
+}
 
 float SynthVoice::getNextSample() {
   float out = 0.0f;

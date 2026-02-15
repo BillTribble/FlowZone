@@ -45,6 +45,10 @@ void SynthEngine::setPreset(const juce::String &category,
   }
 }
 
+void SynthEngine::setTuning(const juce::String &sclContent) {
+  tuningManager.loadScl(sclContent);
+}
+
 void SynthEngine::setGlobalPitchRatio(float ratio) {
   for (int i = 0; i < synth.getNumVoices(); ++i) {
     if (auto *voice = dynamic_cast<SynthVoice *>(synth.getVoice(i))) {
@@ -60,7 +64,9 @@ void SynthEngine::setParameter(int index, float value) {
 void SynthEngine::setupVoices() {
   synth.clearVoices();
   for (int i = 0; i < maxVoices; ++i) {
-    synth.addVoice(new SynthVoice());
+    auto *voice = new SynthVoice();
+    voice->setTuningManager(&tuningManager);
+    synth.addVoice(voice);
   }
 }
 

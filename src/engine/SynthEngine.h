@@ -22,9 +22,11 @@ public:
   void setPreset(const juce::String &category, const juce::String &presetId);
   void setParameter(int index, float value);
   void setGlobalPitchRatio(float ratio);
+  void setTuning(const juce::String &sclContent);
 
 private:
   juce::Synthesiser synth;
+  TuningManager tuningManager;
   int maxVoices = 16;
 
   void setupVoices();

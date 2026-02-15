@@ -1,5 +1,4 @@
-#pragma once
-
+#include "TuningManager.h"
 #include <JuceHeader.h>
 
 namespace flowzone {
@@ -27,8 +26,10 @@ public:
   void setOscillatorType(int type); // 0: sine, 1: saw, 2: square, 3: tri
   void setADSR(float a, float d, float s, float r);
   void setPitchRatio(float ratio);
+  void setTuningManager(const TuningManager *tm);
 
 private:
+  const TuningManager *tuningManager = nullptr;
   double currentSampleRate = 44100.0;
   float level = 0.0f;
   float angleDelta = 0.0f;
