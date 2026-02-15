@@ -16,7 +16,7 @@ interface MainLayoutProps {
     onXYChange: (x: number, y: number) => void;
 }
 
-export const MainLayout: React.FC<MainLayoutProps> = ({
+export const MainLayout: React.FC<MainLayoutProps & { bottomContent?: React.ReactNode }> = ({
     activeTab,
     onTabChange,
     isConnected,
@@ -26,7 +26,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
     children,
     performanceMode,
     onPadTrigger,
-    onXYChange
+    onXYChange,
+    bottomContent
 }) => {
     return (
         <div style={{
@@ -37,7 +38,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
             background: '#121212',
             color: '#fff',
             fontFamily: 'system-ui, -apple-system, sans-serif',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            touchAction: 'none' // Global touch action to help with preventDefault
         }}>
             {/* 1. Header */}
             <Header
@@ -51,7 +53,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
             {/* 2. Top Half: View Content (Controls/Settings) */}
             <div style={{
                 flex: 1,
-                overflow: 'hidden', // Disable scrolling
+                overflow: 'hidden',
                 position: 'relative',
                 borderBottom: '1px solid #333',
                 background: '#121212'
@@ -64,20 +66,25 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
                 <Navigation activeTab={activeTab} onTabChange={onTabChange} />
             </div>
 
-            {/* 4. Bottom Half: Performance Surface (Pads/XY) */}
+            {/* 4. Bottom Half: Performance Surface (Pads/XY) OR Component Controls */}
             <div style={{
                 flex: 1,
                 padding: 12,
                 background: '#1a1a1a',
                 display: 'flex',
                 flexDirection: 'column',
-                minHeight: 0 // Allow flex child to shrink properly
+                minHeight: 0,
+                overflow: 'hidden'
             }}>
-                <PerformanceSurface
-                    mode={performanceMode}
-                    onPadTrigger={onPadTrigger}
-                    onXYChange={onXYChange}
-                />
+                {bottomContent ? (
+                    bottomContent
+                ) : (
+                    <PerformanceSurface
+                        mode={performanceMode}
+                        onPadTrigger={onPadTrigger}
+                        onXYChange={onXYChange}
+                    />
+                )}
             </div>
         </div>
     );

@@ -4,7 +4,7 @@ import { AppState } from '../../shared/protocol/schema'
 import { MainLayout } from './components/layout/MainLayout'
 import { TabId } from './components/layout/Navigation'
 import { PlayView } from './views/PlayView'
-import { MixerView } from './views/MixerView'
+import { MixerView, MixerControls } from './views/MixerView'
 import { ModeView } from './views/ModeView'
 import { AdjustView } from './views/AdjustView'
 
@@ -56,34 +56,47 @@ function App() {
         wsClient.send({ cmd: "XY_CHANGE", x, y });
     };
 
+    const handlePresetSelect = (category: string, preset: string) => {
+        wsClient.send({ cmd: "SET_PRESET", category, preset });
+    };
+
+    // Determine bottom content (Performance Surface or Mixer Controls)
+    let bottomContent: React.ReactNode | undefined = undefined;
+    if (activeTab === 'mixer') {
+        bottomContent = <MixerControls state={state} />;
+    }
+
     return (
         <MainLayout
             activeTab={activeTab}
             onTabChange={setActiveTab}
             isConnected={connected}
-            bpm={120} // TODO: Get from store
-            isPlaying={false} // TODO: Get from store
-            onTogglePlay={() => { }}
+            bpm={state?.transport?.bpm ?? 120}
+            isPlaying={state?.transport?.isPlaying ?? false}
+            onTogglePlay={() => {
+                wsClient.send({ cmd: "TOGGLE_PLAY" });
+            }}
             performanceMode={performanceMode}
             onPadTrigger={handlePadTrigger}
             onXYChange={handleXYChange}
+            bottomContent={bottomContent}
         >
             {activeTab === 'mode' && <ModeView onSelectMode={(mode) => {
                 console.log('Selected mode:', mode);
                 if (mode === 'fx' || mode === 'ext_fx') {
                     setPerformanceMode('XY');
                     setActiveTab('play');
-                    // User said: "In FX mode, xy surface should be visible... Top half contains controls for play / adjust"
-                    // Let's default to 'adjust' for FX, or maybe just 'play' is fine effectively.
-                    // Let's keep it simple: FX -> XY Surface.
                 } else {
                     setPerformanceMode('PADS');
                     setActiveTab('play');
                 }
             }} />}
-            {activeTab === 'play' && <PlayView state={state} />}
+            {activeTab === 'play' && <PlayView state={state} onSelectPreset={handlePresetSelect} />}
             {activeTab === 'adjust' && <AdjustView state={state} />}
-            {activeTab === 'mixer' && <MixerView state={state} onToggleMetronome={() => { }} />}
+            {activeTab === 'mixer' && <MixerView state={state} onToggleMetronome={() => {
+                // TODO: Toggle Metronome
+                wsClient.send({ cmd: "TOGGLE_METRONOME" });
+            }} />}
         </MainLayout>
     )
 }

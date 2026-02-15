@@ -3,6 +3,7 @@ import { AppState } from '../../../shared/protocol/schema';
 
 interface PlayViewProps {
     state: AppState;
+    onSelectPreset: (category: string, preset: string) => void;
 }
 
 // Hardcoded presets for V1 (mirrors Spec)
@@ -14,7 +15,7 @@ const PRESETS: Record<string, string[]> = {
     infinite_fx: ['Keymasher', 'Ripper', 'Ringmod', 'Bitcrusher', 'Degrader', 'Pitchmod', 'Multicomb', 'Freezer', 'Zap Delay', 'Dub Delay', 'Compressor', 'Trance Gate']
 };
 
-export const PlayView: React.FC<PlayViewProps> = ({ state }) => {
+export const PlayView: React.FC<PlayViewProps> = ({ state, onSelectPreset }) => {
     // Current category from state or default to drums
     const category = state.activeMode?.category || 'drums';
     const presets = PRESETS[category] || [];
@@ -53,8 +54,7 @@ export const PlayView: React.FC<PlayViewProps> = ({ state }) => {
                                 boxShadow: isActive ? '0 0 10px rgba(0,229,255,0.5)' : 'none'
                             }}
                             onClick={() => {
-                                // TODO: Send SET_PRESET command via WebSocket
-                                console.log('Set Preset:', preset);
+                                onSelectPreset(category, preset);
                             }}
                         >
                             {preset}

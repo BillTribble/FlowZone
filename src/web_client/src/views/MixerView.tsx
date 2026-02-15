@@ -8,9 +8,8 @@ interface MixerViewProps {
     onToggleMetronome: () => void;
 }
 
-export const MixerView: React.FC<MixerViewProps> = ({ state, onToggleMetronome }) => {
+export const MixerControls: React.FC<{ state: AppState }> = ({ state }) => {
     // 8 Slots
-    // In engine, slots array might be empty initially, so we fill to 8
     const slots = Array.from({ length: 8 }, (_, i) => {
         return state.slots[i] || {
             id: `slot-${i}`,
@@ -21,6 +20,54 @@ export const MixerView: React.FC<MixerViewProps> = ({ state, onToggleMetronome }
         };
     });
 
+    return (
+        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Commit Button - Placed at top of bottom controls per request (Controls and Commit in lower half) */}
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0' }}>
+                <button style={{
+                    background: '#00E5FF', color: '#000', border: 'none', borderRadius: 20,
+                    padding: '8px 32px', fontWeight: 'bold', fontSize: 14, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 8
+                }}>
+                    <Icon name="play" size={16} color="#000" />
+                    COMMIT
+                </button>
+            </div>
+
+            {/* Faders */}
+            <div style={{
+                flex: 1,
+                display: 'grid',
+                gridTemplateColumns: 'repeat(8, 1fr)',
+                gap: 4,
+                alignItems: 'flex-end',
+                paddingBottom: 20
+            }}>
+                {slots.map((slot, i) => {
+                    const isEvenIndex = (i % 2 === 0); // 0, 2, 4 -> Slot 1, 3, 5
+                    return (
+                        <div key={i} style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            marginBottom: isEvenIndex ? 40 : 0
+                        }}>
+                            <Fader
+                                value={slot.volume} // @ts-ignore
+                                onChange={(v) => console.log('Vol', i, v)}
+                                height={140}
+                                width={24}
+                                label={(i + 1).toString()}
+                            />
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
+
+export const MixerView: React.FC<MixerViewProps> = ({ state, onToggleMetronome }) => {
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: 16, gap: 16, boxSizing: 'border-box' }}>
             {/* Top Section: Transport Controls */}
@@ -51,50 +98,8 @@ export const MixerView: React.FC<MixerViewProps> = ({ state, onToggleMetronome }
                 </button>
             </div>
 
-            {/* Middle: Commit Button */}
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0' }}>
-                <button style={{
-                    background: '#00E5FF', color: '#000', border: 'none', borderRadius: 20,
-                    padding: '8px 32px', fontWeight: 'bold', fontSize: 14, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', gap: 8
-                }}>
-                    <Icon name="play" size={16} color="#000" />
-                    COMMIT
-                </button>
-            </div>
-
-            {/* Bottom: Zigzag Faders */}
-            <div style={{
-                flex: 1,
-                display: 'grid',
-                gridTemplateColumns: 'repeat(8, 1fr)',
-                gap: 4,
-                alignItems: 'flex-end',
-                paddingBottom: 20
-            }}>
-                {slots.map((slot, i) => {
-                    // Zigzag: Odd slots (1, 3, 5..) visually higher (i=0, 2, 4..)
-                    // Wait, usually Odd slots (1, 3) are top, Even (2, 4) bottom.
-                    // Let's toggle margin-bottom based on index.
-                    const isEvenIndex = (i % 2 === 0); // 0, 2, 4 -> Slot 1, 3, 5
-
-                    return (
-                        <div key={i} style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            marginBottom: isEvenIndex ? 40 : 0
-                        }}>
-                            <Fader
-                                value={slot.volume} // @ts-ignore
-                                onChange={(v) => console.log('Vol', i, v)}
-                                height={180}
-                                width={24}
-                                label={(i + 1).toString()}
-                            />
-                        </div>
-                    );
-                })}
+            <div className="flex-1 bg-gray-900 rounded bg-opacity-50 flex items-center justify-center">
+                <span className="text-gray-600 text-sm">Mixer Settings</span>
             </div>
         </div>
     );
