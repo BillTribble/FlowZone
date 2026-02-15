@@ -17,7 +17,11 @@ public:
                                 const juce::File &parentDir,
                                 AppState &outState);
 
+  // Get current state
+  AppState getCurrentState() const { return currentState; }
+
 private:
+  AppState currentState;
 };
 
 } // namespace flowzone

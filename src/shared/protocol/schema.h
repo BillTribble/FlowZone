@@ -6,21 +6,14 @@
 
 namespace flowzone {
 
-// Command Types
+// ErrorCode included from ErrorCodes.h
+
 enum class CommandType { Play, Pause, SetBpm, LoadRiff, Unknown };
 
-// Data Structures
-struct Riff {
-  std::string id;
-  std::string name;
-  double lengthBeats;
-  // ... more fields
-};
+// Data definitions moved to AppState.h to avoid conflicts/redeclarations
 
-struct AppState {
-  double bpm = 120.0;
-  bool isPlaying = false;
-  std::vector<Riff> activeRiffs;
-};
+// ... (We could add full C++ structs here if needed by CommandDispatcher,
+// but for now, let's just ensure the enums used by CommandDispatcher are
+// present)
 
 } // namespace flowzone

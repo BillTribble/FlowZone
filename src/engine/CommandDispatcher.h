@@ -1,5 +1,5 @@
 #pragma once
-#include "../../shared/protocol/schema.h"
+#include "../shared/protocol/schema.h"
 #include <JuceHeader.h>
 
 namespace flowzone {

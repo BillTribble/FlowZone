@@ -1,5 +1,7 @@
 #include "CommandDispatcher.h"
+#include "CommandQueue.h"
 #include "CrashGuard.h"
+#include "session/SessionStateManager.h"
 #include "state/StateBroadcaster.h"
 #include "transport/TransportService.h"
 #include <JuceHeader.h>
@@ -21,6 +23,7 @@ public:
   CommandDispatcher &getDispatcher() { return dispatcher; }
   StateBroadcaster &getBroadcaster() { return broadcaster; }
   SessionStateManager &getSessionManager() { return sessionManager; }
+  CommandQueue &getCommandQueue() { return commandQueue; }
 
 private:
   TransportService transport;
@@ -28,7 +31,9 @@ private:
   StateBroadcaster broadcaster;
   SessionStateManager sessionManager;
   CrashGuard crashGuard;
-  // TODO: Add LooperGraph, effects chain
+  CommandQueue commandQueue;
+
+  void processCommands();
 };
 
 } // namespace flowzone

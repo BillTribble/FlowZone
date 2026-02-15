@@ -8,7 +8,8 @@ void WebSocketServer::start() {
   if (ctx != nullptr)
     return;
 
-  const char *options[] = {"listening_ports", std::to_string(port).c_str(),
+  std::string portStr = std::to_string(port);
+  const char *options[] = {"listening_ports", portStr.c_str(),
                            "websocket_timeout_ms", "3600000", nullptr};
 
   struct mg_callbacks callbacks;
@@ -29,27 +30,84 @@ void WebSocketServer::stop() {
   }
 }
 
+void WebSocketServer::broadcast(const std::string &message) {
+  std::lock_guard<std::mutex> lock(connectionsMutex);
+  for (auto *conn : connections) {
+    mg_websocket_write(conn, MG_WEBSOCKET_OPCODE_TEXT, message.c_str(),
+                       message.length());
+  }
+}
+
+void WebSocketServer::setInitialStateCallback(
+    std::function<std::string()> callback) {
+  getInitialState = callback;
+}
+
+void WebSocketServer::setOnMessageCallback(
+    std::function<void(const std::string &)> callback) {
+  onMessage = callback;
+}
+
+// Static Handlers
 int WebSocketServer::websocket_connect_handler(const struct mg_connection *conn,
                                                void *cbdata) {
-  juce::ignoreUnused(conn, cbdata);
-  return 0; // Return 0 to accept connection
+  auto *server = static_cast<WebSocketServer *>(cbdata);
+  return server->onConnect(conn);
 }
 
 void WebSocketServer::websocket_ready_handler(struct mg_connection *conn,
                                               void *cbdata) {
-  juce::ignoreUnused(cbdata);
-  const char *msg = "Hello from FlowZone Engine";
-  mg_websocket_write(conn, MG_WEBSOCKET_OPCODE_TEXT, msg, strlen(msg));
+  auto *server = static_cast<WebSocketServer *>(cbdata);
+  server->onReady(conn);
 }
 
 int WebSocketServer::websocket_data_handler(struct mg_connection *conn,
                                             int bits, char *data, size_t len,
                                             void *cbdata) {
-  juce::ignoreUnused(conn, bits, data, len, cbdata);
-  return 1; // Keep connection open
+  auto *server = static_cast<WebSocketServer *>(cbdata);
+  return server->onData(conn, bits, data, len);
 }
 
 void WebSocketServer::websocket_close_handler(const struct mg_connection *conn,
                                               void *cbdata) {
-  juce::ignoreUnused(conn, cbdata);
+  auto *server = static_cast<WebSocketServer *>(cbdata);
+  server->onClose(conn);
+}
+
+// Instance Handlers
+int WebSocketServer::onConnect(const struct mg_connection *conn) {
+  juce::ignoreUnused(conn);
+  return 0; // Accept
+}
+
+void WebSocketServer::onReady(struct mg_connection *conn) {
+  {
+    std::lock_guard<std::mutex> lock(connectionsMutex);
+    connections.insert(conn);
+  }
+
+  if (getInitialState) {
+    std::string stateJson = getInitialState();
+    mg_websocket_write(conn, MG_WEBSOCKET_OPCODE_TEXT, stateJson.c_str(),
+                       stateJson.length());
+  } else {
+    // Fallback if no state callback set
+    const char *msg = "{\"error\": \"No state callback set\"}";
+    mg_websocket_write(conn, MG_WEBSOCKET_OPCODE_TEXT, msg, strlen(msg));
+  }
+}
+
+int WebSocketServer::onData(struct mg_connection *conn, int bits, char *data,
+                            size_t len) {
+  juce::ignoreUnused(conn, bits);
+  if (onMessage) {
+    std::string msg(data, len);
+    onMessage(msg);
+  }
+  return 1; // Keep open
+}
+
+void WebSocketServer::onClose(const struct mg_connection *conn) {
+  std::lock_guard<std::mutex> lock(connectionsMutex);
+  connections.erase(const_cast<struct mg_connection *>(conn));
 }

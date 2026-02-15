@@ -23,6 +23,10 @@ add_library(flowzone_engine STATIC
     src/engine/state/StateBroadcaster.h
     src/engine/session/SessionStateManager.cpp
     src/engine/session/SessionStateManager.h
+    src/engine/FlowEngine.cpp
+    src/engine/FlowEngine.h
+    src/engine/CommandDispatcher.cpp
+    src/engine/CommandDispatcher.h
 )
 
 target_link_libraries(flowzone_engine PUBLIC
@@ -52,3 +56,53 @@ target_link_libraries(engine_tests PRIVATE
 )
 
 target_compile_features(engine_tests PUBLIC cxx_std_20)
+
+# --- CivetWeb Support ---
+# Check if we have the sources, otherwise fetch or warn
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/libs/civetweb/src/src/civetweb.c")
+    add_library(civetweb_lib STATIC
+        libs/civetweb/src/src/civetweb.c
+    )
+    target_include_directories(civetweb_lib PUBLIC
+        libs/civetweb/include
+    )
+    target_compile_definitions(civetweb_lib PUBLIC USE_WEBSOCKET)
+    # macOS defines
+    if(APPLE)
+        target_compile_definitions(civetweb_lib PUBLIC NO_SSL) 
+    endif()
+else()
+    message(WARNING "CivetWeb sources not found in libs/civetweb/src. Networking will fail.")
+endif()
+
+# --- FlowZone Server Library ---
+add_library(flowzone_server STATIC
+    src/engine/server/WebSocketServer.cpp
+    src/engine/server/WebSocketServer.h
+)
+target_link_libraries(flowzone_server PUBLIC
+    civetweb_lib
+    juce::juce_core
+)
+target_include_directories(flowzone_server PUBLIC
+    libs/civetweb/include
+    "${CMAKE_CURRENT_SOURCE_DIR}/JuceLibraryCode"
+)
+target_compile_features(flowzone_server PUBLIC cxx_std_20)
+
+# --- FlowZone Standalone Executable ---
+add_executable(FlowZone_Standalone
+    src/Main.cpp
+)
+
+target_link_libraries(FlowZone_Standalone PRIVATE
+    flowzone_engine
+    flowzone_server
+    civetweb_lib
+    juce::juce_core
+    juce::juce_events
+    juce::juce_graphics
+)
+
+target_include_directories(FlowZone_Standalone PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/JuceLibraryCode")
+target_compile_features(FlowZone_Standalone PUBLIC cxx_std_20)
