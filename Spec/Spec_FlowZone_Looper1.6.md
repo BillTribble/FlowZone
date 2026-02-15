@@ -354,6 +354,7 @@ type Command =
 
   // System
   | { cmd: 'PANIC'; scope: 'ALL' | 'ENGINE' }                     // ALL: silence + reset all slots + stop transport. ENGINE: silence audio output only, preserve state.
+  | { cmd: 'WS_RECONNECT'; revisionId: number; clientId: string }; // Client reconnection with last known state revision
   | { cmd: 'GENERATE_SUPPORT_BUNDLE' }                              // Generate zip with logs/config/metadata (no audio) for troubleshooting.
   | { cmd: 'WS_RECONNECT'; revisionId: number; clientId: string }; // Client reconnection with last known state revision
 
