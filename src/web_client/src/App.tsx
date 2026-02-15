@@ -1,42 +1,90 @@
 import { useState, useEffect } from 'react'
-import { mockStateProvider } from './api/MockStateProvider'
+import { WebSocketClient } from './api/WebSocketClient'
 import { AppState } from '../../shared/protocol/schema'
+import { MainLayout } from './components/layout/MainLayout'
+import { TabId } from './components/layout/Navigation'
+import { PlayView } from './views/PlayView'
+import { MixerView } from './views/MixerView'
+import { ModeView } from './views/ModeView'
+import { AdjustView } from './views/AdjustView'
 
 function App() {
-    const [state, setState] = useState<AppState>(mockStateProvider.getState())
+    const [state, setState] = useState<AppState | null>(null)
+    const [connected, setConnected] = useState(false)
+    const [activeTab, setActiveTab] = useState<TabId>('play')
+
+    // Initialize client once
+    const [wsClient] = useState(() => new WebSocketClient('ws://localhost:50001'))
 
     useEffect(() => {
-        const unsubscribe = mockStateProvider.subscribe(setState)
-        return unsubscribe
-    }, [])
+        wsClient.connect((newState) => {
+            setState(newState)
+            setConnected(true)
+        })
+        return () => {
+            // wsClient.disconnect() 
+        }
+    }, [wsClient])
+
+    const [performanceMode, setPerformanceMode] = useState<'PADS' | 'XY'>('PADS');
+
+    if (!state) {
+        return (
+            <div style={{
+                height: '100vh',
+                background: '#121212',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontFamily: 'sans-serif'
+            }}>
+                <div style={{ textAlign: 'center' }}>
+                    <h1>FlowZone</h1>
+                    <p style={{ color: '#666' }}>Connecting to Engine...</p>
+                </div>
+            </div>
+        )
+    }
+
+    // WebSocket Handlers
+    const handlePadTrigger = (padId: number, val: number) => {
+        wsClient.send({ cmd: "NOTE_ON", pad: padId, val });
+    };
+
+    const handleXYChange = (x: number, y: number) => {
+        wsClient.send({ cmd: "XY_CHANGE", x, y });
+    };
 
     return (
-        <div style={{ padding: 20, font: 'sans-serif', color: 'white', background: '#222' }}>
-            <h1>FlowZone</h1>
-            <p>Web Client v0.0.1</p>
-
-            <div style={{ border: '1px solid #444', padding: 10, margin: '10px 0' }}>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                    <h2>Transport</h2>
-                    <button onClick={() => mockStateProvider.togglePlay()}>
-                        {state.transport.isPlaying ? 'PAUSE' : 'PLAY'}
-                    </button>
-                </div>
-                <p>BPM: {state.transport.bpm}</p>
-                <p>Phase: {state.transport.barPhase.toFixed(2)}</p>
-                <p>Session: {state.session.name}</p>
-            </div>
-
-            <div style={{ display: 'grid', gap: 10 }}>
-                {state.slots.map(slot => (
-                    <div key={slot.id} style={{ background: '#333', padding: 10 }}>
-                        <h3>{slot.name}</h3>
-                        <p>State: {slot.state}</p>
-                        <p>Vol: {slot.volume}</p>
-                    </div>
-                ))}
-            </div>
-        </div>
+        <MainLayout
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            isConnected={connected}
+            bpm={120} // TODO: Get from store
+            isPlaying={false} // TODO: Get from store
+            onTogglePlay={() => { }}
+            performanceMode={performanceMode}
+            onPadTrigger={handlePadTrigger}
+            onXYChange={handleXYChange}
+        >
+            {activeTab === 'mode' && <ModeView onSelectMode={(mode) => {
+                console.log('Selected mode:', mode);
+                if (mode === 'fx' || mode === 'ext_fx') {
+                    setPerformanceMode('XY');
+                    setActiveTab('play');
+                    // User said: "In FX mode, xy surface should be visible... Top half contains controls for play / adjust"
+                    // Let's default to 'adjust' for FX, or maybe just 'play' is fine effectively.
+                    // Let's keep it simple: FX -> XY Surface.
+                } else {
+                    setPerformanceMode('PADS');
+                    setActiveTab('play');
+                }
+            }} />}
+            {activeTab === 'play' && <PlayView state={state} />}
+            {activeTab === 'adjust' && <AdjustView state={state} />}
+            {activeTab === 'mixer' && <MixerView state={state} onToggleMetronome={() => { }} />}
+        </MainLayout>
     )
 }
 
