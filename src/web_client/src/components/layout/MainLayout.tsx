@@ -2,6 +2,8 @@ import React from 'react';
 import { Header } from './Header';
 import { Navigation, TabId } from './Navigation';
 import { PerformanceSurface } from './PerformanceSurface';
+import { WaveformCanvas } from '../shared/WaveformCanvas';
+import { RiffIndicator } from '../shared/RiffIndicator';
 
 interface MainLayoutProps {
     activeTab: TabId;
@@ -15,6 +17,8 @@ interface MainLayoutProps {
     onPadTrigger: (padId: number, val: number) => void;
     onXYChange: (x: number, y: number) => void;
 }
+
+
 
 export const MainLayout: React.FC<MainLayoutProps & { bottomContent?: React.ReactNode }> = ({
     activeTab,
@@ -50,15 +54,60 @@ export const MainLayout: React.FC<MainLayoutProps & { bottomContent?: React.Reac
                 onTogglePlay={onTogglePlay}
             />
 
-            {/* 2. Top Half: View Content (Controls/Settings) */}
+            {/* 2. Top Half: View Content + Visualization */}
             <div style={{
                 flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
                 overflow: 'hidden',
                 position: 'relative',
-                borderBottom: '1px solid #333',
-                background: '#121212'
+                borderBottom: '1px solid var(--glass-border)',
+                background: 'var(--bg-dark)'
             }}>
-                {children}
+                {/* View Content */}
+                <div style={{ flex: 1, overflowY: 'auto' }}>
+                    {children}
+                </div>
+
+                {/* Riff History (Horizontal) */}
+                <div style={{
+                    height: 64,
+                    padding: '8px 16px',
+                    display: 'flex',
+                    gap: 12,
+                    overflowX: 'auto',
+                    borderTop: '1px solid var(--glass-border)',
+                    background: 'rgba(0,0,0,0.2)',
+                    alignItems: 'center'
+                }}>
+                    {/* Mock Riff Data for now */}
+                    {[1, 2, 3, 4, 5].map(id => (
+                        <RiffIndicator
+                            key={id}
+                            id={`riff-${id}`}
+                            timestamp={`12:00:0${id}`}
+                            layers={[
+                                { id: 'l1', source: 'drums', level: 0.8 },
+                                { id: 'l2', source: 'notes', level: id / 5 }
+                            ]}
+                            isActive={id === 1}
+                        />
+                    ))}
+                </div>
+
+                {/* Waveform Area (Bottom of Top Half) */}
+                <div style={{
+                    height: 60,
+                    background: 'rgba(0,0,0,0.3)',
+                    borderTop: '1px solid var(--glass-border)'
+                }}>
+                    <WaveformCanvas
+                        data={new Float32Array(256).map(() => Math.random() * 2 - 1)}
+                        height={60}
+                        color="var(--neon-cyan)"
+                        opacity={0.6}
+                    />
+                </div>
             </div>
 
             {/* 3. Middle: Navigation Bar */}

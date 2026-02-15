@@ -5,7 +5,7 @@ interface FaderProps {
     value?: number; // 0.0 to 1.0 (gain)
     meterValue?: number; // 0.0 to 1.0 (VU)
     onChange?: (value: number) => void;
-    height?: number;
+    height?: number | string;
     width?: number;
     color?: string;
 }
@@ -15,9 +15,9 @@ export const Fader: React.FC<FaderProps> = ({
     value = 0.7,
     meterValue = 0,
     onChange,
-    height = 200,
-    width = 40,
-    color = '#00E5FF'
+    height = "100%",
+    width = 32,
+    color = 'var(--neon-cyan)'
 }) => {
     const [internalValue, setInternalValue] = useState(value);
     const trackRef = useRef<HTMLDivElement>(null);
@@ -27,87 +27,133 @@ export const Fader: React.FC<FaderProps> = ({
         setInternalValue(value);
     }, [value]);
 
-    const handleMouseDown = (e: React.MouseEvent) => {
-        isDragging.current = true;
-        updateValueFromMouse(e.clientY);
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mouseup', handleMouseUp);
-    };
-
-    const handleMouseMove = (e: MouseEvent) => {
-        if (!isDragging.current) return;
-        updateValueFromMouse(e.clientY);
-    };
-
-    const handleMouseUp = () => {
-        isDragging.current = false;
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mouseup', handleMouseUp);
-    };
-
-    const updateValueFromMouse = (clientY: number) => {
-        if (!trackRef.current) return;
+    const handlePointerMove = (e: PointerEvent) => {
+        if (!isDragging.current || !trackRef.current) return;
         const rect = trackRef.current.getBoundingClientRect();
-        const relativeY = clientY - rect.top;
-        // Invert Y because fader 1.0 is at top
+        const relativeY = e.clientY - rect.top;
         const normalized = 1 - (relativeY / rect.height);
         const clamped = Math.max(0, Math.min(1, normalized));
 
         setInternalValue(clamped);
-        if (onChange) onChange(clamped);
+        onChange?.(clamped);
     };
 
-    // Cap Size
-    const capHeight = 30;
+    const handlePointerUp = () => {
+        isDragging.current = false;
+        window.removeEventListener('pointermove', handlePointerMove);
+        window.removeEventListener('pointerup', handlePointerUp);
+    };
+
+    const handlePointerDown = (e: React.PointerEvent) => {
+        isDragging.current = true;
+        const target = trackRef.current;
+        if (target && 'setPointerCapture' in target) {
+            target.setPointerCapture(e.pointerId);
+        }
+
+        const rect = trackRef.current?.getBoundingClientRect();
+        if (rect && rect.height > 0) {
+            const relativeY = e.clientY - rect.top;
+            const normalized = 1 - (relativeY / rect.height);
+            const clamped = Math.max(0, Math.min(1, normalized));
+
+            setInternalValue(clamped);
+            onChange?.(clamped);
+        }
+
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerup', handlePointerUp);
+    };
+
+    const capHeight = 24;
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+        <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 8,
+            height: height === "100%" ? '100%' : height
+        }}>
             <div
                 ref={trackRef}
-                onMouseDown={handleMouseDown}
+                onPointerDown={handlePointerDown}
+                className="glass-panel"
                 style={{
                     width,
-                    height,
+                    flex: 1,
                     position: 'relative',
-                    background: '#222',
-                    borderRadius: 4,
-                    overflow: 'hidden',
+                    background: 'rgba(0,0,0,0.3)',
                     cursor: 'ns-resize',
-                    border: '1px solid #333'
+                    touchAction: 'none',
+                    border: '1px solid var(--glass-border)'
                 }}
             >
-                {/* VU Meter Background */}
+                {/* Track Center Line */}
+                <div style={{
+                    position: 'absolute',
+                    left: '50%',
+                    top: 10,
+                    bottom: 10,
+                    width: 2,
+                    background: 'rgba(255,255,255,0.05)',
+                    transform: 'translateX(-50%)'
+                }} />
+
+                {/* VU Meter */}
                 <div style={{
                     position: 'absolute',
                     bottom: 0,
                     left: 0,
                     right: 0,
                     height: `${meterValue * 100}%`,
-                    background: `linear-gradient(to top, #0f0 0%, #ff0 80%, #f00 100%)`,
-                    opacity: 0.3,
-                    transition: 'height 0.05s linear'
+                    background: `linear-gradient(to top, var(--neon-cyan) 0%, #fff 100%)`,
+                    opacity: 0.2,
+                    transition: 'height 0.05s linear',
+                    filter: 'blur(4px)'
+                }} />
+
+                {/* Level Fill */}
+                <div style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: '50%',
+                    width: 2,
+                    height: `${internalValue * 100}%`,
+                    background: color,
+                    transform: 'translateX(-50%)',
+                    boxShadow: `0 0 10px ${color}`
                 }} />
 
                 {/* Fader Cap */}
                 <div style={{
                     position: 'absolute',
                     bottom: `calc(${internalValue * 100}% - ${capHeight / 2}px)`,
-                    left: 2,
-                    right: 2,
+                    left: -4,
+                    right: -4,
                     height: capHeight,
-                    background: '#444',
-                    border: `1px solid ${color}`,
-                    borderRadius: 2,
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.5)',
+                    background: '#1a1b1e',
+                    border: `1px solid ${isDragging.current ? color : 'var(--glass-border)'}`,
+                    borderRadius: 4,
+                    boxShadow: isDragging.current ? `0 0 15px ${color}` : '0 4px 8px rgba(0,0,0,0.5)',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
+                    zIndex: 2,
+                    transition: 'border 0.1s ease, box-shadow 0.1s ease'
                 }}>
-                    <div style={{ width: '60%', height: 2, background: color }} />
+                    <div style={{ width: '40%', height: 2, background: isDragging.current ? color : '#666', borderRadius: 1 }} />
                 </div>
             </div>
+
             {label && (
-                <span style={{ fontSize: '10px', color: '#888', textTransform: 'uppercase' }}>
+                <span style={{
+                    fontSize: '10px',
+                    color: 'var(--text-secondary)',
+                    textTransform: 'uppercase',
+                    fontWeight: 'bold',
+                    letterSpacing: '0.05em'
+                }}>
                     {label}
                 </span>
             )}

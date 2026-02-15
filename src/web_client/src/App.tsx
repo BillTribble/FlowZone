@@ -56,14 +56,46 @@ function App() {
         wsClient.send({ cmd: "XY_CHANGE", x, y });
     };
 
-    const handlePresetSelect = (category: string, preset: string) => {
+    const handleSelectPreset = (category: string, preset: string) => {
         wsClient.send({ cmd: "SET_PRESET", category, preset });
+    };
+
+    const handleToggleMetronome = () => {
+        wsClient.send({ cmd: "TOGGLE_METRONOME" });
+    };
+
+    const handleSlotVolumeChange = (slotId: number, volume: number) => {
+        wsClient.send({ cmd: "SET_SLOT_VOLUME", slot: slotId, volume });
+    };
+
+    const handleSelectSlot = (slotId: number) => {
+        wsClient.send({ cmd: "SELECT_SLOT", slot: slotId });
+    };
+
+    const handleSelectMode = (mode: string) => {
+        console.log('Selected mode:', mode);
+        if (mode === 'fx' || mode === 'ext_fx') {
+            setPerformanceMode('XY');
+            setActiveTab('play');
+        } else {
+            setPerformanceMode('PADS');
+            setActiveTab('play');
+        }
+    };
+
+    const handleAdjustParam = (id: string, value: number) => {
+        // Find param index from ID string or just pass it through if possible
+        const paramId = parseInt(id) || 0;
+        wsClient.send({ cmd: "ADJUST_PARAM", param: paramId, value });
     };
 
     // Determine bottom content (Performance Surface or Mixer Controls)
     let bottomContent: React.ReactNode | undefined = undefined;
     if (activeTab === 'mixer') {
-        bottomContent = <MixerControls state={state} />;
+        bottomContent = <MixerControls
+            state={state}
+            onSlotVolumeChange={handleSlotVolumeChange}
+        />;
     }
 
     return (
@@ -81,22 +113,15 @@ function App() {
             onXYChange={handleXYChange}
             bottomContent={bottomContent}
         >
-            {activeTab === 'mode' && <ModeView onSelectMode={(mode) => {
-                console.log('Selected mode:', mode);
-                if (mode === 'fx' || mode === 'ext_fx') {
-                    setPerformanceMode('XY');
-                    setActiveTab('play');
-                } else {
-                    setPerformanceMode('PADS');
-                    setActiveTab('play');
-                }
-            }} />}
-            {activeTab === 'play' && <PlayView state={state} onSelectPreset={handlePresetSelect} />}
-            {activeTab === 'adjust' && <AdjustView state={state} />}
-            {activeTab === 'mixer' && <MixerView state={state} onToggleMetronome={() => {
-                // TODO: Toggle Metronome
-                wsClient.send({ cmd: "TOGGLE_METRONOME" });
-            }} />}
+            {activeTab === 'mode' && <ModeView onSelectMode={handleSelectMode} />}
+            {activeTab === 'play' && <PlayView state={state} onSelectPreset={handleSelectPreset} />}
+            {activeTab === 'adjust' && <AdjustView onAdjustParam={handleAdjustParam} />}
+            {activeTab === 'mixer' && <MixerView
+                state={state}
+                onToggleMetronome={handleToggleMetronome}
+                onSlotVolumeChange={handleSlotVolumeChange}
+                onSelectSlot={handleSelectSlot}
+            />}
         </MainLayout>
     )
 }

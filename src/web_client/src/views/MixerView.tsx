@@ -2,20 +2,23 @@ import React from 'react';
 import { AppState } from '../../../shared/protocol/schema';
 import { Fader } from '../components/shared/Fader';
 import { Icon } from '../components/shared/Icon';
+import { SlotIndicator } from '../components/shared/SlotIndicator';
 
 interface MixerViewProps {
     state: AppState;
     onToggleMetronome: () => void;
+    onSlotVolumeChange: (slotIndex: number, volume: number) => void;
+    onSelectSlot: (slotIndex: number) => void;
 }
 
-export const MixerControls: React.FC<{ state: AppState }> = ({ state }) => {
+export const MixerControls: React.FC<{ state: AppState, onSlotVolumeChange: (slotIndex: number, volume: number) => void }> = ({ state, onSlotVolumeChange }) => {
     // 8 Slots
     const slots = Array.from({ length: 8 }, (_, i) => {
         return state.slots[i] || {
-            id: `slot-${i}`,
+            id: `slot - ${i} `,
             state: "EMPTY",
             volume: 0.7,
-            name: `Slot ${i + 1}`,
+            name: `Slot ${i + 1} `,
             instrumentCategory: "none"
         };
     });
@@ -54,7 +57,7 @@ export const MixerControls: React.FC<{ state: AppState }> = ({ state }) => {
                         }}>
                             <Fader
                                 value={slot.volume} // @ts-ignore
-                                onChange={(v) => console.log('Vol', i, v)}
+                                onChange={(v) => onSlotVolumeChange(i, v)}
                                 height={140}
                                 width={24}
                                 label={(i + 1).toString()}
@@ -69,37 +72,65 @@ export const MixerControls: React.FC<{ state: AppState }> = ({ state }) => {
 
 export const MixerView: React.FC<MixerViewProps> = ({ state, onToggleMetronome }) => {
     return (
-        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: 16, gap: 16, boxSizing: 'border-box' }}>
-            {/* Top Section: Transport Controls */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, alignItems: 'center' }}>
+        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: 16, gap: 24, boxSizing: 'border-box' }}>
+            {/* Top Section: Transport & Quick Settings */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, alignItems: 'center' }}>
                 <button
                     onClick={onToggleMetronome}
+                    className="glass-panel interactive-element"
                     style={{
-                        background: state.transport.metronomeEnabled ? '#00E5FF' : '#333',
-                        border: 'none', borderRadius: 4, padding: 8,
-                        color: state.transport.metronomeEnabled ? '#000' : '#fff',
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer'
+                        background: state.transport.metronomeEnabled ? 'rgba(0, 229, 255, 0.1)' : 'var(--glass-bg)',
+                        border: state.transport.metronomeEnabled ? '1px solid var(--neon-cyan)' : '1px solid var(--glass-border)',
+                        borderRadius: 8, padding: 12,
+                        color: state.transport.metronomeEnabled ? 'var(--neon-cyan)' : '#fff',
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer',
+                        gap: 6
                     }}>
-                    <Icon name="grid" size={16} color={state.transport.metronomeEnabled ? '#000' : '#fff'} />
-                    <span style={{ fontSize: 10, marginTop: 4 }}>Quantise</span>
+                    <Icon name="grid" size={16} color={state.transport.metronomeEnabled ? 'var(--neon-cyan)' : '#888'} />
+                    <span style={{ fontSize: 9, fontWeight: 'bold' }}>QUANTISET</span>
                 </button>
 
                 <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 18, fontWeight: 'bold' }}>{state.transport.bpm.toFixed(1)}</div>
-                    <div style={{ fontSize: 10, color: '#888' }}>BPM</div>
+                    <div style={{ fontSize: 24, fontWeight: 'bold', letterSpacing: '-0.02em' }}>{state.transport.bpm.toFixed(1)}</div>
+                    <div style={{ fontSize: 9, color: 'var(--text-secondary)', fontWeight: 900 }}>BPM</div>
                 </div>
 
-                <button style={{
-                    background: '#333', border: 'none', borderRadius: 4, padding: 8, color: '#fff',
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer'
-                }}>
-                    <Icon name="menu" size={16} />
-                    <span style={{ fontSize: 10, marginTop: 4 }}>More</span>
+                <button
+                    className="glass-panel interactive-element"
+                    style={{
+                        background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: 8, padding: 12, color: '#fff',
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer',
+                        gap: 6
+                    }}>
+                    <Icon name="settings" size={16} color="#888" />
+                    <span style={{ fontSize: 9, fontWeight: 'bold' }}>MORE</span>
                 </button>
             </div>
 
-            <div className="flex-1 bg-gray-900 rounded bg-opacity-50 flex items-center justify-center">
-                <span className="text-gray-600 text-sm">Mixer Settings</span>
+            {/* Slot Layout Grid (Top half visualization) */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ fontSize: 10, fontWeight: 900, color: 'var(--text-secondary)', letterSpacing: '0.1em' }}>
+                    SLOT STATUS
+                </div>
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gap: 10,
+                    gridAutoRows: 'auto'
+                }}>
+                    {state.slots.map((slot, i) => (
+                        <SlotIndicator
+                            key={slot.id}
+                            slotId={i}
+                            source={slot.instrumentCategory as any || 'notes'}
+                            isMuted={slot.state === 'EMPTY'}
+                            isSelected={false}
+                            isLooping={false}
+                            progress={0}
+                            label={slot.name}
+                        />
+                    ))}
+                </div>
             </div>
         </div>
     );

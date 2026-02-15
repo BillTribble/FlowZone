@@ -3,6 +3,7 @@ import React from 'react';
 interface PadProps {
     label?: string;
     active?: boolean;
+    isRoot?: boolean;
     color?: string;
     onClick?: () => void;
     onMouseDown?: () => void;
@@ -13,7 +14,8 @@ interface PadProps {
 export const Pad: React.FC<PadProps> = ({
     label,
     active = false,
-    color = '#00E5FF',
+    isRoot = false,
+    color = 'var(--neon-cyan)',
     onClick,
     onMouseDown,
     onMouseUp,
@@ -27,50 +29,70 @@ export const Pad: React.FC<PadProps> = ({
             onMouseLeave={onMouseUp}
             onTouchStart={onMouseDown}
             onTouchEnd={onMouseUp}
+            className={`interactive-element ${active ? 'neon-glow' : ''}`}
             style={{
                 width: '100%',
                 aspectRatio: '1/1',
                 borderRadius: 8,
-                backgroundColor: active ? color : '#333',
-                border: 'none',
-                boxShadow: active ? `0 0 15px ${color}` : 'inset 0 0 10px rgba(0,0,0,0.5)',
+                backgroundColor: active ? color : (isRoot ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.02)'),
+                border: active ? `2px solid ${color}` : `1px solid ${isRoot ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.05)'}`,
+                boxShadow: active ? `0 0 20px ${color}` : 'none',
                 cursor: 'pointer',
-                transition: 'all 0.05s ease',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 8,
+                gap: 4,
                 position: 'relative',
-                overflow: 'hidden'
+                overflow: 'hidden',
+                transition: 'all 0.1s cubic-bezier(0.4, 0, 0.2, 1)',
+                backdropFilter: 'blur(4px)'
             }}
         >
-            {/* Gloss overlay */}
-            <div style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                height: '40%',
-                background: 'linear-gradient(to bottom, rgba(255,255,255,0.1), transparent)',
-                pointerEvents: 'none'
-            }} />
+            {/* Inner Glow */}
+            {active && (
+                <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: color,
+                    opacity: 0.2,
+                    pointerEvents: 'none'
+                }} />
+            )}
 
             {icon && (
-                <div style={{ color: active ? '#000' : '#888', transform: active ? 'scale(0.95)' : 'scale(1)' }}>
+                <div style={{
+                    color: active ? '#000' : (isRoot ? '#fff' : '#888'),
+                    transform: active ? 'scale(0.9)' : 'scale(1)',
+                    transition: 'all 0.1s ease'
+                }}>
                     {icon}
                 </div>
             )}
 
             {label && (
                 <span style={{
-                    fontSize: '12px',
-                    color: active ? '#000' : '#888',
-                    fontWeight: 'bold',
-                    pointerEvents: 'none'
+                    fontSize: '11px',
+                    color: active ? '#000' : (isRoot ? '#fff' : '#64748b'),
+                    fontWeight: isRoot || active ? 'bold' : 'normal',
+                    pointerEvents: 'none',
+                    letterSpacing: '0.05em'
                 }}>
                     {label}
                 </span>
+            )}
+
+            {/* Scale indicator dot for root notes */}
+            {isRoot && !active && (
+                <div style={{
+                    position: 'absolute',
+                    bottom: 6,
+                    width: 4,
+                    height: 4,
+                    borderRadius: '50%',
+                    background: 'var(--neon-cyan)',
+                    opacity: 0.5
+                }} />
             )}
         </button>
     );

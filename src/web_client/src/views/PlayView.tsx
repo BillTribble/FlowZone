@@ -26,9 +26,19 @@ export const PlayView: React.FC<PlayViewProps> = ({ state, onSelectPreset }) => 
             height: '100%',
             display: 'flex',
             flexDirection: 'column',
-            gap: 16,
-            padding: 16
+            gap: 20,
+            padding: 24
         }}>
+            <div style={{
+                fontSize: 10,
+                fontWeight: 900,
+                color: 'var(--text-secondary)',
+                letterSpacing: '0.15em',
+                textAlign: 'center'
+            }}>
+                {category.toUpperCase()} PRESETS
+            </div>
+
             {/* 3x4 Preset Grid */}
             <div style={{
                 flex: 1,
@@ -42,16 +52,18 @@ export const PlayView: React.FC<PlayViewProps> = ({ state, onSelectPreset }) => 
                     return (
                         <button
                             key={i}
+                            className={`glass-panel interactive-element ${isActive ? 'neon-glow' : ''}`}
                             style={{
-                                background: isActive ? '#00E5FF' : '#333',
-                                color: isActive ? '#000' : '#fff',
-                                border: 'none',
+                                background: isActive ? 'rgba(0, 229, 255, 0.1)' : 'var(--glass-bg)',
+                                border: isActive ? '2px solid var(--neon-cyan)' : '1px solid var(--glass-border)',
+                                color: isActive ? 'var(--neon-cyan)' : 'var(--text-primary)',
                                 borderRadius: 8,
-                                fontSize: 13,
+                                fontSize: 11,
                                 fontWeight: 'bold',
                                 cursor: 'pointer',
                                 transition: 'all 0.1s ease',
-                                boxShadow: isActive ? '0 0 10px rgba(0,229,255,0.5)' : 'none'
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.02em'
                             }}
                             onClick={() => {
                                 onSelectPreset(category, preset);

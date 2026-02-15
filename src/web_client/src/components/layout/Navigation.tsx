@@ -10,21 +10,23 @@ interface NavigationProps {
 
 export const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
     const tabs: { id: TabId; label: string; icon: string }[] = [
-        { id: 'mode', label: 'Mode', icon: 'grid' },
-        { id: 'play', label: 'Play', icon: 'wave' },
-        { id: 'adjust', label: 'Adjust', icon: 'settings' }, // using settings icon for knob as placeholder
-        { id: 'mixer', label: 'Mixer', icon: 'sliders' },
+        { id: 'mode', label: 'MODE', icon: 'grid' },
+        { id: 'play', label: 'PLAY', icon: 'wave' },
+        { id: 'adjust', label: 'ADJUST', icon: 'settings' },
+        { id: 'mixer', label: 'MIXER', icon: 'sliders' },
     ];
 
     return (
         <div style={{
-            height: 60,
-            background: '#1a1a1a',
-            borderTop: '1px solid #333',
+            height: 64,
+            background: 'rgba(10, 10, 11, 0.95)',
+            borderTop: '1px solid var(--glass-border)',
             display: 'flex',
             justifyContent: 'space-around',
             alignItems: 'center',
-            paddingBottom: 'env(safe-area-inset-bottom)'
+            paddingBottom: 'env(safe-area-inset-bottom)',
+            backdropFilter: 'blur(20px)',
+            boxShadow: '0 -4px 20px rgba(0,0,0,0.5)'
         }}>
             {tabs.map(tab => {
                 const isActive = activeTab === tab.id;
@@ -32,19 +34,36 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }
                     <button
                         key={tab.id}
                         onClick={() => onTabChange(tab.id)}
+                        className="interactive-element"
                         style={{
                             background: 'none',
                             border: 'none',
-                            color: isActive ? '#00E5FF' : '#888',
+                            color: isActive ? 'var(--neon-cyan)' : 'var(--text-secondary)',
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
                             gap: 4,
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            width: 80,
+                            padding: '8px 0',
+                            transition: 'color 0.2s ease'
                         }}
                     >
-                        <Icon name={tab.icon} size={20} color={isActive ? '#00E5FF' : '#888'} />
-                        <span style={{ fontSize: 10 }}>{tab.label}</span>
+                        <div style={{
+                            transform: isActive ? 'scale(1.1)' : 'scale(1)',
+                            filter: isActive ? 'drop-shadow(0 0 8px var(--neon-cyan))' : 'none',
+                            transition: 'transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+                        }}>
+                            <Icon name={tab.icon} size={18} color={isActive ? 'var(--neon-cyan)' : 'var(--text-secondary)'} />
+                        </div>
+                        <span style={{
+                            fontSize: '9px',
+                            fontWeight: 900,
+                            letterSpacing: '0.1em',
+                            opacity: isActive ? 1 : 0.6
+                        }}>
+                            {tab.label}
+                        </span>
                     </button>
                 )
             })}
