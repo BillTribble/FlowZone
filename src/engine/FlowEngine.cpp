@@ -66,7 +66,8 @@ void FlowEngine::broadcastState() {
   state.transport.loopLengthBars = transport.getLoopLengthBars();
   state.transport.barPhase = transport.getBarPhase();
 
-  broadcaster.broadcastFullState(state);
+  // Use patch-based update (will auto-decide patch vs snapshot)
+  broadcaster.broadcastStateUpdate(state);
 }
 
 void FlowEngine::setLoopLength(int bars) {

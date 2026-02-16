@@ -14,6 +14,39 @@ FlowZoneAudioProcessor::FlowZoneAudioProcessor()
       )
 #endif
 {
+  // Set up WebSocket → CommandQueue flow
+  server.setOnMessageCallback([this](const std::string &msg) {
+    // Push received command into engine's command queue
+    juce::String juceMsg(msg);
+    engine.getCommandQueue().push(juceMsg);
+  });
+
+  // Set up StateBroadcaster → WebSocket broadcast flow
+  engine.getBroadcaster().setMessageCallback([this](const juce::String &msg) {
+    server.broadcast(msg.toStdString());
+  });
+
+  // Set up initial state callback for new connections
+  server.setInitialStateCallback([this]() -> std::string {
+    auto state = engine.getSessionManager().getCurrentState();
+    
+    // Sync transport state
+    state.transport.isPlaying = engine.getTransport().isPlaying();
+    state.transport.bpm = engine.getTransport().getBpm();
+    state.transport.metronomeEnabled = engine.getTransport().isMetronomeEnabled();
+    state.transport.loopLengthBars = engine.getTransport().getLoopLengthBars();
+    state.transport.barPhase = engine.getTransport().getBarPhase();
+    
+    // Create STATE_FULL message
+    juce::DynamicObject *root = new juce::DynamicObject();
+    root->setProperty("type", "STATE_FULL");
+    root->setProperty("revisionId", (juce::int64)engine.getBroadcaster().getRevisionId());
+    root->setProperty("data", state.toVar());
+    
+    juce::String jsonString = juce::JSON::toString(juce::var(root));
+    return jsonString.toStdString();
+  });
+
   server.start();
 }
 
