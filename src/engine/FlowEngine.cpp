@@ -137,6 +137,9 @@ void FlowEngine::broadcastState() {
   
   // Sync Looper Input Level (peak of what's going into retrospective buffer)
   state.looper.inputLevel = retroBufferPeakLevel;
+  
+  // Sync Looper Waveform Data (downsampled for UI visualization)
+  state.looper.waveformData = retroBuffer.getWaveformData(256);
 
   // Use patch-based update (will auto-decide patch vs snapshot)
   broadcaster.broadcastStateUpdate(state);

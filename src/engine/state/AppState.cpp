@@ -88,6 +88,14 @@ juce::var AppState::toVar() const {
   {
     juce::DynamicObject *looperObj = new juce::DynamicObject();
     looperObj->setProperty("inputLevel", looper.inputLevel);
+    
+    // Waveform data for visualization
+    juce::Array<juce::var> waveformArr;
+    for (float sample : looper.waveformData) {
+      waveformArr.add(sample);
+    }
+    looperObj->setProperty("waveformData", waveformArr);
+    
     obj->setProperty("looper", looperObj);
   }
 
@@ -251,6 +259,14 @@ AppState AppState::fromVar(const juce::var &v) {
   // Looper
   if (auto looperObj = v["looper"]; looperObj.isObject()) {
     state.looper.inputLevel = static_cast<float>(looperObj["inputLevel"]);
+    
+    // Waveform data
+    if (auto waveformArr = looperObj["waveformData"]; waveformArr.isArray()) {
+      state.looper.waveformData.clear();
+      for (const auto &sample : *waveformArr.getArray()) {
+        state.looper.waveformData.push_back(static_cast<float>(sample));
+      }
+    }
   }
 
   // Slots

@@ -490,6 +490,7 @@ function App() {
             riffHistory={state?.riffHistory || []}
             onLoadRiff={handleLoadRiff}
             looperInputLevel={state?.looper?.inputLevel ?? 0}
+            waveformData={state?.looper?.waveformData ? new Float32Array(state.looper.waveformData) : undefined}
         >
             {activeTab === 'mode' && <ModeView onSelectMode={handleSelectMode} />}
             {activeTab === 'play' && <PlayView

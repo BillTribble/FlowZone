@@ -83,4 +83,35 @@ void RetrospectiveBuffer::getPastAudio(int delayInSamples, int numSamples,
   }
 }
 
+std::vector<float> RetrospectiveBuffer::getWaveformData(int targetSamples) {
+  std::vector<float> waveform(targetSamples, 0.0f);
+  
+  if (bufferSize == 0 || targetSamples == 0) {
+    return waveform;
+  }
+
+  // Calculate how many source samples per target sample
+  int samplesPerBin = std::max(1, bufferSize / targetSamples);
+  int numChannels = buffer.getNumChannels();
+  
+  // Read from oldest data (current writeIndex) through the entire buffer
+  for (int i = 0; i < targetSamples; ++i) {
+    float peakVal = 0.0f;
+    
+    // Find peak value in this bin across all channels
+    for (int s = 0; s < samplesPerBin; ++s) {
+      int sampleIdx = (writeIndex + i * samplesPerBin + s) % bufferSize;
+      
+      for (int ch = 0; ch < numChannels; ++ch) {
+        float val = std::abs(buffer.getSample(ch, sampleIdx));
+        peakVal = std::max(peakVal, val);
+      }
+    }
+    
+    waveform[i] = peakVal;
+  }
+  
+  return waveform;
+}
+
 } // namespace flowzone

@@ -88,6 +88,7 @@ struct AppState {
 
   struct Looper {
     float inputLevel = 0.0f; // 0.0 to 1.0 peak level for retrospective buffer input
+    std::vector<float> waveformData; // Downsampled waveform for UI visualization (256 samples)
   } looper;
 
   std::vector<SlotState> slots;

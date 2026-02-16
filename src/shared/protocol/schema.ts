@@ -94,6 +94,7 @@ export interface AppState {
     };
     looper: {
         inputLevel: number;
+        waveformData: number[]; // Downsampled waveform for visualization (256 samples)
     };
     slots: SlotState[];
     riffHistory: RiffHistoryEntry[];

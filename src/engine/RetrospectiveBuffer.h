@@ -23,6 +23,11 @@ public:
   void getPastAudio(int delayInSamples, int numSamples,
                     juce::AudioBuffer<float> &destination);
 
+  // Get downsampled waveform data for UI visualization
+  // Returns mono-summed, downsampled peak data
+  // targetSamples: desired number of output samples (e.g. 256 for UI)
+  std::vector<float> getWaveformData(int targetSamples = 256);
+
 private:
   juce::AudioBuffer<float> buffer;
   int writeIndex = 0;
