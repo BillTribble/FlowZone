@@ -109,7 +109,7 @@ export const MainLayout: React.FC<MainLayoutProps & { bottomContent?: React.Reac
                                 key={riff.id}
                                 id={riff.id}
                                 timestamp={new Date(riff.timestamp).toLocaleTimeString()}
-                                layers={riff.colors?.map((color: string, i: number) => ({
+                                layers={riff.colors?.map((_color: string, i: number) => ({
                                     id: `layer-${i}`,
                                     source: 'notes',
                                     level: 0.8

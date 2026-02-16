@@ -1,11 +1,16 @@
 import { AppState } from '../../../shared/protocol/schema';
 
 export const initialMockState: AppState = {
+    sessions: [],
     session: {
         id: "mock-session-id",
         name: "Mock Session",
         emoji: "🎸",
         createdAt: Date.now()
+    },
+    looper: {
+        inputLevel: 0,
+        waveformData: new Array(256).fill(0)
     },
     transport: {
         bpm: 120.0,
@@ -31,7 +36,8 @@ export const initialMockState: AppState = {
         isActive: false
     },
     mic: {
-        inputGain: 0.0,
+        inputGain: 0.5,
+        inputLevel: 0.0,
         monitorInput: true,
         monitorUntilLooped: true
     },

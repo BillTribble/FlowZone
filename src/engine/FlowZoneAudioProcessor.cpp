@@ -14,7 +14,7 @@ FlowZoneAudioProcessor::FlowZoneAudioProcessor()
               .withOutput("Out 11-12", juce::AudioChannelSet::stereo(), false)
               .withOutput("Out 13-14", juce::AudioChannelSet::stereo(), false)
               .withOutput("Out 15-16", juce::AudioChannelSet::stereo(), false)),
-      engine(), server(7321)
+      engine(), server(50001)
 #endif
 {
   // Mark application as active (crash detection)
