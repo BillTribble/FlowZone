@@ -33,6 +33,64 @@ function App() {
         }
     }, [wsClient])
 
+    // Keyboard controls for testing
+    useEffect(() => {
+        const keyToPadIndex: { [key: string]: number } = {
+            'a': 0, 's': 1, 'd': 2, 'f': 3,
+            'g': 4, 'h': 5, 'j': 6, 'k': 7,
+            'l': 8, ';': 9, ':': 10, '"': 11
+        };
+
+        const activeKeys = new Set<string>();
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const key = e.key.toLowerCase();
+            
+            // Prevent repeat events
+            if (activeKeys.has(key)) return;
+            activeKeys.add(key);
+
+            // Pad controls (ASDFGHJKL;:")
+            if (key in keyToPadIndex) {
+                const padIndex = keyToPadIndex[key];
+                const baseNote = selectedCategory === 'drums' ? 36 : 48;
+                const midiNote = baseNote + padIndex;
+                handlePadTrigger(midiNote, 1.0);
+                return;
+            }
+
+            // Loop length controls (1, 2, 3, 4)
+            const loopLengths: { [key: string]: number } = {
+                '1': 1, '2': 2, '3': 4, '4': 8
+            };
+            if (key in loopLengths) {
+                console.log('[App] Keyboard loop trigger:', loopLengths[key], 'bars');
+                wsClient.send({ cmd: "SET_LOOP_LENGTH", bars: loopLengths[key] });
+            }
+        };
+
+        const handleKeyUp = (e: KeyboardEvent) => {
+            const key = e.key.toLowerCase();
+            activeKeys.delete(key);
+
+            // Send NOTE_OFF for pads (not needed for drums, but needed for synths)
+            if (key in keyToPadIndex && selectedCategory !== 'drums') {
+                const padIndex = keyToPadIndex[key];
+                const baseNote = 48;  // Notes/Bass use 48
+                const midiNote = baseNote + padIndex;
+                handlePadRelease(midiNote);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keyup', handleKeyUp);
+        };
+    }, [wsClient, selectedCategory]);
+
     const [performanceMode, setPerformanceMode] = useState<'PADS' | 'XY'>('PADS');
     const [isPlaying, setIsPlaying] = useState(false);
 
