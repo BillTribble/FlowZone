@@ -1,19 +1,30 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Icon } from '../components/shared/Icon';
 
-interface JamManagerViewProps {
-    onCreateJam: () => void;
-    onOpenJam: (jamId: string) => void;
+interface Session {
+    id: string;
+    name: string;
+    emoji: string;
+    createdAt: number;
 }
 
-// Mock jam data - will be replaced with real data from state
-const MOCK_JAMS = [
-    { id: 'jam-1', name: 'Morning Session', emoji: '🌅', date: '2026-02-15', layers: 4 },
-    { id: 'jam-2', name: 'Groove Experiment', emoji: '🎵', date: '2026-02-14', layers: 6 },
-    { id: 'jam-3', name: 'Bass Test', emoji: '🎸', date: '2026-02-13', layers: 2 },
-];
+interface JamManagerViewProps {
+    sessions: Session[];
+    onCreateJam: () => void;
+    onOpenJam: (jamId: string) => void;
+    onRenameJam: (jamId: string, name: string, emoji?: string) => void;
+    onDeleteJam: (jamId: string) => void;
+}
 
-export const JamManagerView: React.FC<JamManagerViewProps> = ({ onCreateJam, onOpenJam }) => {
+export const JamManagerView: React.FC<JamManagerViewProps> = ({
+    sessions,
+    onCreateJam,
+    onOpenJam,
+    onRenameJam,
+    onDeleteJam
+}) => {
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editName, setEditName] = useState('');
     return (
         <div style={{
             height: '100%',
@@ -81,84 +92,152 @@ export const JamManagerView: React.FC<JamManagerViewProps> = ({ onCreateJam, onO
                 gap: 16,
                 alignContent: 'start'
             }}>
-                {MOCK_JAMS.map(jam => (
-                    <button
-                        key={jam.id}
-                        onClick={() => onOpenJam(jam.id)}
-                        className="glass-panel interactive-element"
-                        style={{
-                            background: 'var(--glass-bg)',
-                            border: '1px solid var(--glass-border)',
-                            borderRadius: 12,
-                            padding: 20,
-                            cursor: 'pointer',
-                            textAlign: 'left',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 12,
-                            transition: 'all 0.2s ease',
-                            minHeight: 140
-                        }}
-                    >
-                        {/* Emoji + Name */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <div style={{ 
-                                fontSize: 32,
-                                width: 48,
-                                height: 48,
+                {sessions.map(jam => {
+                    const isEditing = editingId === jam.id;
+                    const jamDate = new Date(jam.createdAt).toLocaleDateString('en-GB', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric'
+                    });
+                    
+                    return (
+                        <div
+                            key={jam.id}
+                            className="glass-panel"
+                            style={{
+                                background: 'var(--glass-bg)',
+                                border: '1px solid var(--glass-border)',
+                                borderRadius: 12,
+                                padding: 20,
+                                textAlign: 'left',
                                 display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                background: 'rgba(255,255,255,0.05)',
-                                borderRadius: 8
+                                flexDirection: 'column',
+                                gap: 12,
+                                transition: 'all 0.2s ease',
+                                minHeight: 140,
+                                position: 'relative'
+                            }}
+                        >
+                            {/* Emoji + Name */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <div style={{
+                                    fontSize: 32,
+                                    width: 48,
+                                    height: 48,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    background: 'rgba(255,255,255,0.05)',
+                                    borderRadius: 8
+                                }}>
+                                    {jam.emoji}
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                    {isEditing ? (
+                                        <input
+                                            type="text"
+                                            value={editName}
+                                            onChange={(e) => setEditName(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    onRenameJam(jam.id, editName);
+                                                    setEditingId(null);
+                                                } else if (e.key === 'Escape') {
+                                                    setEditingId(null);
+                                                }
+                                            }}
+                                            onBlur={() => {
+                                                if (editName.trim()) {
+                                                    onRenameJam(jam.id, editName);
+                                                }
+                                                setEditingId(null);
+                                            }}
+                                            autoFocus
+                                            style={{
+                                                fontSize: 16,
+                                                fontWeight: 'bold',
+                                                color: '#fff',
+                                                background: 'rgba(0,0,0,0.3)',
+                                                border: '1px solid var(--neon-cyan)',
+                                                borderRadius: 4,
+                                                padding: '4px 8px',
+                                                width: '100%'
+                                            }}
+                                        />
+                                    ) : (
+                                        <div
+                                            onClick={() => {
+                                                setEditingId(jam.id);
+                                                setEditName(jam.name);
+                                            }}
+                                            style={{
+                                                fontSize: 16,
+                                                fontWeight: 'bold',
+                                                color: '#fff',
+                                                marginBottom: 4,
+                                                cursor: 'text'
+                                            }}
+                                        >
+                                            {jam.name}
+                                        </div>
+                                    )}
+                                    <div style={{
+                                        fontSize: 11,
+                                        color: 'var(--text-secondary)',
+                                        fontFamily: 'monospace'
+                                    }}>
+                                        {jamDate}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div style={{
+                                display: 'flex',
+                                gap: 8,
+                                marginTop: 'auto'
                             }}>
-                                {jam.emoji}
-                            </div>
-                            <div style={{ flex: 1 }}>
-                                <div style={{ 
-                                    fontSize: 16, 
-                                    fontWeight: 'bold',
-                                    color: '#fff',
-                                    marginBottom: 4
-                                }}>
-                                    {jam.name}
-                                </div>
-                                <div style={{ 
-                                    fontSize: 11, 
-                                    color: 'var(--text-secondary)',
-                                    fontFamily: 'monospace'
-                                }}>
-                                    {jam.date}
-                                </div>
+                                <button
+                                    onClick={() => onOpenJam(jam.id)}
+                                    className="interactive-element"
+                                    style={{
+                                        flex: 1,
+                                        background: 'rgba(0, 229, 255, 0.15)',
+                                        border: '1px solid var(--neon-cyan)',
+                                        borderRadius: 6,
+                                        padding: '8px 12px',
+                                        color: 'var(--neon-cyan)',
+                                        fontWeight: 'bold',
+                                        fontSize: 11,
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    OPEN
+                                </button>
+                                <button
+                                    onClick={() => onDeleteJam(jam.id)}
+                                    className="interactive-element"
+                                    style={{
+                                        background: 'rgba(255, 0, 0, 0.1)',
+                                        border: '1px solid rgba(255, 0, 0, 0.3)',
+                                        borderRadius: 6,
+                                        padding: '8px 12px',
+                                        color: '#ff6666',
+                                        fontWeight: 'bold',
+                                        fontSize: 11,
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    <Icon name="trash" size={14} color="#ff6666" />
+                                </button>
                             </div>
                         </div>
-
-                        {/* Stats */}
-                        <div style={{
-                            display: 'flex',
-                            gap: 16,
-                            fontSize: 11,
-                            color: 'var(--text-secondary)'
-                        }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                <Icon name="layers" size={14} color="var(--text-secondary)" />
-                                <span>{jam.layers} layers</span>
-                            </div>
-                        </div>
-
-                        {/* Visual separator */}
-                        <div style={{
-                            height: 2,
-                            background: 'linear-gradient(90deg, var(--neon-cyan), transparent)',
-                            opacity: 0.3,
-                            borderRadius: 1
-                        }} />
-                    </button>
-                ))}
+                    );
+                })}
             </div>
 
             {/* Empty State */}
-            {MOCK_JAMS.length === 0 && (
+            {sessions.length === 0 && (
                 <div style={{
                     flex: 1,
                     display: 'flex',

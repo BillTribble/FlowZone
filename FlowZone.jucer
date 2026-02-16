@@ -15,6 +15,24 @@
               compile="0" resource="0" file="src/engine/FlowZoneAudioProcessorEditor.h"/>
         <FILE id="FlowZoneAudioProcessorEditor_cpp" name="FlowZoneAudioProcessorEditor.cpp"
               compile="1" resource="0" file="src/engine/FlowZoneAudioProcessorEditor.cpp"/>
+        <FILE id="DrumEngine_h" name="DrumEngine.h" compile="0" resource="0" file="src/engine/DrumEngine.h"/>
+        <FILE id="DrumEngine_cpp" name="DrumEngine.cpp" compile="1" resource="0" file="src/engine/DrumEngine.cpp"/>
+        <FILE id="DrumVoice_h" name="DrumVoice.h" compile="0" resource="0" file="src/engine/DrumVoice.h"/>
+        <FILE id="DrumVoice_cpp" name="DrumVoice.cpp" compile="1" resource="0" file="src/engine/DrumVoice.cpp"/>
+        <FILE id="SynthEngine_h" name="SynthEngine.h" compile="0" resource="0" file="src/engine/SynthEngine.h"/>
+        <FILE id="SynthEngine_cpp" name="SynthEngine.cpp" compile="1" resource="0" file="src/engine/SynthEngine.cpp"/>
+        <FILE id="SynthVoice_h" name="SynthVoice.h" compile="0" resource="0" file="src/engine/SynthVoice.h"/>
+        <FILE id="SynthVoice_cpp" name="SynthVoice.cpp" compile="1" resource="0" file="src/engine/SynthVoice.cpp"/>
+        <FILE id="SynthSound_h" name="SynthSound.h" compile="0" resource="0" file="src/engine/SynthSound.h"/>
+        <FILE id="TuningManager_h" name="TuningManager.h" compile="0" resource="0" file="src/engine/TuningManager.h"/>
+        <FILE id="TuningManager_cpp" name="TuningManager.cpp" compile="1" resource="0" file="src/engine/TuningManager.cpp"/>
+        <FILE id="MicProcessor_h" name="MicProcessor.h" compile="0" resource="0" file="src/engine/MicProcessor.h"/>
+        <FILE id="MicProcessor_cpp" name="MicProcessor.cpp" compile="1" resource="0" file="src/engine/MicProcessor.cpp"/>
+        <FILE id="CrashGuard_h" name="CrashGuard.h" compile="0" resource="0" file="src/engine/CrashGuard.h"/>
+        <FILE id="ConfigManager_h" name="ConfigManager.h" compile="0" resource="0" file="src/engine/ConfigManager.h"/>
+        <FILE id="ConfigManager_cpp" name="ConfigManager.cpp" compile="1" resource="0" file="src/engine/ConfigManager.cpp"/>
+        <FILE id="DiskWriter_h" name="DiskWriter.h" compile="0" resource="0" file="src/engine/DiskWriter.h"/>
+        <FILE id="DiskWriter_cpp" name="DiskWriter.cpp" compile="1" resource="0" file="src/engine/DiskWriter.cpp"/>
         <GROUP id="{TRANSPORT}" name="transport">
           <FILE id="TransportService_h" name="TransportService.h" compile="0"
                 resource="0" file="src/engine/transport/TransportService.h"/>

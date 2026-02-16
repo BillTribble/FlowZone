@@ -1,6 +1,8 @@
 #include "CommandDispatcher.h"
 #include "CommandQueue.h"
 #include "CrashGuard.h"
+#include "DrumEngine.h"
+#include "SynthEngine.h"
 #include "RetrospectiveBuffer.h"
 #include "Slot.h"
 #include "session/SessionStateManager.h"
@@ -52,6 +54,14 @@ private:
   CrashGuard crashGuard;
   RetrospectiveBuffer retroBuffer;
   CommandQueue commandQueue;
+
+  // Audio engines
+  engine::DrumEngine drumEngine;
+  engine::SynthEngine synthEngine;
+  
+  // Active MIDI buffer for triggered notes
+  juce::MidiBuffer activeMidi;
+  double currentSampleRate = 44100.0;
 
   std::vector<std::unique_ptr<Slot>> slots;
 

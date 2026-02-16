@@ -48,6 +48,12 @@ export interface RiffHistoryEntry {
 }
 
 export interface AppState {
+    sessions: Array<{
+        id: string;
+        name: string;
+        emoji: string;
+        createdAt: number;
+    }>;
     session: {
         id: string;
         name: string;

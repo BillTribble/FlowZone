@@ -8,11 +8,13 @@ import { PlayView } from './views/PlayView'
 import { MixerView, MixerControls } from './views/MixerView'
 import { ModeView } from './views/ModeView'
 import { AdjustView } from './views/AdjustView'
+import { Knob } from './components/shared/Knob'
 
 function App() {
     const [state, setState] = useState<AppState | null>(null)
     const [connected, setConnected] = useState(false)
-    const [activeTab, setActiveTab] = useState<TabId>('jam-manager')
+    const [showJamManager, setShowJamManager] = useState(true) // Start at home screen
+    const [activeTab, setActiveTab] = useState<TabId>('mode')
     const [selectedPreset, setSelectedPreset] = useState<string | null>(null)
     const [selectedCategory, setSelectedCategory] = useState<string>('drums')
 
@@ -113,22 +115,39 @@ function App() {
     };
 
     const handleHomeClick = () => {
-        console.log('[App] Home / Jam Manager clicked');
-        setActiveTab('jam-manager');
+        console.log('[App] Home / Jam Manager clicked - stopping session');
+        // Stop playback when going home
+        if (isPlaying) {
+            wsClient.send({ cmd: "PAUSE" });
+            setIsPlaying(false);
+        }
+        setShowJamManager(true);
     };
 
     const handleCreateJam = () => {
         console.log('[App] Create new jam');
-        // TODO: Send CREATE_JAM command to engine
-        // For now, just switch to MODE view to start a new jam
+        wsClient.send({ cmd: "NEW_JAM" });
+        setShowJamManager(false);
         setActiveTab('mode');
     };
 
     const handleOpenJam = (jamId: string) => {
         console.log('[App] Opening jam:', jamId);
-        // TODO: Send LOAD_JAM command to engine
-        // For now, switch to PLAY view (jam is already playing)
+        wsClient.send({ cmd: "LOAD_JAM", sessionId: jamId });
+        setShowJamManager(false);
         setActiveTab('play');
+    };
+
+    const handleRenameJam = (jamId: string, name: string, emoji?: string) => {
+        console.log('[App] Renaming jam:', jamId, name, emoji);
+        wsClient.send({ cmd: "RENAME_JAM", sessionId: jamId, name, emoji });
+    };
+
+    const handleDeleteJam = (jamId: string) => {
+        console.log('[App] Deleting jam:', jamId);
+        if (confirm('Are you sure you want to delete this jam? This action cannot be undone.')) {
+            wsClient.send({ cmd: "DELETE_JAM", sessionId: jamId });
+        }
     };
 
     const handleLoadRiff = (riffId: string) => {
@@ -136,12 +155,106 @@ function App() {
         wsClient.send({ cmd: "LOAD_RIFF", riffId });
     };
 
-    // Determine bottom content (Performance Surface or Mixer Controls)
+    // Determine bottom content (Performance Surface, Mixer Controls, or Mic Controls)
     let bottomContent: React.ReactNode | undefined = undefined;
+    
     if (activeTab === 'mixer') {
         bottomContent = <MixerControls
             state={state}
             onSlotVolumeChange={handleSlotVolumeChange}
+        />;
+    } else if (selectedCategory === 'mic') {
+        // Mic mode always shows gain control in bottom section (even in Adjust tab)
+        bottomContent = (
+            <div style={{
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 30,
+                padding: 40
+            }}>
+                <div style={{
+                    fontSize: 10,
+                    fontWeight: 900,
+                    color: 'var(--text-secondary)',
+                    letterSpacing: '0.15em',
+                    textAlign: 'center'
+                }}>
+                    MICROPHONE INPUT
+                </div>
+                
+                {/* Large Gain Knob */}
+                <div className="interactive-element">
+                    <Knob
+                        label="GAIN"
+                        value={state?.mic?.inputGain ?? 0.7}
+                        onChange={(val) => {
+                            // Convert 0-1 range to -60dB to +40dB
+                            const dbValue = (val * 100) - 60; // Maps 0→-60dB, 1→+40dB
+                            wsClient.send({ cmd: "SET_INPUT_GAIN", val: dbValue });
+                        }}
+                        size={150}
+                        color="var(--neon-cyan)"
+                    />
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                    -60dB to +40dB
+                </div>
+                
+                <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 12,
+                    width: '100%',
+                    maxWidth: 300
+                }}>
+                    <button
+                        className="glass-panel interactive-element"
+                        style={{
+                            background: state?.mic?.monitorInput ? 'rgba(0, 229, 255, 0.2)' : 'var(--glass-bg)',
+                            border: state?.mic?.monitorInput ? '1px solid var(--neon-cyan)' : '1px solid var(--glass-border)',
+                            borderRadius: 8,
+                            padding: 12,
+                            color: state?.mic?.monitorInput ? 'var(--neon-cyan)' : '#fff',
+                            fontSize: 11,
+                            fontWeight: 'bold',
+                            cursor: 'pointer'
+                        }}
+                        onClick={() => wsClient.send({ cmd: "TOGGLE_MONITOR_INPUT" })}
+                    >
+                        MONITOR INPUT
+                    </button>
+                    <button
+                        className="glass-panel interactive-element"
+                        style={{
+                            background: state?.mic?.monitorUntilLooped ? 'rgba(0, 229, 255, 0.2)' : 'var(--glass-bg)',
+                            border: state?.mic?.monitorUntilLooped ? '1px solid var(--neon-cyan)' : '1px solid var(--glass-border)',
+                            borderRadius: 8,
+                            padding: 12,
+                            color: state?.mic?.monitorUntilLooped ? 'var(--neon-cyan)' : '#fff',
+                            fontSize: 11,
+                            fontWeight: 'bold',
+                            cursor: 'pointer'
+                        }}
+                        onClick={() => wsClient.send({ cmd: "TOGGLE_MONITOR_UNTIL_LOOPED" })}
+                    >
+                        MONITOR UNTIL LOOPED
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // If showing Jam Manager, render it as full-screen home
+    if (showJamManager) {
+        return <JamManagerView
+            sessions={state?.sessions || []}
+            onCreateJam={handleCreateJam}
+            onOpenJam={handleOpenJam}
+            onRenameJam={handleRenameJam}
+            onDeleteJam={handleDeleteJam}
         />;
     }
 
@@ -165,14 +278,17 @@ function App() {
             riffHistory={state?.riffHistory || []}
             onLoadRiff={handleLoadRiff}
         >
-            {activeTab === 'jam-manager' && <JamManagerView onCreateJam={handleCreateJam} onOpenJam={handleOpenJam} />}
             {activeTab === 'mode' && <ModeView onSelectMode={handleSelectMode} />}
             {activeTab === 'play' && <PlayView
                 state={{...state!, activeMode: {...state?.activeMode, category: selectedCategory}}}
                 onSelectPreset={handleSelectPreset}
                 selectedPreset={selectedPreset}
+                category={selectedCategory}
             />}
-            {activeTab === 'adjust' && <AdjustView onAdjustParam={handleAdjustParam} />}
+            {activeTab === 'adjust' && <AdjustView
+                onAdjustParam={handleAdjustParam}
+                activeMode={selectedCategory}
+            />}
             {activeTab === 'mixer' && <MixerView
                 state={state}
                 onToggleMetronome={handleToggleMetronome}
@@ -181,7 +297,7 @@ function App() {
                 onMoreSettings={() => {
                     console.log('[App] More settings clicked');
                     // TODO: Open settings modal/view
-                    alert('Advanced mixer settings coming soon!');
+                    alert('Settings panel coming soon!');
                 }}
             />}
         </MainLayout>

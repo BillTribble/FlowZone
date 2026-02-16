@@ -35,7 +35,7 @@ public:
       obj->setProperty("enablePlugins", enablePlugins);
       obj->setProperty("audioDeviceName", audioDeviceName);
       
-      juce::var::array plugins;
+      juce::Array<juce::var> plugins;
       for (const auto& plugin : disabledPlugins) {
         plugins.add(plugin);
       }

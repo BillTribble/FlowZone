@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { AppState } from '../../../shared/protocol/schema';
 
 interface PlayViewProps {
     state: AppState;
     onSelectPreset: (category: string, preset: string) => void;
     selectedPreset?: string | null;
+    category: string;
 }
 
 // Hardcoded presets for V1 (mirrors Spec)
@@ -16,11 +17,17 @@ const PRESETS: Record<string, string[]> = {
     infinite_fx: ['Keymasher', 'Ripper', 'Ringmod', 'Bitcrusher', 'Degrader', 'Pitchmod', 'Multicomb', 'Freezer', 'Zap Delay', 'Dub Delay', 'Compressor', 'Trance Gate']
 };
 
-export const PlayView: React.FC<PlayViewProps> = ({ state, onSelectPreset, selectedPreset }) => {
-    // Current category from state or default to drums
-    const category = state.activeMode?.category || 'drums';
+export const PlayView: React.FC<PlayViewProps> = ({ state, onSelectPreset, selectedPreset, category }) => {
     const presets = PRESETS[category] || [];
     const activePreset = selectedPreset || state.activeMode?.presetName;
+    
+    // Auto-select first preset when mode changes
+    useEffect(() => {
+        if (presets.length > 0 && !activePreset) {
+            console.log('[PlayView] Auto-selecting first preset:', presets[0]);
+            onSelectPreset(category, presets[0]);
+        }
+    }, [category]); // eslint-disable-line react-hooks/exhaustive-deps
     
     console.log('[PlayView] Render - category:', category, 'activeMode:', state.activeMode, 'presets count:', presets.length);
 

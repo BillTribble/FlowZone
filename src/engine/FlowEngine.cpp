@@ -14,8 +14,14 @@ FlowEngine::FlowEngine() : juce::Thread("AutoMergeThread") {
 FlowEngine::~FlowEngine() { stopThread(2000); }
 
 void FlowEngine::prepareToPlay(double sampleRate, int samplesPerBlock) {
+  currentSampleRate = sampleRate;
+  
   transport.prepareToPlay(sampleRate, samplesPerBlock);
   retroBuffer.prepare(sampleRate, 60); // 60 seconds of history
+  
+  // Prepare audio engines
+  drumEngine.prepare(sampleRate, samplesPerBlock);
+  synthEngine.prepare(sampleRate, samplesPerBlock);
 
   for (auto &slot : slots) {
     slot->prepareToPlay(sampleRate, samplesPerBlock);
@@ -24,14 +30,35 @@ void FlowEngine::prepareToPlay(double sampleRate, int samplesPerBlock) {
 
 void FlowEngine::processBlock(juce::AudioBuffer<float> &buffer,
                               juce::MidiBuffer &midiMessages) {
-  // Capture input before processing
-  retroBuffer.pushBlock(buffer);
-
   // Process incoming commands from Message Thread
   processCommands();
 
   // Handle Transport
   transport.processBlock(buffer, midiMessages);
+
+  // Merge incoming MIDI with triggered notes
+  juce::MidiBuffer combinedMidi(midiMessages);
+  combinedMidi.addEvents(activeMidi, 0, buffer.getNumSamples(), 0);
+  activeMidi.clear(); // Clear for next block
+
+  // Process audio engines based on active mode
+  auto state = sessionManager.getCurrentState();
+  juce::AudioBuffer<float> engineBuffer(buffer.getNumChannels(), buffer.getNumSamples());
+  engineBuffer.clear();
+  
+  if (state.activeMode.category == "drums") {
+    drumEngine.process(engineBuffer, combinedMidi);
+  } else if (state.activeMode.category == "notes" || state.activeMode.category == "bass") {
+    synthEngine.process(engineBuffer, combinedMidi);
+  }
+  
+  // Add engine output to buffer
+  for (int ch = 0; ch < buffer.getNumChannels(); ++ch) {
+    buffer.addFrom(ch, 0, engineBuffer, ch, 0, buffer.getNumSamples());
+  }
+  
+  // Capture engine output to retro buffer
+  retroBuffer.pushBlock(engineBuffer);
 
   // Sum slots into buffer
   for (auto &slot : slots) {
@@ -198,7 +225,25 @@ void FlowEngine::loadRiff(const juce::String &riffId) {
 void FlowEngine::triggerPad(int padIndex, float velocity) {
   juce::Logger::writeToLog("Pad Trigger: " + juce::String(padIndex) +
                            " vel=" + juce::String(velocity));
-  // TODO: Phase 4 - Implement Drum Engine Trigger
+  
+  // Convert pad index to MIDI note (36-51 for drums, 60+ for synths)
+  auto state = sessionManager.getCurrentState();
+  int midiNote = 60 + padIndex; // Default for synth
+  
+  if (state.activeMode.category == "drums") {
+    midiNote = 36 + padIndex; // GM drum notes
+  }
+  
+  // Add NOTE_ON to active MIDI buffer (will be processed in next processBlock)
+  juce::MidiMessage noteOn = juce::MidiMessage::noteOn(1, midiNote, (juce::uint8)(velocity * 127));
+  activeMidi.addEvent(noteOn, 0);
+  
+  // Add NOTE_OFF after 100ms for one-shots (drums don't need this, but synths do)
+  if (state.activeMode.category != "drums") {
+    int noteOffSample = (int)(0.1 * currentSampleRate); // 100ms
+    juce::MidiMessage noteOff = juce::MidiMessage::noteOff(1, midiNote);
+    activeMidi.addEvent(noteOff, noteOffSample);
+  }
 }
 
 void FlowEngine::updateXY(float x, float y) {

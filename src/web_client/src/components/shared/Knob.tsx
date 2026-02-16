@@ -118,7 +118,7 @@ export const Knob: React.FC<KnobProps> = ({
                     touchAction: 'none'
                 }}
             >
-                <svg width={size} height={size} style={{ transform: 'rotate(180deg)' }}>
+                <svg width={size} height={size}>
                     {/* Background Track */}
                     <path
                         d={createArc(startAngle, endAngle)}
