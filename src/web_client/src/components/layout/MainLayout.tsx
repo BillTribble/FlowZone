@@ -15,7 +15,9 @@ interface MainLayoutProps {
     children: React.ReactNode;
     performanceMode: 'PADS' | 'XY';
     onPadTrigger: (padId: number, val: number) => void;
+    onPadRelease: (padId: number) => void;
     onXYChange: (x: number, y: number) => void;
+    activeCategory: string;
     onHomeClick?: () => void;
     riffHistory?: any[];
     onLoadRiff?: (riffId: string) => void;
@@ -34,7 +36,9 @@ export const MainLayout: React.FC<MainLayoutProps & { bottomContent?: React.Reac
     children,
     performanceMode,
     onPadTrigger,
+    onPadRelease,
     onXYChange,
+    activeCategory,
     bottomContent,
     onHomeClick,
     riffHistory = [],
@@ -154,7 +158,9 @@ export const MainLayout: React.FC<MainLayoutProps & { bottomContent?: React.Reac
                     <PerformanceSurface
                         mode={performanceMode}
                         onPadTrigger={onPadTrigger}
+                        onPadRelease={onPadRelease}
                         onXYChange={onXYChange}
+                        activeCategory={activeCategory}
                     />
                 )}
             </div>

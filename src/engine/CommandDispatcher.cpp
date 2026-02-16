@@ -38,6 +38,8 @@ void CommandDispatcher::dispatch(const juce::String &jsonCommand,
     handleLoadRiff(engine, jsonVar["riffId"].toString());
   } else if (cmdType == "NOTE_ON") {
     handleNoteOn(engine, (int)jsonVar["pad"], (float)jsonVar["val"]);
+  } else if (cmdType == "NOTE_OFF") {
+    handleNoteOff(engine, (int)jsonVar["pad"]);
   } else if (cmdType == "XY_CHANGE") {
     handleXYChange(engine, (float)jsonVar["x"], (float)jsonVar["y"]);
   } else if (cmdType == "SET_LOOP_LENGTH") {
@@ -48,6 +50,12 @@ void CommandDispatcher::dispatch(const juce::String &jsonCommand,
     handleSetSlotMuted(engine, (int)jsonVar["index"], false);
   } else if (cmdType == "SET_VOL") {
     handleSetSlotVolume(engine, (int)jsonVar["index"], (float)jsonVar["val"]);
+  } else if (cmdType == "SET_INPUT_GAIN") {
+    handleSetInputGain(engine, (float)jsonVar["val"]);
+  } else if (cmdType == "TOGGLE_MONITOR_INPUT") {
+    handleToggleMonitorInput(engine);
+  } else if (cmdType == "TOGGLE_MONITOR_UNTIL_LOOPED") {
+    handleToggleMonitorUntilLooped(engine);
   }
 }
 
@@ -98,6 +106,10 @@ void CommandDispatcher::handleNoteOn(FlowEngine &engine, int pad,
   engine.triggerPad(pad, velocity);
 }
 
+void CommandDispatcher::handleNoteOff(FlowEngine &engine, int pad) {
+  engine.releasePad(pad);
+}
+
 void CommandDispatcher::handleXYChange(FlowEngine &engine, float x, float y) {
   engine.updateXY(x, y);
 }
@@ -114,6 +126,18 @@ void CommandDispatcher::handleSetSlotMuted(FlowEngine &engine, int index,
 void CommandDispatcher::handleSetSlotVolume(FlowEngine &engine, int index,
                                             float volume) {
   engine.setSlotVolume(index, volume);
+}
+
+void CommandDispatcher::handleSetInputGain(FlowEngine &engine, float gainDb) {
+  engine.setInputGain(gainDb);
+}
+
+void CommandDispatcher::handleToggleMonitorInput(FlowEngine &engine) {
+  engine.toggleMonitorInput();
+}
+
+void CommandDispatcher::handleToggleMonitorUntilLooped(FlowEngine &engine) {
+  engine.toggleMonitorUntilLooped();
 }
 
 } // namespace flowzone

@@ -26,10 +26,14 @@ private:
   void handleSetMode(FlowEngine &engine, const juce::String &category);
   void handleLoadRiff(FlowEngine &engine, const juce::String &riffId);
   void handleNoteOn(FlowEngine &engine, int pad, float velocity);
+  void handleNoteOff(FlowEngine &engine, int pad);
   void handleXYChange(FlowEngine &engine, float x, float y);
   void handleSetLoopLength(FlowEngine &engine, int bars);
   void handleSetSlotMuted(FlowEngine &engine, int index, bool muted);
   void handleSetSlotVolume(FlowEngine &engine, int index, float volume);
+  void handleSetInputGain(FlowEngine &engine, float gainDb);
+  void handleToggleMonitorInput(FlowEngine &engine);
+  void handleToggleMonitorUntilLooped(FlowEngine &engine);
 };
 
 } // namespace flowzone

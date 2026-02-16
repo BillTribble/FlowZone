@@ -61,6 +61,11 @@ function App() {
         wsClient.send({ cmd: "NOTE_ON", pad: padId, val });
     };
 
+    const handlePadRelease = (padId: number) => {
+        console.log('[App] Pad release:', { padId });
+        wsClient.send({ cmd: "NOTE_OFF", pad: padId });
+    };
+
     const handleXYChange = (x: number, y: number) => {
         wsClient.send({ cmd: "XY_CHANGE", x, y });
     };
@@ -272,7 +277,9 @@ function App() {
             }}
             performanceMode={performanceMode}
             onPadTrigger={handlePadTrigger}
+            onPadRelease={handlePadRelease}
             onXYChange={handleXYChange}
+            activeCategory={selectedCategory}
             bottomContent={bottomContent}
             onHomeClick={handleHomeClick}
             riffHistory={state?.riffHistory || []}

@@ -22,6 +22,7 @@ void FlowEngine::prepareToPlay(double sampleRate, int samplesPerBlock) {
   // Prepare audio engines
   drumEngine.prepare(sampleRate, samplesPerBlock);
   synthEngine.prepare(sampleRate, samplesPerBlock);
+  micProcessor.prepare(sampleRate, samplesPerBlock);
 
   for (auto &slot : slots) {
     slot->prepareToPlay(sampleRate, samplesPerBlock);
@@ -46,10 +47,21 @@ void FlowEngine::processBlock(juce::AudioBuffer<float> &buffer,
   juce::AudioBuffer<float> engineBuffer(buffer.getNumChannels(), buffer.getNumSamples());
   engineBuffer.clear();
   
-  if (state.activeMode.category == "drums") {
+  // Create a temporary buffer for retro capture
+  juce::AudioBuffer<float> retroCaptureBuffer(buffer.getNumChannels(), buffer.getNumSamples());
+  retroCaptureBuffer.clear();
+  
+  if (state.activeMode.category == "mic") {
+    // Mic mode: process input through MicProcessor
+    micProcessor.process(buffer, engineBuffer);
+    // Capture processed mic input to retro buffer
+    retroCaptureBuffer.makeCopyOf(engineBuffer);
+  } else if (state.activeMode.category == "drums") {
     drumEngine.process(engineBuffer, combinedMidi);
+    retroCaptureBuffer.makeCopyOf(engineBuffer);
   } else if (state.activeMode.category == "notes" || state.activeMode.category == "bass") {
     synthEngine.process(engineBuffer, combinedMidi);
+    retroCaptureBuffer.makeCopyOf(engineBuffer);
   }
   
   // Add engine output to buffer
@@ -57,8 +69,8 @@ void FlowEngine::processBlock(juce::AudioBuffer<float> &buffer,
     buffer.addFrom(ch, 0, engineBuffer, ch, 0, buffer.getNumSamples());
   }
   
-  // Capture engine output to retro buffer
-  retroBuffer.pushBlock(engineBuffer);
+  // Capture to retro buffer
+  retroBuffer.pushBlock(retroCaptureBuffer);
 
   // Sum slots into buffer
   for (auto &slot : slots) {
@@ -199,16 +211,49 @@ void FlowEngine::loadPreset(const juce::String &category,
     // Also update presetId to match name for now, or look it up
     s.activeMode.presetId = presetName.toLowerCase().replace(" ", "-");
   });
+  
+  // Apply preset to the appropriate engine
+  if (category == "drums") {
+    drumEngine.setKit(presetName);
+  } else if (category == "notes" || category == "bass") {
+    synthEngine.setPreset(category, presetName.toLowerCase().replace(" ", "-"));
+  }
 }
 
 void FlowEngine::setActiveCategory(const juce::String &category) {
   juce::Logger::writeToLog("Set Active Category: " + category);
 
-  sessionManager.updateState([&](AppState &s) {
-    s.activeMode.category = category;
-    // Determine if this is an FX mode
-    s.activeMode.isFxMode = (category == "fx" || category == "infinite_fx");
-  });
+  // Apply default preset when switching categories and update state
+  if (category == "drums") {
+    drumEngine.setKit("synthetic");
+    sessionManager.updateState([&](AppState &s) {
+      s.activeMode.category = category;
+      s.activeMode.isFxMode = false;
+      s.activeMode.presetId = "synthetic";
+      s.activeMode.presetName = "Synthetic";
+    });
+  } else if (category == "notes") {
+    synthEngine.setPreset("notes", "lead");
+    sessionManager.updateState([&](AppState &s) {
+      s.activeMode.category = category;
+      s.activeMode.isFxMode = false;
+      s.activeMode.presetId = "lead";
+      s.activeMode.presetName = "Lead";
+    });
+  } else if (category == "bass") {
+    synthEngine.setPreset("bass", "sub");
+    sessionManager.updateState([&](AppState &s) {
+      s.activeMode.category = category;
+      s.activeMode.isFxMode = false;
+      s.activeMode.presetId = "sub";
+      s.activeMode.presetName = "Sub";
+    });
+  } else {
+    sessionManager.updateState([&](AppState &s) {
+      s.activeMode.category = category;
+      s.activeMode.isFxMode = (category == "fx" || category == "infinite_fx");
+    });
+  }
 }
 
 void FlowEngine::loadRiff(const juce::String &riffId) {
@@ -226,24 +271,25 @@ void FlowEngine::triggerPad(int padIndex, float velocity) {
   juce::Logger::writeToLog("Pad Trigger: " + juce::String(padIndex) +
                            " vel=" + juce::String(velocity));
   
-  // Convert pad index to MIDI note (36-51 for drums, 60+ for synths)
-  auto state = sessionManager.getCurrentState();
-  int midiNote = 60 + padIndex; // Default for synth
-  
-  if (state.activeMode.category == "drums") {
-    midiNote = 36 + padIndex; // GM drum notes
-  }
+  // Pad index is actually the MIDI note number from the UI
+  // For drums: 36-51 (GM drum mapping)
+  // For notes/bass: 48-63 (C3-D#4)
+  int midiNote = padIndex;
   
   // Add NOTE_ON to active MIDI buffer (will be processed in next processBlock)
   juce::MidiMessage noteOn = juce::MidiMessage::noteOn(1, midiNote, (juce::uint8)(velocity * 127));
   activeMidi.addEvent(noteOn, 0);
+}
+
+void FlowEngine::releasePad(int padIndex) {
+  juce::Logger::writeToLog("Pad Release: " + juce::String(padIndex));
   
-  // Add NOTE_OFF after 100ms for one-shots (drums don't need this, but synths do)
-  if (state.activeMode.category != "drums") {
-    int noteOffSample = (int)(0.1 * currentSampleRate); // 100ms
-    juce::MidiMessage noteOff = juce::MidiMessage::noteOff(1, midiNote);
-    activeMidi.addEvent(noteOff, noteOffSample);
-  }
+  // Pad index is the MIDI note number
+  int midiNote = padIndex;
+  
+  // Add NOTE_OFF to active MIDI buffer
+  juce::MidiMessage noteOff = juce::MidiMessage::noteOff(1, midiNote);
+  activeMidi.addEvent(noteOff, 0);
 }
 
 void FlowEngine::updateXY(float x, float y) {
@@ -251,6 +297,35 @@ void FlowEngine::updateXY(float x, float y) {
     s.activeFX.xyPosition.x = x;
     s.activeFX.xyPosition.y = y;
     s.activeFX.isActive = true;
+  });
+}
+
+void FlowEngine::setInputGain(float gainDb) {
+  micProcessor.setInputGain(gainDb);
+  
+  sessionManager.updateState([&](AppState &s) {
+    // Store normalized value (0-1 range)
+    s.mic.inputGain = (gainDb + 60.0f) / 100.0f; // Maps -60dB to +40dB → 0.0 to 1.0
+  });
+}
+
+void FlowEngine::toggleMonitorInput() {
+  auto state = sessionManager.getCurrentState();
+  bool newValue = !state.mic.monitorInput;
+  micProcessor.setMonitorEnabled(newValue);
+  
+  sessionManager.updateState([&](AppState &s) {
+    s.mic.monitorInput = newValue;
+  });
+}
+
+void FlowEngine::toggleMonitorUntilLooped() {
+  auto state = sessionManager.getCurrentState();
+  bool newValue = !state.mic.monitorUntilLooped;
+  micProcessor.setMonitorUntilLooped(newValue);
+  
+  sessionManager.updateState([&](AppState &s) {
+    s.mic.monitorUntilLooped = newValue;
   });
 }
 

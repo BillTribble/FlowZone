@@ -3,6 +3,7 @@
 #include "CrashGuard.h"
 #include "DrumEngine.h"
 #include "SynthEngine.h"
+#include "MicProcessor.h"
 #include "RetrospectiveBuffer.h"
 #include "Slot.h"
 #include "session/SessionStateManager.h"
@@ -38,10 +39,16 @@ public:
   void setActiveCategory(const juce::String &category);
   void loadRiff(const juce::String &riffId);
   void triggerPad(int padIndex, float velocity);
+  void releasePad(int padIndex);
   void updateXY(float x, float y);
   void setLoopLength(int bars);
   void setSlotVolume(int slotIndex, float volume);
   void setSlotMuted(int slotIndex, bool muted);
+  
+  // Mic controls
+  void setInputGain(float gainDb);
+  void toggleMonitorInput();
+  void toggleMonitorUntilLooped();
 
   // Background Thread for Auto-Merge
   void run() override;
@@ -58,6 +65,7 @@ private:
   // Audio engines
   engine::DrumEngine drumEngine;
   engine::SynthEngine synthEngine;
+  engine::MicProcessor micProcessor;
   
   // Active MIDI buffer for triggered notes
   juce::MidiBuffer activeMidi;

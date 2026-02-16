@@ -5,10 +5,12 @@ import { XYPad } from '../shared/XYPad';
 interface PerformanceSurfaceProps {
     mode: 'PADS' | 'XY';
     onPadTrigger: (padId: number, velocity: number) => void;
+    onPadRelease: (padId: number) => void;
     onXYChange: (x: number, y: number) => void;
+    activeCategory: string;
 }
 
-export const PerformanceSurface: React.FC<PerformanceSurfaceProps> = ({ mode, onPadTrigger, onXYChange }) => {
+export const PerformanceSurface: React.FC<PerformanceSurfaceProps> = ({ mode, onPadTrigger, onPadRelease, onXYChange, activeCategory }) => {
     if (mode === 'XY') {
         return (
             <XYPad
@@ -35,13 +37,16 @@ export const PerformanceSurface: React.FC<PerformanceSurfaceProps> = ({ mode, on
         onPadTrigger(midi, 1.0); // Using midi instead of padId as 'note'
     };
 
-    const handlePadUp = (_midi: number, padId: number) => {
+    const handlePadUp = (midi: number, padId: number) => {
         setActivePads(prev => {
             const next = new Set(prev);
             next.delete(padId);
             return next;
         });
-        // We might need an onPadRelease trigger too
+        // Send NOTE_OFF for synths (not needed for drums as they're one-shot)
+        if (activeCategory !== 'drums') {
+            onPadRelease(midi);
+        }
     };
 
     return (
@@ -53,7 +58,7 @@ export const PerformanceSurface: React.FC<PerformanceSurfaceProps> = ({ mode, on
             overflow: 'hidden'
         }}>
             <PadGrid
-                baseNote={48}
+                baseNote={activeCategory === 'drums' ? 36 : 48}
                 scale="major"
                 activePads={activePads}
                 onPadDown={handlePadDown}
