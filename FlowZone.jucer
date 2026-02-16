@@ -2,7 +2,7 @@
 
 <JUCERPROJECT id="flowZone" name="FlowZone" projectType="audioplug" useAppConfig="0"
               addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" pluginFormats="buildStandalone,buildVST3"
-              pluginCharacteristicsValue="pluginIsSynth,pluginWantsMidiIn"
+              pluginCharacteristicsValue="pluginWantsMidiIn"
               cppLanguageStandard="20">
   <MAINGROUP id="mainGroup" name="FlowZone">
     <GROUP id="{SRC}" name="src">

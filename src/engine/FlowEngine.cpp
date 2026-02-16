@@ -1,11 +1,11 @@
 #include "FlowEngine.h"
-#include <JuceHeader.h>
 #include <algorithm>
+#include <cmath>
 #include <string>
 
 namespace flowzone {
 
-FlowEngine::FlowEngine() : juce::Thread("AutoMergeThread") {
+FlowEngine::FlowEngine() : juce::Thread("FlowEngine"), juce::Timer() {
   for (int i = 0; i < 8; ++i) {
     slots.push_back(std::make_unique<Slot>(i));
   }
@@ -15,11 +15,11 @@ FlowEngine::~FlowEngine() { stopThread(2000); }
 
 void FlowEngine::prepareToPlay(double sampleRate, int samplesPerBlock) {
   currentSampleRate = sampleRate;
-  
+
   transport.prepareToPlay(sampleRate, samplesPerBlock);
   retroBuffer.prepare(sampleRate, 60); // 60 seconds of history
   featureExtractor.prepare(sampleRate, samplesPerBlock);
-  
+
   // Prepare audio engines
   drumEngine.prepare(sampleRate, samplesPerBlock);
   synthEngine.prepare(sampleRate, samplesPerBlock);
@@ -28,6 +28,18 @@ void FlowEngine::prepareToPlay(double sampleRate, int samplesPerBlock) {
   for (auto &slot : slots) {
     slot->prepareToPlay(sampleRate, samplesPerBlock);
   }
+
+  // Start UI broadcasting timer (60Hz = 16.6ms)
+  startTimerHz(60);
+}
+
+void FlowEngine::updatePeakLevel(const juce::AudioBuffer<float> &buffer) {
+  float peak = 0.0f;
+  for (int ch = 0; ch < buffer.getNumChannels(); ++ch) {
+    float channelPeak = buffer.getMagnitude(ch, 0, buffer.getNumSamples());
+    peak = std::max(peak, channelPeak);
+  }
+  retroBufferPeakLevel.store(peak);
 }
 
 void FlowEngine::processBlock(juce::AudioBuffer<float> &buffer,
@@ -45,21 +57,24 @@ void FlowEngine::processBlock(juce::AudioBuffer<float> &buffer,
 
   // Process audio engines based on active mode
   auto state = sessionManager.getCurrentState();
-  juce::AudioBuffer<float> engineBuffer(buffer.getNumChannels(), buffer.getNumSamples());
+  juce::AudioBuffer<float> engineBuffer(buffer.getNumChannels(),
+                                        buffer.getNumSamples());
   engineBuffer.clear();
-  
+
   // Create a temporary buffer for retro capture
-  juce::AudioBuffer<float> retroCaptureBuffer(buffer.getNumChannels(), buffer.getNumSamples());
+  juce::AudioBuffer<float> retroCaptureBuffer(buffer.getNumChannels(),
+                                              buffer.getNumSamples());
   retroCaptureBuffer.clear();
-  
+
   if (state.activeMode.category == "mic") {
     // Mic mode: process input through MicProcessor
-    // MicProcessor writes processed audio to engineBuffer for retrospective capture
+    // MicProcessor writes processed audio to engineBuffer for retrospective
+    // capture
     micProcessor.process(buffer, engineBuffer);
-    
+
     // Capture processed mic input to retro buffer
     retroCaptureBuffer.makeCopyOf(engineBuffer);
-    
+
     // Only add to main output if monitoring is enabled
     // (engineBuffer is already in retroBuffer regardless)
     if (state.mic.monitorInput || state.mic.monitorUntilLooped) {
@@ -71,26 +86,20 @@ void FlowEngine::processBlock(juce::AudioBuffer<float> &buffer,
   } else if (state.activeMode.category == "drums") {
     drumEngine.process(engineBuffer, combinedMidi);
     retroCaptureBuffer.makeCopyOf(engineBuffer);
-  } else if (state.activeMode.category == "notes" || state.activeMode.category == "bass") {
+  } else if (state.activeMode.category == "notes" ||
+             state.activeMode.category == "bass") {
     synthEngine.process(engineBuffer, combinedMidi);
     retroCaptureBuffer.makeCopyOf(engineBuffer);
   }
-  
+
   // Add engine output to buffer
   for (int ch = 0; ch < buffer.getNumChannels(); ++ch) {
     buffer.addFrom(ch, 0, engineBuffer, ch, 0, buffer.getNumSamples());
   }
-  
-  // Calculate peak level of what's being captured to retrospective buffer
-  float peakLevel = 0.0f;
-  for (int ch = 0; ch < retroCaptureBuffer.getNumChannels(); ++ch) {
-    const float* channelData = retroCaptureBuffer.getReadPointer(ch);
-    for (int i = 0; i < retroCaptureBuffer.getNumSamples(); ++i) {
-      peakLevel = std::max(peakLevel, std::abs(channelData[i]));
-    }
-  }
-  retroBufferPeakLevel.store(peakLevel);
-  
+
+  // Update peak level for UI (atomic store)
+  updatePeakLevel(retroCaptureBuffer);
+
   // Capture to retro buffer and feature extractor
   retroBuffer.pushBlock(retroCaptureBuffer);
   featureExtractor.pushAudioBlock(retroCaptureBuffer);
@@ -102,10 +111,6 @@ void FlowEngine::processBlock(juce::AudioBuffer<float> &buffer,
 
   // Check for sync merge arrival
   performMergeSync();
-  
-  // Broadcast state continuously for audio meter updates
-  // This ensures UI gets real-time feedback even without commands
-  broadcastState();
 }
 
 void FlowEngine::processCommands() {
@@ -114,15 +119,11 @@ void FlowEngine::processCommands() {
   // Drain the queue
   while (commandQueue.pop(commandStr)) {
     dispatcher.dispatch(commandStr, *this);
-    stateChanged = true;
-  }
-
-  if (stateChanged) {
-    broadcastState();
   }
 }
 
 void FlowEngine::broadcastState() {
+  // This is called FROM THE MESSAGE THREAD via timerCallback
   auto state = sessionManager.getCurrentState();
 
   // Sync Transport
@@ -131,17 +132,17 @@ void FlowEngine::broadcastState() {
   state.transport.metronomeEnabled = transport.isMetronomeEnabled();
   state.transport.loopLengthBars = transport.getLoopLengthBars();
   state.transport.barPhase = transport.getBarPhase();
-  
+
   // Sync Mic Input Level
   state.mic.inputLevel = micProcessor.getPeakLevel();
-  
-  // Sync Looper Input Level (peak of what's going into retrospective buffer)
-  state.looper.inputLevel = retroBufferPeakLevel;
-  
-  // Sync Looper Waveform Data (downsampled for UI visualization)
+
+  // Sync Looper Input Level (peak level tracked in audio thread)
+  state.looper.inputLevel = retroBufferPeakLevel.load();
+
+  // Sync Looper Waveform Data (O(N) operation - now safe on message thread)
   state.looper.waveformData = retroBuffer.getWaveformData(256);
 
-  // Use patch-based update (will auto-decide patch vs snapshot)
+  // Use patch-based update
   broadcaster.broadcastStateUpdate(state);
 }
 
@@ -247,7 +248,7 @@ void FlowEngine::loadPreset(const juce::String &category,
     // Also update presetId to match name for now, or look it up
     s.activeMode.presetId = presetName.toLowerCase().replace(" ", "-");
   });
-  
+
   // Apply preset to the appropriate engine
   if (category == "drums") {
     drumEngine.setKit(presetName);
@@ -294,7 +295,7 @@ void FlowEngine::setActiveCategory(const juce::String &category) {
 
 void FlowEngine::loadRiff(const juce::String &riffId) {
   juce::Logger::writeToLog("Load Riff: " + riffId);
-  
+
   // TODO: Implement riff loading from history
   // For now, just log the request
   // In full implementation:
@@ -306,23 +307,24 @@ void FlowEngine::loadRiff(const juce::String &riffId) {
 void FlowEngine::triggerPad(int padIndex, float velocity) {
   juce::Logger::writeToLog("Pad Trigger: " + juce::String(padIndex) +
                            " vel=" + juce::String(velocity));
-  
+
   // Pad index is actually the MIDI note number from the UI
   // For drums: 36-51 (GM drum mapping)
   // For notes/bass: 48-63 (C3-D#4)
   int midiNote = padIndex;
-  
+
   // Add NOTE_ON to active MIDI buffer (will be processed in next processBlock)
-  juce::MidiMessage noteOn = juce::MidiMessage::noteOn(1, midiNote, (juce::uint8)(velocity * 127));
+  juce::MidiMessage noteOn =
+      juce::MidiMessage::noteOn(1, midiNote, (juce::uint8)(velocity * 127));
   activeMidi.addEvent(noteOn, 0);
 }
 
 void FlowEngine::releasePad(int padIndex) {
   juce::Logger::writeToLog("Pad Release: " + juce::String(padIndex));
-  
+
   // Pad index is the MIDI note number
   int midiNote = padIndex;
-  
+
   // Add NOTE_OFF to active MIDI buffer
   juce::MidiMessage noteOff = juce::MidiMessage::noteOff(1, midiNote);
   activeMidi.addEvent(noteOff, 0);
@@ -338,10 +340,11 @@ void FlowEngine::updateXY(float x, float y) {
 
 void FlowEngine::setInputGain(float gainDb) {
   micProcessor.setInputGain(gainDb);
-  
+
   sessionManager.updateState([&](AppState &s) {
     // Store normalized value (0-1 range)
-    s.mic.inputGain = (gainDb + 60.0f) / 100.0f; // Maps -60dB to +40dB → 0.0 to 1.0
+    s.mic.inputGain =
+        (gainDb + 60.0f) / 100.0f; // Maps -60dB to +40dB → 0.0 to 1.0
   });
 }
 
@@ -349,42 +352,40 @@ void FlowEngine::toggleMonitorInput() {
   auto state = sessionManager.getCurrentState();
   bool newValue = !state.mic.monitorInput;
   micProcessor.setMonitorEnabled(newValue);
-  
-  sessionManager.updateState([&](AppState &s) {
-    s.mic.monitorInput = newValue;
-  });
+
+  sessionManager.updateState(
+      [&](AppState &s) { s.mic.monitorInput = newValue; });
 }
 
 void FlowEngine::toggleMonitorUntilLooped() {
   auto state = sessionManager.getCurrentState();
   bool newValue = !state.mic.monitorUntilLooped;
   micProcessor.setMonitorUntilLooped(newValue);
-  
-  sessionManager.updateState([&](AppState &s) {
-    s.mic.monitorUntilLooped = newValue;
-  });
+
+  sessionManager.updateState(
+      [&](AppState &s) { s.mic.monitorUntilLooped = newValue; });
 }
 
 void FlowEngine::panic() {
   juce::Logger::writeToLog("PANIC - stopping all notes");
-  
+
   // Stop drum engine
   drumEngine.reset();
-  
+
   // Stop synth engine (all voices)
   synthEngine.reset();
-  
+
   // Clear active MIDI buffer
   activeMidi.clear();
 }
 
 void FlowEngine::createNewJam() {
   juce::Logger::writeToLog("Create new jam");
-  
+
   // Create a new session with a unique ID
   juce::String sessionId = juce::Uuid().toString();
   juce::String sessionName = "New Jam";
-  
+
   sessionManager.updateState([&](AppState &s) {
     // Create new session entry
     AppState::Session newSession;
@@ -392,28 +393,35 @@ void FlowEngine::createNewJam() {
     newSession.name = sessionName;
     newSession.emoji = "🎵";
     newSession.createdAt = juce::Time::currentTimeMillis();
-    
+
     // Add to sessions list
     s.sessions.push_back(newSession);
-    
+
     // Set as current session
     s.session = newSession;
-    
+
     // Reset slots
     for (auto &slot : s.slots) {
       slot.state = "EMPTY";
       slot.volume = 1.0f;
       slot.pluginChain.clear();
     }
-    
+
     // Clear riff history for new session
     s.riffHistory.clear();
   });
+
+  // Save state immediately (persistence fix for bd-p2l)
+  auto appData =
+      juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+          .getChildFile("FlowZone");
+  sessionManager.saveSession(appData.getChildFile("last_session.flow"),
+                             sessionManager.getCurrentState());
 }
 
 void FlowEngine::loadJam(const juce::String &sessionId) {
   juce::Logger::writeToLog("Load jam: " + sessionId);
-  
+
   // TODO: Implement actual session loading from disk
   // For now, just update state to show we switched sessions
   sessionManager.updateState([&](AppState &s) {
@@ -426,9 +434,11 @@ void FlowEngine::loadJam(const juce::String &sessionId) {
   });
 }
 
-void FlowEngine::renameJam(const juce::String &sessionId, const juce::String &name, const juce::String &emoji) {
+void FlowEngine::renameJam(const juce::String &sessionId,
+                           const juce::String &name,
+                           const juce::String &emoji) {
   juce::Logger::writeToLog("Rename jam: " + sessionId + " to " + name);
-  
+
   sessionManager.updateState([&](AppState &s) {
     // Update in sessions list
     for (auto &sess : s.sessions) {
@@ -437,7 +447,7 @@ void FlowEngine::renameJam(const juce::String &sessionId, const juce::String &na
         if (emoji.isNotEmpty()) {
           sess.emoji = emoji;
         }
-        
+
         // Also update current session if it matches
         if (s.session.id == sessionId) {
           s.session.name = name;
@@ -449,19 +459,26 @@ void FlowEngine::renameJam(const juce::String &sessionId, const juce::String &na
       }
     }
   });
+
+  // Save state immediately (persistence fix for bd-p2l)
+  auto appData =
+      juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+          .getChildFile("FlowZone");
+  sessionManager.saveSession(appData.getChildFile("last_session.flow"),
+                             sessionManager.getCurrentState());
 }
 
 void FlowEngine::deleteJam(const juce::String &sessionId) {
   juce::Logger::writeToLog("Delete jam: " + sessionId);
-  
+
   sessionManager.updateState([&](AppState &s) {
     // Remove from sessions list
-    s.sessions.erase(
-      std::remove_if(s.sessions.begin(), s.sessions.end(),
-                    [&](const AppState::Session &sess) { return sess.id == sessionId; }),
-      s.sessions.end()
-    );
-    
+    s.sessions.erase(std::remove_if(s.sessions.begin(), s.sessions.end(),
+                                    [&](const AppState::Session &sess) {
+                                      return sess.id == sessionId;
+                                    }),
+                     s.sessions.end());
+
     // If current session was deleted, create a new one
     if (s.session.id == sessionId) {
       juce::String newId = juce::Uuid().toString();

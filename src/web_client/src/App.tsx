@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { WebSocketClient } from './api/WebSocketClient'
 import { AppState } from '../../shared/protocol/schema'
 import { MainLayout } from './components/layout/MainLayout'
@@ -10,13 +10,12 @@ import { ModeView } from './views/ModeView'
 import { AdjustView } from './views/AdjustView'
 import { SettingsPanel } from './components/settings/SettingsPanel'
 import { Knob } from './components/shared/Knob'
-import { Fader } from './components/shared/Fader'
 
 function App() {
     const [state, setState] = useState<AppState | null>(null)
     const [connected, setConnected] = useState(false)
     const [showJamManager, setShowJamManager] = useState(true) // Start at home screen
-    const [showSettings, setShowSettings] = useState(false)
+    const [showSettings, setShowSettings] = useState(false);
     const [activeTab, setActiveTab] = useState<TabId>('mode')
     const [selectedPreset, setSelectedPreset] = useState<string | null>(null)
     const [selectedCategory, setSelectedCategory] = useState<string>('drums')
@@ -42,22 +41,18 @@ function App() {
     const [isPlaying, setIsPlaying] = useState(false);
 
     // WebSocket Handlers - use useCallback to ensure stable references for keyboard handler
-    // IMPORTANT: These must be defined BEFORE any early returns to comply with Rules of Hooks
     const handlePadTrigger = useCallback((padId: number, val: number) => {
         console.log('[App] Pad trigger:', { padId, val });
-        
-        // Update visual feedback for pad clicks
-        // Build proper reverse MIDI→padId mapping
+
+        // Update visual feedback
         let visualPadId = -1;
         if (selectedCategory === 'drums') {
-            visualPadId = padId - 36; // Drums: MIDI 36-51 → pad 0-15
+            visualPadId = padId - 36;
         } else {
-            // Notes/Bass: reverse scale-aware mapping
             const baseNote = 48;
             const intervals = [0, 2, 4, 5, 7, 9, 11]; // major scale
             const numSteps = intervals.length;
-            
-            // Find which pad would produce this MIDI note
+
             for (let pad = 0; pad < 16; pad++) {
                 const octave = Math.floor(pad / numSteps);
                 const degree = pad % numSteps;
@@ -68,18 +63,16 @@ function App() {
                 }
             }
         }
-        
+
         if (visualPadId >= 0 && visualPadId < 16) {
             setActivePads(prev => new Set(prev).add(visualPadId));
         }
-        
+
         wsClient.send({ cmd: "NOTE_ON", pad: padId, val });
     }, [wsClient, selectedCategory]);
 
     const handlePadRelease = useCallback((padId: number) => {
-        console.log('[App] Pad release:', { padId });
-        
-        // Update visual feedback for pad releases - same reverse mapping
+        // Update visual feedback
         let visualPadId = -1;
         if (selectedCategory === 'drums') {
             visualPadId = padId - 36;
@@ -87,7 +80,7 @@ function App() {
             const baseNote = 48;
             const intervals = [0, 2, 4, 5, 7, 9, 11];
             const numSteps = intervals.length;
-            
+
             for (let pad = 0; pad < 16; pad++) {
                 const octave = Math.floor(pad / numSteps);
                 const degree = pad % numSteps;
@@ -98,7 +91,7 @@ function App() {
                 }
             }
         }
-        
+
         if (visualPadId >= 0 && visualPadId < 16) {
             setActivePads(prev => {
                 const next = new Set(prev);
@@ -106,11 +99,10 @@ function App() {
                 return next;
             });
         }
-        
+
         wsClient.send({ cmd: "NOTE_OFF", pad: padId });
     }, [wsClient, selectedCategory]);
 
-    // Re-bind keyboard listeners when handlers change
     useEffect(() => {
         const keyToPadIndex: { [key: string]: number } = {
             'a': 0, 's': 1, 'd': 2, 'f': 3,
@@ -169,7 +161,7 @@ function App() {
                     next.delete(padIndex);
                     return next;
                 });
-                
+
                 if (selectedCategory !== 'drums') {
                     const baseNote = 48;
                     const midiNote = getMidiNote(padIndex, baseNote);
@@ -187,7 +179,6 @@ function App() {
         };
     }, [handlePadTrigger, handlePadRelease, wsClient, selectedCategory]);
 
-    // Early return after all hooks are defined (Rules of Hooks compliance)
     if (!state) {
         return (
             <div style={{
@@ -212,12 +203,9 @@ function App() {
     };
 
     const handleSelectPreset = (category: string, preset: string) => {
-        console.log('[App] Selecting preset:', { category, preset });
         setSelectedPreset(preset);
         wsClient.send({ cmd: "SET_PRESET", category, preset });
-        // Auto-start playing when preset is selected
         if (!isPlaying) {
-            console.log('[App] Auto-starting playback');
             setIsPlaying(true);
             wsClient.send({ cmd: "TOGGLE_PLAY" });
         }
@@ -236,86 +224,66 @@ function App() {
     };
 
     const handlePanic = () => {
-        console.log('[App] PANIC - Stopping all notes');
         wsClient.send({ cmd: "PANIC" });
     };
 
     const handleSelectMode = (mode: string) => {
-        console.log('[App] Mode selected:', mode);
-        console.log('[App] Current state.activeMode:', state?.activeMode);
-        
-        // Update local category state
         setSelectedCategory(mode);
-        
-        // Send mode change to engine
         wsClient.send({ cmd: "SET_MODE", category: mode });
-        
         if (mode === 'fx' || mode === 'ext_fx') {
             setPerformanceMode('XY');
-            setActiveTab('play');
         } else {
             setPerformanceMode('PADS');
-            setActiveTab('play');
         }
+        setActiveTab('play');
     };
 
     const handleAdjustParam = (id: string, value: number) => {
-        // Find param index from ID string or just pass it through if possible
         const paramId = parseInt(id) || 0;
         wsClient.send({ cmd: "ADJUST_PARAM", param: paramId, value });
     };
 
     const handleHomeClick = () => {
-        console.log('[App] Home / Jam Manager clicked - stopping session');
-        // Stop playback when going home
-        if (isPlaying) {
-            wsClient.send({ cmd: "PAUSE" });
-            setIsPlaying(false);
-        }
+        wsClient.send({ cmd: "PAUSE" });
+        setIsPlaying(false);
         setShowJamManager(true);
     };
 
     const handleCreateJam = () => {
-        console.log('[App] Create new jam');
         wsClient.send({ cmd: "NEW_JAM" });
         setShowJamManager(false);
         setActiveTab('mode');
     };
 
     const handleOpenJam = (jamId: string) => {
-        console.log('[App] Opening jam:', jamId);
         wsClient.send({ cmd: "LOAD_JAM", sessionId: jamId });
         setShowJamManager(false);
         setActiveTab('play');
     };
 
     const handleRenameJam = (jamId: string, name: string, emoji?: string) => {
-        console.log('[App] Renaming jam:', jamId, name, emoji);
         wsClient.send({ cmd: "RENAME_JAM", sessionId: jamId, name, emoji });
     };
 
     const handleDeleteJam = (jamId: string) => {
-        console.log('[App] Deleting jam:', jamId);
         if (confirm('Are you sure you want to delete this jam? This action cannot be undone.')) {
             wsClient.send({ cmd: "DELETE_JAM", sessionId: jamId });
         }
     };
 
     const handleLoadRiff = (riffId: string) => {
-        console.log('[App] Loading riff:', riffId);
         wsClient.send({ cmd: "LOAD_RIFF", riffId });
     };
 
-    // Determine bottom content (Performance Surface, Mixer Controls, or Mic Controls)
+    // Determine bottom content
     let bottomContent: React.ReactNode | undefined = undefined;
-    
+
     if (activeTab === 'mixer') {
         bottomContent = <MixerControls
             state={state}
             onSlotVolumeChange={handleSlotVolumeChange}
         />;
     } else if (selectedCategory === 'mic') {
-        // Mic mode always shows gain control in bottom section (even in Adjust tab)
         bottomContent = (
             <div style={{
                 height: '100%',
@@ -326,7 +294,6 @@ function App() {
                 gap: 60,
                 padding: 40
             }}>
-                {/* Input Level Monitor (Read-only meter) */}
                 <div style={{
                     display: 'flex',
                     flexDirection: 'column',
@@ -353,101 +320,45 @@ function App() {
                         flexDirection: 'column',
                         justifyContent: 'flex-end'
                     }}>
-                        {/* VU Meter */}
                         <div style={{
                             width: '100%',
                             height: `${(state?.mic?.inputLevel ?? 0) * 100}%`,
                             background: `linear-gradient(to top, var(--neon-green) 0%, #fff 100%)`,
                             opacity: 0.8,
-                            transition: 'height 0.05s linear',
                             boxShadow: `0 0 15px var(--neon-green)`
                         }} />
                     </div>
-                    <span style={{
-                        fontSize: '10px',
-                        color: 'var(--text-secondary)',
-                        textTransform: 'uppercase',
-                        fontWeight: 'bold',
-                        letterSpacing: '0.05em'
-                    }}>
+                    <span style={{ fontSize: '10px', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 'bold' }}>
                         INPUT
                     </span>
                 </div>
-                
-                {/* Center Controls */}
-                <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 30
-                }}>
-                    <div style={{
-                        fontSize: 10,
-                        fontWeight: 900,
-                        color: 'var(--text-secondary)',
-                        letterSpacing: '0.15em',
-                        textAlign: 'center'
-                    }}>
+
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 30 }}>
+                    <div style={{ fontSize: 10, fontWeight: 900, color: 'var(--text-secondary)', letterSpacing: '0.15em' }}>
                         MICROPHONE INPUT
                     </div>
-                    
-                    {/* Large Gain Knob */}
-                    <div className="interactive-element">
-                        <Knob
-                            label="GAIN"
-                            value={state?.mic?.inputGain ?? 0.7}
-                            onChange={(val) => {
-                                // Convert 0-1 range to -60dB to +40dB
-                                const dbValue = (val * 100) - 60; // Maps 0→-60dB, 1→+40dB
-                                wsClient.send({ cmd: "SET_INPUT_GAIN", val: dbValue });
-                            }}
-                            size={150}
-                            color="var(--neon-cyan)"
-                        />
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                        -60dB to +40dB
-                    </div>
-                    
-                    <div style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 12,
-                        width: '100%',
-                        maxWidth: 300
-                    }}>
+                    <Knob
+                        label="GAIN"
+                        value={state?.mic?.inputGain ?? 0.7}
+                        onChange={(val) => {
+                            const dbValue = (val * 100) - 60;
+                            wsClient.send({ cmd: "SET_INPUT_GAIN", val: dbValue });
+                        }}
+                        size={150}
+                        color="var(--neon-cyan)"
+                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 300 }}>
                         <button
                             className="glass-panel interactive-element"
                             style={{
                                 background: state?.mic?.monitorInput ? 'rgba(0, 229, 255, 0.2)' : 'var(--glass-bg)',
                                 border: state?.mic?.monitorInput ? '1px solid var(--neon-cyan)' : '1px solid var(--glass-border)',
-                                borderRadius: 8,
-                                padding: 12,
-                                color: state?.mic?.monitorInput ? 'var(--neon-cyan)' : '#fff',
-                                fontSize: 11,
-                                fontWeight: 'bold',
-                                cursor: 'pointer'
+                                borderRadius: 8, padding: 12, color: state?.mic?.monitorInput ? 'var(--neon-cyan)' : '#fff',
+                                fontSize: 11, fontWeight: 'bold'
                             }}
                             onClick={() => wsClient.send({ cmd: "TOGGLE_MONITOR_INPUT" })}
                         >
                             MONITOR INPUT
-                        </button>
-                        <button
-                            className="glass-panel interactive-element"
-                            style={{
-                                background: state?.mic?.monitorUntilLooped ? 'rgba(0, 229, 255, 0.2)' : 'var(--glass-bg)',
-                                border: state?.mic?.monitorUntilLooped ? '1px solid var(--neon-cyan)' : '1px solid var(--glass-border)',
-                                borderRadius: 8,
-                                padding: 12,
-                                color: state?.mic?.monitorUntilLooped ? 'var(--neon-cyan)' : '#fff',
-                                fontSize: 11,
-                                fontWeight: 'bold',
-                                cursor: 'pointer'
-                            }}
-                            onClick={() => wsClient.send({ cmd: "TOGGLE_MONITOR_UNTIL_LOOPED" })}
-                        >
-                            MONITOR UNTIL LOOPED
                         </button>
                     </div>
                 </div>
@@ -455,7 +366,6 @@ function App() {
         );
     }
 
-    // If showing Jam Manager, render it as full-screen home
     if (showJamManager) {
         return <JamManagerView
             sessions={state?.sessions || []}
@@ -474,7 +384,6 @@ function App() {
             bpm={state?.transport?.bpm ?? 120}
             isPlaying={isPlaying || state?.transport?.isPlaying || false}
             onTogglePlay={() => {
-                console.log('[App] Toggle play:', !isPlaying);
                 setIsPlaying(!isPlaying);
                 wsClient.send({ cmd: "TOGGLE_PLAY" });
             }}
@@ -494,7 +403,7 @@ function App() {
         >
             {activeTab === 'mode' && <ModeView onSelectMode={handleSelectMode} />}
             {activeTab === 'play' && <PlayView
-                state={{...state!, activeMode: {...state?.activeMode, category: selectedCategory}}}
+                state={{ ...state!, activeMode: { ...state?.activeMode, category: selectedCategory } }}
                 onSelectPreset={handleSelectPreset}
                 selectedPreset={selectedPreset}
                 category={selectedCategory}
@@ -506,15 +415,17 @@ function App() {
             {activeTab === 'mixer' && <MixerView
                 state={state}
                 onToggleMetronome={handleToggleMetronome}
-                onSlotVolumeChange={handleSlotVolumeChange}
                 onSelectSlot={handleSelectSlot}
-                onMoreSettings={() => {
-                    console.log('[App] More settings clicked');
-                    setShowSettings(true);
-                }}
+                onMoreSettings={() => setShowSettings(true)}
             />}
+
+            {showSettings && (
+                <div className="settings-takeover">
+                    <SettingsPanel onClose={() => setShowSettings(false)} />
+                </div>
+            )}
         </MainLayout>
-    )
+    );
 }
 
 export default App

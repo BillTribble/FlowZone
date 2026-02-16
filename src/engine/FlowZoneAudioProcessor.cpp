@@ -5,24 +5,27 @@ FlowZoneAudioProcessor::FlowZoneAudioProcessor()
 #ifndef JucePlugin_PreferredChannelConfigurations
     : AudioProcessor(
           BusesProperties()
-#if !JucePlugin_IsMidiEffect
-#if !JucePlugin_IsSynth
               .withInput("Input", juce::AudioChannelSet::stereo(), true)
-#endif
               .withOutput("Output", juce::AudioChannelSet::stereo(), true)
-#endif
-      )
+              .withOutput("Out 3-4", juce::AudioChannelSet::stereo(), false)
+              .withOutput("Out 5-6", juce::AudioChannelSet::stereo(), false)
+              .withOutput("Out 7-8", juce::AudioChannelSet::stereo(), false)
+              .withOutput("Out 9-10", juce::AudioChannelSet::stereo(), false)
+              .withOutput("Out 11-12", juce::AudioChannelSet::stereo(), false)
+              .withOutput("Out 13-14", juce::AudioChannelSet::stereo(), false)
+              .withOutput("Out 15-16", juce::AudioChannelSet::stereo(), false)),
+      engine(), server(7321)
 #endif
 {
   // Mark application as active (crash detection)
   crashGuard.markActive();
-  
+
   // Check for previous crash and safe mode
   if (crashGuard.wasCrashed()) {
     DBG("CrashGuard: Previous crash detected");
     DBG("Safe Mode: " << crashGuard.getSafeModeDescription());
   }
-  
+
   // Set up WebSocket → CommandQueue flow
   server.setOnMessageCallback([this](const std::string &msg) {
     // Push received command into engine's command queue
@@ -31,27 +34,28 @@ FlowZoneAudioProcessor::FlowZoneAudioProcessor()
   });
 
   // Set up StateBroadcaster → WebSocket broadcast flow
-  engine.getBroadcaster().setMessageCallback([this](const juce::String &msg) {
-    server.broadcast(msg.toStdString());
-  });
+  engine.getBroadcaster().setMessageCallback(
+      [this](const juce::String &msg) { server.broadcast(msg.toStdString()); });
 
   // Set up initial state callback for new connections
   server.setInitialStateCallback([this]() -> std::string {
     auto state = engine.getSessionManager().getCurrentState();
-    
+
     // Sync transport state
     state.transport.isPlaying = engine.getTransport().isPlaying();
     state.transport.bpm = engine.getTransport().getBpm();
-    state.transport.metronomeEnabled = engine.getTransport().isMetronomeEnabled();
+    state.transport.metronomeEnabled =
+        engine.getTransport().isMetronomeEnabled();
     state.transport.loopLengthBars = engine.getTransport().getLoopLengthBars();
     state.transport.barPhase = engine.getTransport().getBarPhase();
-    
+
     // Create STATE_FULL message
     juce::DynamicObject *root = new juce::DynamicObject();
     root->setProperty("type", "STATE_FULL");
-    root->setProperty("revisionId", (juce::int64)engine.getBroadcaster().getRevisionId());
+    root->setProperty("revisionId",
+                      (juce::int64)engine.getBroadcaster().getRevisionId());
     root->setProperty("data", state.toVar());
-    
+
     juce::String jsonString = juce::JSON::toString(juce::var(root));
     return jsonString.toStdString();
   });
@@ -166,7 +170,8 @@ void FlowZoneAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
   // CRITICAL: Do NOT clear input channels - we need the mic input!
   // Only clear extra output channels that don't have corresponding inputs.
-  // The engine needs access to the input audio for mic processing and retrospective looping.
+  // The engine needs access to the input audio for mic processing and
+  // retrospective looping.
   for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
     buffer.clear(i, 0, buffer.getNumSamples());
 

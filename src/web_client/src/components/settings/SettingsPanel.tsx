@@ -12,7 +12,11 @@ const tabs: Tab[] = [
   { id: 'library', label: 'Library & VST' },
 ];
 
-export const SettingsPanel: React.FC = () => {
+interface SettingsPanelProps {
+  onClose: () => void;
+}
+
+export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
   const [activeTab, setActiveTab] = useState('interface');
   const [theme, setTheme] = useState('dark');
   const [audioDevice, setAudioDevice] = useState('');
@@ -65,23 +69,28 @@ export const SettingsPanel: React.FC = () => {
 
   return (
     <div className="settings-panel">
-      <div className="settings-tabs">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            className={`tab ${activeTab === tab.id ? 'active' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="settings-header">
+        <button className="back-button" onClick={onClose}>
+          ← Back
+        </button>
+        <div className="settings-tabs">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              className={`tab ${activeTab === tab.id ? 'active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="settings-content">
         {activeTab === 'interface' && (
           <div className="tab-content">
             <h2>Interface Settings</h2>
-            
+
             <div className="setting-row">
               <label>Theme</label>
               <button onClick={handleThemeToggle}>
@@ -120,7 +129,7 @@ export const SettingsPanel: React.FC = () => {
         {activeTab === 'audio' && (
           <div className="tab-content">
             <h2>Audio Settings</h2>
-            
+
             <div className="setting-row">
               <label>Audio Device</label>
               <select
@@ -172,7 +181,7 @@ export const SettingsPanel: React.FC = () => {
         {activeTab === 'library' && (
           <div className="tab-content">
             <h2>Library & VST Settings</h2>
-            
+
             <div className="setting-row">
               <label>VST3 Search Paths</label>
               <div className="path-list">

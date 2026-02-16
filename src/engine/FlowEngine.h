@@ -2,11 +2,11 @@
 #include "CommandQueue.h"
 #include "CrashGuard.h"
 #include "DrumEngine.h"
-#include "SynthEngine.h"
+#include "FeatureExtractor.h"
 #include "MicProcessor.h"
 #include "RetrospectiveBuffer.h"
-#include "FeatureExtractor.h"
 #include "Slot.h"
+#include "SynthEngine.h"
 #include "session/SessionStateManager.h"
 #include "state/StateBroadcaster.h"
 #include "transport/TransportService.h"
@@ -15,12 +15,15 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <wchar.h>
+#include <wctype.h>
 
 namespace flowzone {
 
 // bd-3uw: FlowEngine Skeleton
 // Coordinates DSP graph, loopers, and transport
-class FlowEngine : public juce::Thread {
+// Koordinations DSP graph, loopers, and transport
+class FlowEngine : public juce::Thread, private juce::Timer {
 public:
   FlowEngine();
   ~FlowEngine();
@@ -45,23 +48,27 @@ public:
   void setLoopLength(int bars);
   void setSlotVolume(int slotIndex, float volume);
   void setSlotMuted(int slotIndex, bool muted);
-  
+
   // Mic controls
   void setInputGain(float gainDb);
   void toggleMonitorInput();
   void toggleMonitorUntilLooped();
-  
+
   // Panic - stop all notes
   void panic();
-  
+
   // Session management
   void createNewJam();
   void loadJam(const juce::String &sessionId);
-  void renameJam(const juce::String &sessionId, const juce::String &name, const juce::String &emoji);
+  void renameJam(const juce::String &sessionId, const juce::String &name,
+                 const juce::String &emoji);
   void deleteJam(const juce::String &sessionId);
 
   // Background Thread for Auto-Merge
   void run() override;
+
+  // Timer callback for message-thread broadcasting
+  void timerCallback() override { broadcastState(); }
 
 private:
   TransportService transport;
@@ -77,11 +84,11 @@ private:
   engine::DrumEngine drumEngine;
   engine::SynthEngine synthEngine;
   engine::MicProcessor micProcessor;
-  
+
   // Active MIDI buffer for triggered notes
   juce::MidiBuffer activeMidi;
   double currentSampleRate = 44100.0;
-  
+
   // Peak level tracking for retrospective buffer input
   std::atomic<float> retroBufferPeakLevel{0.0f};
 
@@ -96,6 +103,9 @@ private:
   void broadcastState();
   void performMergeSync();
   void triggerAutoMerge();
+
+  // Track peak level safely
+  void updatePeakLevel(const juce::AudioBuffer<float> &buffer);
 };
 
 } // namespace flowzone

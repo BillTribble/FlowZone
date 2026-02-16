@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { AppState } from '../../../shared/protocol/schema';
 import { Fader } from '../components/shared/Fader';
 import { Icon } from '../components/shared/Icon';
@@ -7,7 +7,6 @@ import { SlotIndicator } from '../components/shared/SlotIndicator';
 interface MixerViewProps {
     state: AppState;
     onToggleMetronome: () => void;
-    onSlotVolumeChange: (slotIndex: number, volume: number) => void;
     onSelectSlot: (slotIndex: number) => void;
     onMoreSettings?: () => void;
 }
@@ -72,14 +71,11 @@ export const MixerControls: React.FC<{ state: AppState, onSlotVolumeChange: (slo
     );
 };
 
-export const MixerView: React.FC<MixerViewProps> = ({ state, onToggleMetronome }) => {
-    const [showSettings, setShowSettings] = useState(false);
-    const [audioInput, setAudioInput] = useState('Built-in Microphone');
-    
+export const MixerView: React.FC<MixerViewProps> = ({ state, onToggleMetronome, onSelectSlot, onMoreSettings }) => {
     // Ensure we have transport data
     const transport = state?.transport || { bpm: 120, metronomeEnabled: false, isPlaying: false };
     const slots = state?.slots || [];
-    
+
     return (
         <div style={{
             height: '100%',
@@ -121,119 +117,21 @@ export const MixerView: React.FC<MixerViewProps> = ({ state, onToggleMetronome }
                 </div>
 
                 <button
-                    onClick={() => setShowSettings(!showSettings)}
+                    onClick={onMoreSettings}
                     className="glass-panel interactive-element"
                     title="Audio & MIDI Settings"
                     style={{
-                        background: showSettings ? 'rgba(0, 229, 255, 0.1)' : 'var(--glass-bg)',
-                        border: showSettings ? '1px solid var(--neon-cyan)' : '1px solid var(--glass-border)',
+                        background: 'var(--glass-bg)',
+                        border: '1px solid var(--glass-border)',
                         borderRadius: 8, padding: 12,
-                        color: showSettings ? 'var(--neon-cyan)' : '#fff',
+                        color: '#fff',
                         display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer',
                         gap: 6
                     }}>
-                    <Icon name="settings" size={16} color={showSettings ? 'var(--neon-cyan)' : '#888'} />
+                    <Icon name="settings" size={16} color="#888" />
                     <span style={{ fontSize: 9, fontWeight: 'bold' }}>SETTINGS</span>
                 </button>
             </div>
-
-            {/* Settings Panel (Inline when toggled) */}
-            {showSettings && (
-                <div className="glass-panel" style={{
-                    padding: 20,
-                    borderRadius: 12,
-                    border: '1px solid var(--glass-border)',
-                    background: 'var(--glass-bg)',
-                    flexShrink:0
-                }}>
-                    <h3 style={{ margin: '0 0 16px 0', fontSize: 14, fontWeight: 900, letterSpacing: '0.1em', color: 'var(--neon-cyan)' }}>
-                        AUDIO & MIDI SETTINGS
-                    </h3>
-                    
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                        {/* Audio Input Device */}
-                        <div>
-                            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8, letterSpacing: '0.1em' }}>
-                                AUDIO INPUT DEVICE
-                            </label>
-                            <select
-                                value={audioInput}
-                                onChange={(e) => {
-                                    setAudioInput(e.target.value);
-                                    console.log('[MixerView] Audio input changed:', e.target.value);
-                                }}
-                                className="glass-panel"
-                                style={{
-                                    width: '100%',
-                                    padding: '10px 12px',
-                                    background: 'rgba(255,255,255,0.05)',
-                                    border: '1px solid var(--glass-border)',
-                                    borderRadius: 6,
-                                    color: '#fff',
-                                    fontSize: 12,
-                                    cursor: 'pointer',
-                                    outline: 'none'
-                                }}
-                            >
-                                <option value="Built-in Microphone">Built-in Microphone</option>
-                                <option value="Built-in Input">Built-in Line Input</option>
-                                <option value="External Interface">External Audio Interface</option>
-                            </select>
-                        </div>
-
-                        {/* Sample Rate */}
-                        <div>
-                            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8, letterSpacing: '0.1em' }}>
-                                SAMPLE RATE
-                            </label>
-                            <select
-                                className="glass-panel"
-                                style={{
-                                    width: '100%',
-                                    padding: '10px 12px',
-                                    background: 'rgba(255,255,255,0.05)',
-                                    border: '1px solid var(--glass-border)',
-                                    borderRadius: 6,
-                                    color: '#fff',
-                                    fontSize: 12,
-                                    cursor: 'pointer',
-                                    outline: 'none'
-                                }}
-                            >
-                                <option value="44100">44.1 kHz</option>
-                                <option value="48000" selected>48 kHz</option>
-                                <option value="96000">96 kHz</option>
-                            </select>
-                        </div>
-
-                        {/* Buffer Size */}
-                        <div>
-                            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8, letterSpacing: '0.1em' }}>
-                                BUFFER SIZE
-                            </label>
-                            <select
-                                className="glass-panel"
-                                style={{
-                                    width: '100%',
-                                    padding: '10px 12px',
-                                    background: 'rgba(255,255,255,0.05)',
-                                    border: '1px solid var(--glass-border)',
-                                    borderRadius: 6,
-                                    color: '#fff',
-                                    fontSize: 12,
-                                    cursor: 'pointer',
-                                    outline: 'none'
-                                }}
-                            >
-                                <option value="128">128 samples (low latency)</option>
-                                <option value="256">256 samples</option>
-                                <option value="512" selected>512 samples (balanced)</option>
-                                <option value="1024">1024 samples (safe)</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* Slot Layout Grid (Top half visualization) */}
             <div style={{
@@ -253,16 +151,17 @@ export const MixerView: React.FC<MixerViewProps> = ({ state, onToggleMetronome }
                     gridAutoRows: 'minmax(80px, auto)'
                 }}>
                     {slots.length > 0 ? slots.map((slot, i) => (
-                        <SlotIndicator
-                            key={slot.id}
-                            slotId={i}
-                            source={slot.instrumentCategory as any || 'notes'}
-                            isMuted={slot.state === 'EMPTY'}
-                            isSelected={false}
-                            isLooping={false}
-                            progress={0}
-                            label={slot.name}
-                        />
+                        <div key={slot.id} onClick={() => onSelectSlot(i)} style={{ cursor: 'pointer' }}>
+                            <SlotIndicator
+                                slotId={i}
+                                source={slot.instrumentCategory as any || 'notes'}
+                                isMuted={slot.state === 'EMPTY'}
+                                isSelected={false}
+                                isLooping={false}
+                                progress={0}
+                                label={slot.name}
+                            />
+                        </div>
                     )) : (
                         <div style={{
                             gridColumn: '1 / -1',
@@ -275,6 +174,8 @@ export const MixerView: React.FC<MixerViewProps> = ({ state, onToggleMetronome }
                     )}
                 </div>
             </div>
+            {/* The MixerView also renders MixerControls at the bottom in App.tsx, but if we want it here too... */}
+            {/* No, App.tsx handles the bottomContent. */}
         </div>
     );
 };
