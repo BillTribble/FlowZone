@@ -5,6 +5,7 @@
 #include "SynthEngine.h"
 #include "MicProcessor.h"
 #include "RetrospectiveBuffer.h"
+#include "FeatureExtractor.h"
 #include "Slot.h"
 #include "session/SessionStateManager.h"
 #include "state/StateBroadcaster.h"
@@ -69,6 +70,7 @@ private:
   SessionStateManager sessionManager;
   CrashGuard crashGuard;
   RetrospectiveBuffer retroBuffer;
+  FeatureExtractor featureExtractor;
   CommandQueue commandQueue;
 
   // Audio engines

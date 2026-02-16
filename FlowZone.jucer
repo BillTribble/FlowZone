@@ -19,6 +19,8 @@
         <FILE id="DrumEngine_cpp" name="DrumEngine.cpp" compile="1" resource="0" file="src/engine/DrumEngine.cpp"/>
         <FILE id="DrumVoice_h" name="DrumVoice.h" compile="0" resource="0" file="src/engine/DrumVoice.h"/>
         <FILE id="DrumVoice_cpp" name="DrumVoice.cpp" compile="1" resource="0" file="src/engine/DrumVoice.cpp"/>
+        <FILE id="FeatureExtractor_h" name="FeatureExtractor.h" compile="0" resource="0" file="src/engine/FeatureExtractor.h"/>
+        <FILE id="FeatureExtractor_cpp" name="FeatureExtractor.cpp" compile="1" resource="0" file="src/engine/FeatureExtractor.cpp"/>
         <FILE id="SynthEngine_h" name="SynthEngine.h" compile="0" resource="0" file="src/engine/SynthEngine.h"/>
         <FILE id="SynthEngine_cpp" name="SynthEngine.cpp" compile="1" resource="0" file="src/engine/SynthEngine.cpp"/>
         <FILE id="SynthVoice_h" name="SynthVoice.h" compile="0" resource="0" file="src/engine/SynthVoice.h"/>

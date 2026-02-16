@@ -18,6 +18,7 @@ void FlowEngine::prepareToPlay(double sampleRate, int samplesPerBlock) {
   
   transport.prepareToPlay(sampleRate, samplesPerBlock);
   retroBuffer.prepare(sampleRate, 60); // 60 seconds of history
+  featureExtractor.prepare(sampleRate, samplesPerBlock);
   
   // Prepare audio engines
   drumEngine.prepare(sampleRate, samplesPerBlock);
@@ -69,8 +70,9 @@ void FlowEngine::processBlock(juce::AudioBuffer<float> &buffer,
     buffer.addFrom(ch, 0, engineBuffer, ch, 0, buffer.getNumSamples());
   }
   
-  // Capture to retro buffer
+  // Capture to retro buffer and feature extractor
   retroBuffer.pushBlock(retroCaptureBuffer);
+  featureExtractor.pushAudioBlock(retroCaptureBuffer);
 
   // Sum slots into buffer
   for (auto &slot : slots) {
