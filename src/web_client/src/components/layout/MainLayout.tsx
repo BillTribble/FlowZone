@@ -19,6 +19,7 @@ interface MainLayoutProps {
     onPadRelease: (padId: number) => void;
     onXYChange: (x: number, y: number) => void;
     activeCategory: string;
+    activePads?: Set<number>;
     onHomeClick?: () => void;
     riffHistory?: any[];
     onLoadRiff?: (riffId: string) => void;
@@ -41,6 +42,7 @@ export const MainLayout: React.FC<MainLayoutProps & { bottomContent?: React.Reac
     onPadRelease,
     onXYChange,
     activeCategory,
+    activePads,
     bottomContent,
     onHomeClick,
     riffHistory = [],
@@ -164,6 +166,7 @@ export const MainLayout: React.FC<MainLayoutProps & { bottomContent?: React.Reac
                         onPadRelease={onPadRelease}
                         onXYChange={onXYChange}
                         activeCategory={activeCategory}
+                        externalActivePads={activePads}
                     />
                 )}
             </div>

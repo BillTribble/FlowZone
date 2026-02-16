@@ -10,6 +10,7 @@ import { ModeView } from './views/ModeView'
 import { AdjustView } from './views/AdjustView'
 import { SettingsPanel } from './components/settings/SettingsPanel'
 import { Knob } from './components/shared/Knob'
+import { Fader } from './components/shared/Fader'
 
 function App() {
     const [state, setState] = useState<AppState | null>(null)
@@ -34,6 +35,9 @@ function App() {
             // wsClient.disconnect()
         }
     }, [wsClient])
+
+    // Track active pads for visual feedback
+    const [activePads, setActivePads] = useState<Set<number>>(new Set());
 
     // Keyboard controls for testing - matches PadGrid scale-aware logic
     useEffect(() => {
@@ -72,9 +76,14 @@ function App() {
 
             // Pad controls (ASDFGHJKL;:")
             if (key in keyToPadIndex) {
+                e.preventDefault(); // Prevent stuck button sound
                 const padIndex = keyToPadIndex[key];
                 const baseNote = selectedCategory === 'drums' ? 36 : 48;
                 const midiNote = getMidiNote(padIndex, baseNote);
+                
+                // Update visual state
+                setActivePads(prev => new Set(prev).add(padIndex));
+                
                 handlePadTrigger(midiNote, 1.0);
                 return;
             }
@@ -84,6 +93,7 @@ function App() {
                 '1': 1, '2': 2, '3': 4, '4': 8
             };
             if (key in loopLengths) {
+                e.preventDefault(); // Prevent stuck button sound
                 console.log('[App] Keyboard loop trigger:', loopLengths[key], 'bars');
                 wsClient.send({ cmd: "SET_LOOP_LENGTH", bars: loopLengths[key] });
             }
@@ -94,11 +104,21 @@ function App() {
             activeKeys.delete(key);
 
             // Send NOTE_OFF for pads (not needed for drums, but needed for synths)
-            if (key in keyToPadIndex && selectedCategory !== 'drums') {
+            if (key in keyToPadIndex) {
                 const padIndex = keyToPadIndex[key];
-                const baseNote = 48;
-                const midiNote = getMidiNote(padIndex, baseNote);
-                handlePadRelease(midiNote);
+                
+                // Update visual state
+                setActivePads(prev => {
+                    const next = new Set(prev);
+                    next.delete(padIndex);
+                    return next;
+                });
+                
+                if (selectedCategory !== 'drums') {
+                    const baseNote = 48;
+                    const midiNote = getMidiNote(padIndex, baseNote);
+                    handlePadRelease(midiNote);
+                }
             }
         };
 
@@ -257,79 +277,117 @@ function App() {
             <div style={{
                 height: '100%',
                 display: 'flex',
-                flexDirection: 'column',
+                flexDirection: 'row',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 30,
+                gap: 60,
                 padding: 40
             }}>
-                <div style={{
-                    fontSize: 10,
-                    fontWeight: 900,
-                    color: 'var(--text-secondary)',
-                    letterSpacing: '0.15em',
-                    textAlign: 'center'
-                }}>
-                    MICROPHONE INPUT
-                </div>
-                
-                {/* Large Gain Knob */}
-                <div className="interactive-element">
-                    <Knob
-                        label="GAIN"
-                        value={state?.mic?.inputGain ?? 0.7}
-                        onChange={(val) => {
-                            // Convert 0-1 range to -60dB to +40dB
-                            const dbValue = (val * 100) - 60; // Maps 0→-60dB, 1→+40dB
-                            wsClient.send({ cmd: "SET_INPUT_GAIN", val: dbValue });
-                        }}
-                        size={150}
-                        color="var(--neon-cyan)"
-                    />
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                    -60dB to +40dB
-                </div>
-                
+                {/* Input Level Monitor */}
                 <div style={{
                     display: 'flex',
                     flexDirection: 'column',
+                    alignItems: 'center',
                     gap: 12,
-                    width: '100%',
-                    maxWidth: 300
+                    height: '100%'
                 }}>
-                    <button
-                        className="glass-panel interactive-element"
-                        style={{
-                            background: state?.mic?.monitorInput ? 'rgba(0, 229, 255, 0.2)' : 'var(--glass-bg)',
-                            border: state?.mic?.monitorInput ? '1px solid var(--neon-cyan)' : '1px solid var(--glass-border)',
-                            borderRadius: 8,
-                            padding: 12,
-                            color: state?.mic?.monitorInput ? 'var(--neon-cyan)' : '#fff',
-                            fontSize: 11,
-                            fontWeight: 'bold',
-                            cursor: 'pointer'
-                        }}
-                        onClick={() => wsClient.send({ cmd: "TOGGLE_MONITOR_INPUT" })}
-                    >
-                        MONITOR INPUT
-                    </button>
-                    <button
-                        className="glass-panel interactive-element"
-                        style={{
-                            background: state?.mic?.monitorUntilLooped ? 'rgba(0, 229, 255, 0.2)' : 'var(--glass-bg)',
-                            border: state?.mic?.monitorUntilLooped ? '1px solid var(--neon-cyan)' : '1px solid var(--glass-border)',
-                            borderRadius: 8,
-                            padding: 12,
-                            color: state?.mic?.monitorUntilLooped ? 'var(--neon-cyan)' : '#fff',
-                            fontSize: 11,
-                            fontWeight: 'bold',
-                            cursor: 'pointer'
-                        }}
-                        onClick={() => wsClient.send({ cmd: "TOGGLE_MONITOR_UNTIL_LOOPED" })}
-                    >
-                        MONITOR UNTIL LOOPED
-                    </button>
+                    <div style={{
+                        fontSize: 10,
+                        fontWeight: 900,
+                        color: 'var(--text-secondary)',
+                        letterSpacing: '0.15em',
+                        textAlign: 'center'
+                    }}>
+                        INPUT LEVEL
+                    </div>
+                    <div className="interactive-element" style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
+                        <Fader
+                            label="INPUT"
+                            value={0}
+                            meterValue={state?.mic?.inputLevel ?? 0}
+                            height="100%"
+                            width={40}
+                            color="var(--neon-green)"
+                        />
+                    </div>
+                </div>
+                
+                {/* Center Controls */}
+                <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 30
+                }}>
+                    <div style={{
+                        fontSize: 10,
+                        fontWeight: 900,
+                        color: 'var(--text-secondary)',
+                        letterSpacing: '0.15em',
+                        textAlign: 'center'
+                    }}>
+                        MICROPHONE INPUT
+                    </div>
+                    
+                    {/* Large Gain Knob */}
+                    <div className="interactive-element">
+                        <Knob
+                            label="GAIN"
+                            value={state?.mic?.inputGain ?? 0.7}
+                            onChange={(val) => {
+                                // Convert 0-1 range to -60dB to +40dB
+                                const dbValue = (val * 100) - 60; // Maps 0→-60dB, 1→+40dB
+                                wsClient.send({ cmd: "SET_INPUT_GAIN", val: dbValue });
+                            }}
+                            size={150}
+                            color="var(--neon-cyan)"
+                        />
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                        -60dB to +40dB
+                    </div>
+                    
+                    <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 12,
+                        width: '100%',
+                        maxWidth: 300
+                    }}>
+                        <button
+                            className="glass-panel interactive-element"
+                            style={{
+                                background: state?.mic?.monitorInput ? 'rgba(0, 229, 255, 0.2)' : 'var(--glass-bg)',
+                                border: state?.mic?.monitorInput ? '1px solid var(--neon-cyan)' : '1px solid var(--glass-border)',
+                                borderRadius: 8,
+                                padding: 12,
+                                color: state?.mic?.monitorInput ? 'var(--neon-cyan)' : '#fff',
+                                fontSize: 11,
+                                fontWeight: 'bold',
+                                cursor: 'pointer'
+                            }}
+                            onClick={() => wsClient.send({ cmd: "TOGGLE_MONITOR_INPUT" })}
+                        >
+                            MONITOR INPUT
+                        </button>
+                        <button
+                            className="glass-panel interactive-element"
+                            style={{
+                                background: state?.mic?.monitorUntilLooped ? 'rgba(0, 229, 255, 0.2)' : 'var(--glass-bg)',
+                                border: state?.mic?.monitorUntilLooped ? '1px solid var(--neon-cyan)' : '1px solid var(--glass-border)',
+                                borderRadius: 8,
+                                padding: 12,
+                                color: state?.mic?.monitorUntilLooped ? 'var(--neon-cyan)' : '#fff',
+                                fontSize: 11,
+                                fontWeight: 'bold',
+                                cursor: 'pointer'
+                            }}
+                            onClick={() => wsClient.send({ cmd: "TOGGLE_MONITOR_UNTIL_LOOPED" })}
+                        >
+                            MONITOR UNTIL LOOPED
+                        </button>
+                    </div>
                 </div>
             </div>
         );
@@ -410,6 +468,7 @@ function App() {
             onPadRelease={handlePadRelease}
             onXYChange={handleXYChange}
             activeCategory={selectedCategory}
+            activePads={activePads}
             bottomContent={bottomContent}
             onHomeClick={handleHomeClick}
             riffHistory={state?.riffHistory || []}

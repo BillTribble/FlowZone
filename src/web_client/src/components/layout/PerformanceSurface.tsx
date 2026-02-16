@@ -8,9 +8,10 @@ interface PerformanceSurfaceProps {
     onPadRelease: (padId: number) => void;
     onXYChange: (x: number, y: number) => void;
     activeCategory: string;
+    externalActivePads?: Set<number>;
 }
 
-export const PerformanceSurface: React.FC<PerformanceSurfaceProps> = ({ mode, onPadTrigger, onPadRelease, onXYChange, activeCategory }) => {
+export const PerformanceSurface: React.FC<PerformanceSurfaceProps> = ({ mode, onPadTrigger, onPadRelease, onXYChange, activeCategory, externalActivePads }) => {
     if (mode === 'XY') {
         return (
             <XYPad
@@ -28,21 +29,26 @@ export const PerformanceSurface: React.FC<PerformanceSurfaceProps> = ({ mode, on
     }
 
     // Default: PADS (4x4 Grid)
-    // In a real app, these would come from state or context
-    const [activePads, setActivePads] = React.useState<Set<number>>(new Set());
+    // Use external active pads if provided, otherwise maintain local state
+    const [localActivePads, setLocalActivePads] = React.useState<Set<number>>(new Set());
+    const activePads = externalActivePads || localActivePads;
 
     const handlePadDown = (midi: number, padId: number) => {
         console.log('[PerformanceSurface] Pad down - midi:', midi, 'padId:', padId);
-        setActivePads(prev => new Set(prev).add(padId));
+        if (!externalActivePads) {
+            setLocalActivePads(prev => new Set(prev).add(padId));
+        }
         onPadTrigger(midi, 1.0); // Using midi instead of padId as 'note'
     };
 
     const handlePadUp = (midi: number, padId: number) => {
-        setActivePads(prev => {
-            const next = new Set(prev);
-            next.delete(padId);
-            return next;
-        });
+        if (!externalActivePads) {
+            setLocalActivePads(prev => {
+                const next = new Set(prev);
+                next.delete(padId);
+                return next;
+            });
+        }
         // Send NOTE_OFF for synths (not needed for drums as they're one-shot)
         if (activeCategory !== 'drums') {
             onPadRelease(midi);

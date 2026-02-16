@@ -54,9 +54,20 @@ void FlowEngine::processBlock(juce::AudioBuffer<float> &buffer,
   
   if (state.activeMode.category == "mic") {
     // Mic mode: process input through MicProcessor
+    // MicProcessor writes processed audio to engineBuffer for retrospective capture
     micProcessor.process(buffer, engineBuffer);
+    
     // Capture processed mic input to retro buffer
     retroCaptureBuffer.makeCopyOf(engineBuffer);
+    
+    // Only add to main output if monitoring is enabled
+    // (engineBuffer is already in retroBuffer regardless)
+    if (state.mic.monitorInput || state.mic.monitorUntilLooped) {
+      // Add monitored signal to output
+      for (int ch = 0; ch < buffer.getNumChannels(); ++ch) {
+        buffer.addFrom(ch, 0, engineBuffer, ch, 0, buffer.getNumSamples());
+      }
+    }
   } else if (state.activeMode.category == "drums") {
     drumEngine.process(engineBuffer, combinedMidi);
     retroCaptureBuffer.makeCopyOf(engineBuffer);
@@ -106,6 +117,9 @@ void FlowEngine::broadcastState() {
   state.transport.metronomeEnabled = transport.isMetronomeEnabled();
   state.transport.loopLengthBars = transport.getLoopLengthBars();
   state.transport.barPhase = transport.getBarPhase();
+  
+  // Sync Mic Input Level
+  state.mic.inputLevel = micProcessor.getPeakLevel();
 
   // Use patch-based update (will auto-decide patch vs snapshot)
   broadcaster.broadcastStateUpdate(state);

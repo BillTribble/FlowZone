@@ -88,6 +88,7 @@ export interface AppState {
     };
     mic: {
         inputGain: number;
+        inputLevel: number;
         monitorInput: boolean;
         monitorUntilLooped: boolean;
     };

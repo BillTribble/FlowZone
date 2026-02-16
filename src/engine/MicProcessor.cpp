@@ -42,13 +42,18 @@ void MicProcessor::process(const juce::AudioBuffer<float> &inputBuffer,
     }
   }
 
-  // Direct Monitoring
-  if (monitorEnabled) {
-    for (int ch = 0; ch < outputBuffer.getNumChannels(); ++ch) {
-      outputBuffer.addFrom(ch, 0, internalBuffer, ch % numChannels, 0,
-                           numSamples);
-    }
+  // Update peak level for metering
+  updatePeakLevel(internalBuffer);
+
+  // ALWAYS write processed audio to output buffer for retrospective capture
+  // This is critical - the retrospective buffer needs the processed audio
+  // regardless of whether monitoring is enabled
+  for (int ch = 0; ch < outputBuffer.getNumChannels() && ch < numChannels; ++ch) {
+    outputBuffer.copyFrom(ch, 0, internalBuffer, ch, 0, numSamples);
   }
+  
+  // If monitoring is disabled, we still wrote to outputBuffer for retro capture,
+  // but we won't add it to the main mix in FlowEngine (handled elsewhere)
 }
 
 void MicProcessor::reset() { reverb.reset(); }
@@ -72,6 +77,23 @@ void MicProcessor::setMonitorUntilLooped(bool enabled) {
 void MicProcessor::applyGain(juce::AudioBuffer<float> &buffer) {
   if (std::abs(inputGain - 1.0f) > 0.001f) {
     buffer.applyGain(inputGain);
+  }
+}
+
+void MicProcessor::updatePeakLevel(const juce::AudioBuffer<float> &buffer) {
+  float peak = 0.0f;
+  for (int ch = 0; ch < buffer.getNumChannels(); ++ch) {
+    float channelPeak = buffer.getMagnitude(ch, 0, buffer.getNumSamples());
+    peak = std::max(peak, channelPeak);
+  }
+  
+  // Simple peak decay
+  float currentPeak = peakLevel.load();
+  if (peak > currentPeak) {
+    peakLevel.store(peak);
+  } else {
+    // Decay slowly
+    peakLevel.store(currentPeak * 0.95f);
   }
 }
 

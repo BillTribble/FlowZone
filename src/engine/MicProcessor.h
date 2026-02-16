@@ -22,6 +22,9 @@ public:
   void setMonitorEnabled(bool enabled);
   void setReverbLevel(float level); // 0 to 1
   void setMonitorUntilLooped(bool enabled);
+  
+  // Metering
+  float getPeakLevel() const { return peakLevel.load(); }
 
 private:
   float inputGain = 1.0f; // Linear gain
@@ -33,8 +36,10 @@ private:
   float reverbLevel = 0.0f;
 
   juce::AudioBuffer<float> internalBuffer;
+  std::atomic<float> peakLevel{0.0f};
 
   void applyGain(juce::AudioBuffer<float> &buffer);
+  void updatePeakLevel(const juce::AudioBuffer<float> &buffer);
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MicProcessor)
 };
