@@ -35,12 +35,30 @@ function App() {
         }
     }, [wsClient])
 
-    // Keyboard controls for testing
+    // Keyboard controls for testing - matches PadGrid scale-aware logic
     useEffect(() => {
         const keyToPadIndex: { [key: string]: number } = {
             'a': 0, 's': 1, 'd': 2, 'f': 3,
             'g': 4, 'h': 5, 'j': 6, 'k': 7,
             'l': 8, ';': 9, ':': 10, '"': 11
+        };
+
+        const SCALE_INTERVALS: { [key: string]: number[] } = {
+            major: [0, 2, 4, 5, 7, 9, 11]
+        };
+
+        const getMidiNote = (padId: number, baseNote: number) => {
+            if (selectedCategory === 'drums') {
+                // Drums: direct mapping 36-51
+                return baseNote + padId;
+            } else {
+                // Notes/Bass: scale-aware mapping
+                const intervals = SCALE_INTERVALS.major;
+                const numSteps = intervals.length;
+                const octave = Math.floor(padId / numSteps);
+                const degree = padId % numSteps;
+                return baseNote + (octave * 12) + intervals[degree];
+            }
         };
 
         const activeKeys = new Set<string>();
@@ -56,7 +74,7 @@ function App() {
             if (key in keyToPadIndex) {
                 const padIndex = keyToPadIndex[key];
                 const baseNote = selectedCategory === 'drums' ? 36 : 48;
-                const midiNote = baseNote + padIndex;
+                const midiNote = getMidiNote(padIndex, baseNote);
                 handlePadTrigger(midiNote, 1.0);
                 return;
             }
@@ -78,8 +96,8 @@ function App() {
             // Send NOTE_OFF for pads (not needed for drums, but needed for synths)
             if (key in keyToPadIndex && selectedCategory !== 'drums') {
                 const padIndex = keyToPadIndex[key];
-                const baseNote = 48;  // Notes/Bass use 48
-                const midiNote = baseNote + padIndex;
+                const baseNote = 48;
+                const midiNote = getMidiNote(padIndex, baseNote);
                 handlePadRelease(midiNote);
             }
         };
