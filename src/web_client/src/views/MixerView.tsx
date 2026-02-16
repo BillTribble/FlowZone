@@ -11,7 +11,11 @@ interface MixerViewProps {
     onMoreSettings?: () => void;
 }
 
-export const MixerControls: React.FC<{ state: AppState, onSlotVolumeChange: (slotIndex: number, volume: number) => void }> = ({ state, onSlotVolumeChange }) => {
+export const MixerControls: React.FC<{
+    state: AppState,
+    onSlotVolumeChange: (slotIndex: number, volume: number) => void,
+    isMixDirty?: boolean
+}> = ({ state, onSlotVolumeChange, isMixDirty = false }) => {
     // 8 Slots - safely access state.slots
     const stateSlots = state?.slots || [];
     const slots = Array.from({ length: 8 }, (_, i) => {
@@ -27,16 +31,20 @@ export const MixerControls: React.FC<{ state: AppState, onSlotVolumeChange: (slo
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Commit Button - Placed at top of bottom controls per request (Controls and Commit in lower half) */}
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0' }}>
-                <button style={{
-                    background: '#00E5FF', color: '#000', border: 'none', borderRadius: 20,
-                    padding: '8px 32px', fontWeight: 'bold', fontSize: 14, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', gap: 8
-                }}>
-                    <Icon name="play" size={16} color="#000" />
-                    COMMIT
-                </button>
-            </div>
+            {/* Commit Button - only show if mix is dirty */}
+            {isMixDirty && (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0' }}>
+                    <button style={{
+                        background: '#00E5FF', color: '#000', border: 'none', borderRadius: 20,
+                        padding: '8px 32px', fontWeight: 'bold', fontSize: 14, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        boxShadow: '0 0 15px rgba(0, 229, 255, 0.4)'
+                    }}>
+                        <Icon name="play" size={16} color="#000" />
+                        COMMIT
+                    </button>
+                </div>
+            )}
 
             {/* Faders */}
             <div style={{

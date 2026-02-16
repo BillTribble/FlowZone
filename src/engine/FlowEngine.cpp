@@ -29,6 +29,10 @@ void FlowEngine::prepareToPlay(double sampleRate, int samplesPerBlock) {
     slot->prepareToPlay(sampleRate, samplesPerBlock);
   }
 
+  // Pre-allocate buffers for audio thread
+  engineBuffer.setSize(2, samplesPerBlock);
+  retroCaptureBuffer.setSize(2, samplesPerBlock);
+
   // Start UI broadcasting timer (60Hz = 16.6ms)
   startTimerHz(60);
 }
@@ -56,14 +60,8 @@ void FlowEngine::processBlock(juce::AudioBuffer<float> &buffer,
   activeMidi.clear(); // Clear for next block
 
   // Process audio engines based on active mode
-  auto state = sessionManager.getCurrentState();
-  juce::AudioBuffer<float> engineBuffer(buffer.getNumChannels(),
-                                        buffer.getNumSamples());
+  // Clear pre-allocated buffers
   engineBuffer.clear();
-
-  // Create a temporary buffer for retro capture
-  juce::AudioBuffer<float> retroCaptureBuffer(buffer.getNumChannels(),
-                                              buffer.getNumSamples());
   retroCaptureBuffer.clear();
 
   if (state.activeMode.category == "mic") {
@@ -72,29 +70,49 @@ void FlowEngine::processBlock(juce::AudioBuffer<float> &buffer,
     // capture
     micProcessor.process(buffer, engineBuffer);
 
-    // Capture processed mic input to retro buffer
-    retroCaptureBuffer.makeCopyOf(engineBuffer);
+    // Capture processed mic input-sized block to retro capture buffer
+    for (int ch = 0; ch < retroCaptureBuffer.getNumChannels() &&
+                     ch < engineBuffer.getNumChannels();
+         ++ch) {
+      retroCaptureBuffer.copyFrom(ch, 0, engineBuffer, ch, 0,
+                                  buffer.getNumSamples());
+    }
 
     // Only add to main output if monitoring is enabled
-    // (engineBuffer is already in retroBuffer regardless)
     if (state.mic.monitorInput || state.mic.monitorUntilLooped) {
       // Add monitored signal to output
       for (int ch = 0; ch < buffer.getNumChannels(); ++ch) {
         buffer.addFrom(ch, 0, engineBuffer, ch, 0, buffer.getNumSamples());
       }
     }
+    // BUG FIX: Removed unconditional buffer.addFrom that was outside this if
+    // block
+
   } else if (state.activeMode.category == "drums") {
     drumEngine.process(engineBuffer, combinedMidi);
-    retroCaptureBuffer.makeCopyOf(engineBuffer);
+    for (int ch = 0; ch < retroCaptureBuffer.getNumChannels() &&
+                     ch < engineBuffer.getNumChannels();
+         ++ch) {
+      retroCaptureBuffer.copyFrom(ch, 0, engineBuffer, ch, 0,
+                                  buffer.getNumSamples());
+    }
   } else if (state.activeMode.category == "notes" ||
              state.activeMode.category == "bass") {
     synthEngine.process(engineBuffer, combinedMidi);
-    retroCaptureBuffer.makeCopyOf(engineBuffer);
+    for (int ch = 0; ch < retroCaptureBuffer.getNumChannels() &&
+                     ch < engineBuffer.getNumChannels();
+         ++ch) {
+      retroCaptureBuffer.copyFrom(ch, 0, engineBuffer, ch, 0,
+                                  buffer.getNumSamples());
+    }
   }
 
-  // Add engine output to buffer
-  for (int ch = 0; ch < buffer.getNumChannels(); ++ch) {
-    buffer.addFrom(ch, 0, engineBuffer, ch, 0, buffer.getNumSamples());
+  // ONLY add engine output to buffer for NON-MIC modes here.
+  // Mic mode is already handled above with monitoring logic.
+  if (state.activeMode.category != "mic") {
+    for (int ch = 0; ch < buffer.getNumChannels(); ++ch) {
+      buffer.addFrom(ch, 0, engineBuffer, ch, 0, buffer.getNumSamples());
+    }
   }
 
   // Update peak level for UI (atomic store)

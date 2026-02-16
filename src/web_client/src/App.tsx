@@ -19,6 +19,7 @@ function App() {
     const [activeTab, setActiveTab] = useState<TabId>('mode')
     const [selectedPreset, setSelectedPreset] = useState<string | null>(null)
     const [selectedCategory, setSelectedCategory] = useState<string>('drums')
+    const [isMixDirty, setIsMixDirty] = useState(false)
 
     // Initialize client once
     const [wsClient] = useState(() => new WebSocketClient('ws://localhost:50001'))
@@ -216,6 +217,7 @@ function App() {
     };
 
     const handleSlotVolumeChange = (slotId: number, volume: number) => {
+        setIsMixDirty(true);
         wsClient.send({ cmd: "SET_SLOT_VOLUME", slot: slotId, volume });
     };
 
@@ -229,6 +231,7 @@ function App() {
 
     const handleSelectMode = (mode: string) => {
         setSelectedCategory(mode);
+        setSelectedPreset(null); // Reset selected preset on mode change to fix highlighting
         wsClient.send({ cmd: "SET_MODE", category: mode });
         if (mode === 'fx' || mode === 'ext_fx') {
             setPerformanceMode('XY');
@@ -282,6 +285,7 @@ function App() {
         bottomContent = <MixerControls
             state={state}
             onSlotVolumeChange={handleSlotVolumeChange}
+            isMixDirty={isMixDirty}
         />;
     } else if (selectedCategory === 'mic') {
         bottomContent = (

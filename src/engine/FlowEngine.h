@@ -12,6 +12,7 @@
 #include "transport/TransportService.h"
 #include <JuceHeader.h>
 #include <atomic>
+#include <cerrno>
 #include <memory>
 #include <string>
 #include <vector>
@@ -93,6 +94,10 @@ private:
   std::atomic<float> retroBufferPeakLevel{0.0f};
 
   std::vector<std::unique_ptr<Slot>> slots;
+
+  // Pre-allocated buffers for audio thread to avoid heap allocation
+  juce::AudioBuffer<float> engineBuffer;
+  juce::AudioBuffer<float> retroCaptureBuffer;
 
   // Merge logic
   juce::CriticalSection mergeLock;
