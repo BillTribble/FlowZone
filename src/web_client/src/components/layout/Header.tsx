@@ -3,11 +3,12 @@ interface HeaderProps {
     bpm?: number;
     isPlaying?: boolean;
     onTogglePlay?: () => void;
+    onPanic?: () => void;
     connected?: boolean;
     onHomeClick?: () => void;
 }
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { Icon } from '../shared/Icon';
 
 export const Header: React.FC<HeaderProps> = ({
@@ -15,9 +16,42 @@ export const Header: React.FC<HeaderProps> = ({
     bpm = 120.0,
     isPlaying = false,
     onTogglePlay,
+    onPanic,
     connected = false,
     onHomeClick
 }) => {
+    const longPressTimer = useRef<number | null>(null);
+    const [isPressing, setIsPressing] = React.useState(false);
+
+    const handleMouseDown = () => {
+        setIsPressing(true);
+        longPressTimer.current = setTimeout(() => {
+            console.log('[Header] Long press detected - PANIC!');
+            onPanic?.();
+            setIsPressing(false);
+        }, 1000); // 1 second for long press
+    };
+
+    const handleMouseUp = () => {
+        if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
+        }
+        if (isPressing) {
+            // Short press - toggle play
+            onTogglePlay?.();
+        }
+        setIsPressing(false);
+    };
+
+    const handleMouseLeave = () => {
+        if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
+        }
+        setIsPressing(false);
+    };
+
     return (
         <div
             className="glass-panel"
@@ -81,7 +115,11 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Right: Transport */}
             <button
-                onClick={onTogglePlay}
+                onMouseDown={handleMouseDown}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseLeave}
+                onTouchStart={handleMouseDown}
+                onTouchEnd={handleMouseUp}
                 className="interactive-element"
                 style={{
                     background: isPlaying ? 'rgba(0, 229, 255, 0.1)' : 'rgba(255, 255, 255, 0.05)',

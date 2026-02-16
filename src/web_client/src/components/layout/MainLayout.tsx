@@ -12,6 +12,7 @@ interface MainLayoutProps {
     bpm: number;
     isPlaying: boolean;
     onTogglePlay: () => void;
+    onPanic?: () => void;
     children: React.ReactNode;
     performanceMode: 'PADS' | 'XY';
     onPadTrigger: (padId: number, val: number) => void;
@@ -33,6 +34,7 @@ export const MainLayout: React.FC<MainLayoutProps & { bottomContent?: React.Reac
     bpm,
     isPlaying,
     onTogglePlay,
+    onPanic,
     children,
     performanceMode,
     onPadTrigger,
@@ -66,6 +68,7 @@ export const MainLayout: React.FC<MainLayoutProps & { bottomContent?: React.Reac
                 isPlaying={isPlaying}
                 connected={isConnected}
                 onTogglePlay={onTogglePlay}
+                onPanic={onPanic}
                 onHomeClick={onHomeClick}
             />
 

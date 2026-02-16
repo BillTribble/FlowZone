@@ -44,7 +44,10 @@ struct AppState {
     juce::String name;
     juce::String emoji;
     int64_t createdAt = 0;
-  } session;
+  };
+  
+  std::vector<Session> sessions;
+  Session session;
 
   struct Transport {
     double bpm = 120.0;

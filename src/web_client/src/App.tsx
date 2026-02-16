@@ -8,12 +8,14 @@ import { PlayView } from './views/PlayView'
 import { MixerView, MixerControls } from './views/MixerView'
 import { ModeView } from './views/ModeView'
 import { AdjustView } from './views/AdjustView'
+import { SettingsPanel } from './components/settings/SettingsPanel'
 import { Knob } from './components/shared/Knob'
 
 function App() {
     const [state, setState] = useState<AppState | null>(null)
     const [connected, setConnected] = useState(false)
     const [showJamManager, setShowJamManager] = useState(true) // Start at home screen
+    const [showSettings, setShowSettings] = useState(false)
     const [activeTab, setActiveTab] = useState<TabId>('mode')
     const [selectedPreset, setSelectedPreset] = useState<string | null>(null)
     const [selectedCategory, setSelectedCategory] = useState<string>('drums')
@@ -150,6 +152,11 @@ function App() {
 
     const handleSelectSlot = (slotId: number) => {
         wsClient.send({ cmd: "SELECT_SLOT", slot: slotId });
+    };
+
+    const handlePanic = () => {
+        console.log('[App] PANIC - Stopping all notes');
+        wsClient.send({ cmd: "PANIC" });
     };
 
     const handleSelectMode = (mode: string) => {
@@ -321,6 +328,52 @@ function App() {
         />;
     }
 
+    // If showing Settings panel, render it as modal overlay
+    if (showSettings) {
+        return (
+            <div style={{
+                position: 'fixed',
+                top: 0, left: 0, right: 0, bottom: 0,
+                background: 'rgba(0,0,0,0.8)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 1000
+            }}>
+                <div style={{
+                    width: '90%',
+                    maxWidth: 800,
+                    height: '90%',
+                    maxHeight: 600,
+                    background: '#1a1a1a',
+                    borderRadius: 12,
+                    border: '1px solid var(--glass-border)',
+                    overflow: 'hidden',
+                    position: 'relative'
+                }}>
+                    <button
+                        onClick={() => setShowSettings(false)}
+                        style={{
+                            position: 'absolute',
+                            top: 16,
+                            right: 16,
+                            background: 'rgba(255,255,255,0.1)',
+                            border: '1px solid var(--glass-border)',
+                            borderRadius: 6,
+                            padding: '8px 16px',
+                            color: '#fff',
+                            cursor: 'pointer',
+                            zIndex: 10
+                        }}
+                    >
+                        Close
+                    </button>
+                    <SettingsPanel />
+                </div>
+            </div>
+        );
+    }
+
     return (
         <MainLayout
             activeTab={activeTab}
@@ -333,6 +386,7 @@ function App() {
                 setIsPlaying(!isPlaying);
                 wsClient.send({ cmd: "TOGGLE_PLAY" });
             }}
+            onPanic={handlePanic}
             performanceMode={performanceMode}
             onPadTrigger={handlePadTrigger}
             onPadRelease={handlePadRelease}
@@ -361,8 +415,7 @@ function App() {
                 onSelectSlot={handleSelectSlot}
                 onMoreSettings={() => {
                     console.log('[App] More settings clicked');
-                    // TODO: Open settings modal/view
-                    alert('Settings panel coming soon!');
+                    setShowSettings(true);
                 }}
             />}
         </MainLayout>

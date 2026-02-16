@@ -5,6 +5,20 @@ namespace flowzone {
 juce::var AppState::toVar() const {
   juce::DynamicObject *obj = new juce::DynamicObject();
 
+  // Sessions array
+  {
+    juce::Array<juce::var> sessionsArr;
+    for (const auto &sess : sessions) {
+      juce::DynamicObject *sessObj = new juce::DynamicObject();
+      sessObj->setProperty("id", sess.id);
+      sessObj->setProperty("name", sess.name);
+      sessObj->setProperty("emoji", sess.emoji);
+      sessObj->setProperty("createdAt", sess.createdAt);
+      sessionsArr.add(juce::var(sessObj));
+    }
+    obj->setProperty("sessions", sessionsArr);
+  }
+
   // Session
   {
     juce::DynamicObject *sessionObj = new juce::DynamicObject();
@@ -154,6 +168,20 @@ AppState AppState::fromVar(const juce::var &v) {
 
   if (!v.isObject())
     return state;
+
+  // Sessions array
+  if (auto sessionsArr = v["sessions"]; sessionsArr.isArray()) {
+    for (const auto &sVar : *sessionsArr.getArray()) {
+      if (sVar.isObject()) {
+        Session sess;
+        sess.id = sVar["id"].toString();
+        sess.name = sVar["name"].toString();
+        sess.emoji = sVar["emoji"].toString();
+        sess.createdAt = static_cast<int64_t>(sVar["createdAt"]);
+        state.sessions.push_back(sess);
+      }
+    }
+  }
 
   // Session
   if (auto sObj = v["session"]; sObj.isObject()) {

@@ -56,6 +56,18 @@ void CommandDispatcher::dispatch(const juce::String &jsonCommand,
     handleToggleMonitorInput(engine);
   } else if (cmdType == "TOGGLE_MONITOR_UNTIL_LOOPED") {
     handleToggleMonitorUntilLooped(engine);
+  } else if (cmdType == "PANIC") {
+    handlePanic(engine);
+  } else if (cmdType == "NEW_JAM") {
+    handleNewJam(engine);
+  } else if (cmdType == "LOAD_JAM") {
+    handleLoadJam(engine, jsonVar["sessionId"].toString());
+  } else if (cmdType == "RENAME_JAM") {
+    handleRenameJam(engine, jsonVar["sessionId"].toString(),
+                    jsonVar["name"].toString(),
+                    jsonVar.hasProperty("emoji") ? jsonVar["emoji"].toString() : "");
+  } else if (cmdType == "DELETE_JAM") {
+    handleDeleteJam(engine, jsonVar["sessionId"].toString());
   }
 }
 
@@ -138,6 +150,32 @@ void CommandDispatcher::handleToggleMonitorInput(FlowEngine &engine) {
 
 void CommandDispatcher::handleToggleMonitorUntilLooped(FlowEngine &engine) {
   engine.toggleMonitorUntilLooped();
+}
+
+void CommandDispatcher::handlePanic(FlowEngine &engine) {
+  DBG("[CommandDispatcher] PANIC - stopping all notes");
+  engine.panic();
+}
+
+void CommandDispatcher::handleNewJam(FlowEngine &engine) {
+  DBG("[CommandDispatcher] Create new jam");
+  engine.createNewJam();
+}
+
+void CommandDispatcher::handleLoadJam(FlowEngine &engine, const juce::String &sessionId) {
+  DBG("[CommandDispatcher] Load jam: " + sessionId);
+  engine.loadJam(sessionId);
+}
+
+void CommandDispatcher::handleRenameJam(FlowEngine &engine, const juce::String &sessionId,
+                                       const juce::String &name, const juce::String &emoji) {
+  DBG("[CommandDispatcher] Rename jam: " + sessionId + " to " + name);
+  engine.renameJam(sessionId, name, emoji);
+}
+
+void CommandDispatcher::handleDeleteJam(FlowEngine &engine, const juce::String &sessionId) {
+  DBG("[CommandDispatcher] Delete jam: " + sessionId);
+  engine.deleteJam(sessionId);
 }
 
 } // namespace flowzone

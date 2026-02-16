@@ -34,6 +34,12 @@ private:
   void handleSetInputGain(FlowEngine &engine, float gainDb);
   void handleToggleMonitorInput(FlowEngine &engine);
   void handleToggleMonitorUntilLooped(FlowEngine &engine);
+  void handlePanic(FlowEngine &engine);
+  void handleNewJam(FlowEngine &engine);
+  void handleLoadJam(FlowEngine &engine, const juce::String &sessionId);
+  void handleRenameJam(FlowEngine &engine, const juce::String &sessionId,
+                      const juce::String &name, const juce::String &emoji);
+  void handleDeleteJam(FlowEngine &engine, const juce::String &sessionId);
 };
 
 } // namespace flowzone

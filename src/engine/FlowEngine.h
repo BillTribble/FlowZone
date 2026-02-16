@@ -49,6 +49,15 @@ public:
   void setInputGain(float gainDb);
   void toggleMonitorInput();
   void toggleMonitorUntilLooped();
+  
+  // Panic - stop all notes
+  void panic();
+  
+  // Session management
+  void createNewJam();
+  void loadJam(const juce::String &sessionId);
+  void renameJam(const juce::String &sessionId, const juce::String &name, const juce::String &emoji);
+  void deleteJam(const juce::String &sessionId);
 
   // Background Thread for Auto-Merge
   void run() override;

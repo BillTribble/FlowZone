@@ -233,12 +233,12 @@ void FlowEngine::setActiveCategory(const juce::String &category) {
       s.activeMode.presetName = "Synthetic";
     });
   } else if (category == "notes") {
-    synthEngine.setPreset("notes", "lead");
+    synthEngine.setPreset("notes", "sine-bell");
     sessionManager.updateState([&](AppState &s) {
       s.activeMode.category = category;
       s.activeMode.isFxMode = false;
-      s.activeMode.presetId = "lead";
-      s.activeMode.presetName = "Lead";
+      s.activeMode.presetId = "sine-bell";
+      s.activeMode.presetName = "Sine Bell";
     });
   } else if (category == "bass") {
     synthEngine.setPreset("bass", "sub");
@@ -326,6 +326,115 @@ void FlowEngine::toggleMonitorUntilLooped() {
   
   sessionManager.updateState([&](AppState &s) {
     s.mic.monitorUntilLooped = newValue;
+  });
+}
+
+void FlowEngine::panic() {
+  juce::Logger::writeToLog("PANIC - stopping all notes");
+  
+  // Stop drum engine
+  drumEngine.reset();
+  
+  // Stop synth engine (all voices)
+  synthEngine.reset();
+  
+  // Clear active MIDI buffer
+  activeMidi.clear();
+}
+
+void FlowEngine::createNewJam() {
+  juce::Logger::writeToLog("Create new jam");
+  
+  // Create a new session with a unique ID
+  juce::String sessionId = juce::Uuid().toString();
+  juce::String sessionName = "New Jam";
+  
+  sessionManager.updateState([&](AppState &s) {
+    // Create new session entry
+    AppState::Session newSession;
+    newSession.id = sessionId;
+    newSession.name = sessionName;
+    newSession.emoji = "🎵";
+    newSession.createdAt = juce::Time::currentTimeMillis();
+    
+    // Add to sessions list
+    s.sessions.push_back(newSession);
+    
+    // Set as current session
+    s.session = newSession;
+    
+    // Reset slots
+    for (auto &slot : s.slots) {
+      slot.state = "EMPTY";
+      slot.volume = 1.0f;
+      slot.pluginChain.clear();
+    }
+    
+    // Clear riff history for new session
+    s.riffHistory.clear();
+  });
+}
+
+void FlowEngine::loadJam(const juce::String &sessionId) {
+  juce::Logger::writeToLog("Load jam: " + sessionId);
+  
+  // TODO: Implement actual session loading from disk
+  // For now, just update state to show we switched sessions
+  sessionManager.updateState([&](AppState &s) {
+    for (const auto &sess : s.sessions) {
+      if (sess.id == sessionId) {
+        s.session = sess;
+        break;
+      }
+    }
+  });
+}
+
+void FlowEngine::renameJam(const juce::String &sessionId, const juce::String &name, const juce::String &emoji) {
+  juce::Logger::writeToLog("Rename jam: " + sessionId + " to " + name);
+  
+  sessionManager.updateState([&](AppState &s) {
+    // Update in sessions list
+    for (auto &sess : s.sessions) {
+      if (sess.id == sessionId) {
+        sess.name = name;
+        if (emoji.isNotEmpty()) {
+          sess.emoji = emoji;
+        }
+        
+        // Also update current session if it matches
+        if (s.session.id == sessionId) {
+          s.session.name = name;
+          if (emoji.isNotEmpty()) {
+            s.session.emoji = emoji;
+          }
+        }
+        break;
+      }
+    }
+  });
+}
+
+void FlowEngine::deleteJam(const juce::String &sessionId) {
+  juce::Logger::writeToLog("Delete jam: " + sessionId);
+  
+  sessionManager.updateState([&](AppState &s) {
+    // Remove from sessions list
+    s.sessions.erase(
+      std::remove_if(s.sessions.begin(), s.sessions.end(),
+                    [&](const AppState::Session &sess) { return sess.id == sessionId; }),
+      s.sessions.end()
+    );
+    
+    // If current session was deleted, create a new one
+    if (s.session.id == sessionId) {
+      juce::String newId = juce::Uuid().toString();
+      s.session.id = newId;
+      s.session.name = "New Jam";
+      s.session.emoji = "🎵";
+      s.session.createdAt = juce::Time::currentTimeMillis();
+      s.sessions.push_back(s.session);
+    }
   });
 }
 
