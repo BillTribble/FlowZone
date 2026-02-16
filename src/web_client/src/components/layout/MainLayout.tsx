@@ -16,6 +16,7 @@ interface MainLayoutProps {
     performanceMode: 'PADS' | 'XY';
     onPadTrigger: (padId: number, val: number) => void;
     onXYChange: (x: number, y: number) => void;
+    onHomeClick?: () => void;
 }
 
 
@@ -31,7 +32,8 @@ export const MainLayout: React.FC<MainLayoutProps & { bottomContent?: React.Reac
     performanceMode,
     onPadTrigger,
     onXYChange,
-    bottomContent
+    bottomContent,
+    onHomeClick
 }) => {
     return (
         <div style={{
@@ -52,6 +54,7 @@ export const MainLayout: React.FC<MainLayoutProps & { bottomContent?: React.Reac
                 isPlaying={isPlaying}
                 connected={isConnected}
                 onTogglePlay={onTogglePlay}
+                onHomeClick={onHomeClick}
             />
 
             {/* 2. Top Half: View Content + Visualization */}

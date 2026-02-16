@@ -308,7 +308,7 @@ private:
           for (const auto& item : *crashArray.getArray()) {
             CrashEvent event;
             event.timestamp = std::chrono::system_clock::from_time_t(
-                static_cast<time_t>(item["timestamp"].operator int64()));
+                static_cast<time_t>(item["timestamp"].operator juce::int64()));
             event.pluginManufacturer = item["manufacturer"].toString();
             event.level = static_cast<SafeMode>(item["level"].operator int());
             event.reason = item["reason"].toString();
@@ -331,11 +331,11 @@ private:
   void saveState() {
     sentinelFile.getParentDirectory().createDirectory();
     
-    juce::var::array crashArray;
+    juce::Array<juce::var> crashArray;
     for (const auto& crash : crashHistory) {
       auto crashObj = new juce::DynamicObject();
       crashObj->setProperty("timestamp", 
-          static_cast<int64>(std::chrono::system_clock::to_time_t(crash.timestamp)));
+          static_cast<juce::int64>(std::chrono::system_clock::to_time_t(crash.timestamp)));
       crashObj->setProperty("manufacturer", crash.pluginManufacturer);
       crashObj->setProperty("level", static_cast<int>(crash.level));
       crashObj->setProperty("reason", crash.reason);

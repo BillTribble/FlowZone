@@ -47,17 +47,30 @@
             file="src/engine/FlowEngine.h"/>
       <FILE id="FlowEngine_cpp" name="FlowEngine.cpp" compile="1" resource="0"
             file="src/engine/FlowEngine.cpp"/>
+      <FILE id="Slot_h" name="Slot.h" compile="0" resource="0"
+            file="src/engine/Slot.h"/>
+      <FILE id="Slot_cpp" name="Slot.cpp" compile="1" resource="0"
+            file="src/engine/Slot.cpp"/>
+      <FILE id="RetrospectiveBuffer_h" name="RetrospectiveBuffer.h" compile="0"
+            resource="0" file="src/engine/RetrospectiveBuffer.h"/>
+      <FILE id="RetrospectiveBuffer_cpp" name="RetrospectiveBuffer.cpp" compile="1"
+            resource="0" file="src/engine/RetrospectiveBuffer.cpp"/>
+      <FILE id="AppState_h" name="AppState.h" compile="0" resource="0"
+            file="src/engine/state/AppState.h"/>
+      <FILE id="AppState_cpp" name="AppState.cpp" compile="1" resource="0"
+            file="src/engine/state/AppState.cpp"/>
       <FILE id="SessionStateManager_h" name="SessionStateManager.h" compile="0"
-            resource="0" file="src/engine/SessionStateManager.h"/>
+            resource="0" file="src/engine/session/SessionStateManager.h"/>
       <FILE id="SessionStateManager_cpp" name="SessionStateManager.cpp" compile="1"
-            resource="0" file="src/engine/SessionStateManager.cpp"/>
+            resource="0" file="src/engine/session/SessionStateManager.cpp"/>
       <FILE id="StateBroadcaster_h" name="StateBroadcaster.h" compile="0"
-            resource="0" file="src/engine/StateBroadcaster.h"/>
+            resource="0" file="src/engine/state/StateBroadcaster.h"/>
       <FILE id="StateBroadcaster_cpp" name="StateBroadcaster.cpp" compile="1"
-            resource="0" file="src/engine/StateBroadcaster.cpp"/>
+            resource="0" file="src/engine/state/StateBroadcaster.cpp"/>
     </GROUP>
     <GROUP id="{LIBS}" name="libs">
-      <FILE id="civetweb_c" name="civetweb.c" compile="1" resource="0" file="libs/civetweb/include/civetweb.c"/>
+      <FILE id="civetweb_c" name="civetweb.c" compile="1" resource="0" file="libs/civetweb/include/civetweb.c"
+            xcodeFlags="-DUSE_WEBSOCKET=1 -DNO_SSL=1"/>
     </GROUP>
   </MAINGROUP>
   <MODULES>
@@ -81,23 +94,23 @@
   <EXPORTFORMATS>
     <XCODE_MAC targetFolder="Builds/MacOSX" extraCompilerFlags="-Wall -Wextra">
       <CONFIGURATIONS>
-        <CONFIGURATION isDebug="1" name="Debug" targetName="FlowZone" headerPath="../../libs/civetweb/include;../../libs/catch2"/>
-        <CONFIGURATION isDebug="0" name="Release" targetName="FlowZone" headerPath="../../libs/civetweb/include;../../libs/catch2"/>
+        <CONFIGURATION isDebug="1" name="Debug" targetName="FlowZone" headerPath="../../libs/civetweb/include;../../libs/catch2" defines="NO_SSL=1&#10;USE_WEBSOCKET=1"/>
+        <CONFIGURATION isDebug="0" name="Release" targetName="FlowZone" headerPath="../../libs/civetweb/include;../../libs/catch2" defines="NO_SSL=1&#10;USE_WEBSOCKET=1"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
-        <MODULEPATH id="juce_audio_basics" path="libs/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_devices" path="libs/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_formats" path="libs/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_plugin_client" path="libs/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_processors" path="libs/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_utils" path="libs/JUCE/modules"/>
-        <MODULEPATH id="juce_core" path="libs/JUCE/modules"/>
-        <MODULEPATH id="juce_data_structures" path="libs/JUCE/modules"/>
-        <MODULEPATH id="juce_events" path="libs/JUCE/modules"/>
-        <MODULEPATH id="juce_graphics" path="libs/JUCE/modules"/>
-        <MODULEPATH id="juce_gui_basics" path="libs/JUCE/modules"/>
-        <MODULEPATH id="juce_gui_extra" path="libs/JUCE/modules"/>
-        <MODULEPATH id="juce_audio_processors_headless" path="libs/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_basics" path="~/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="~/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="~/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_plugin_client" path="~/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors" path="~/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_utils" path="~/JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="~/JUCE/modules"/>
+        <MODULEPATH id="juce_data_structures" path="~/JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="~/JUCE/modules"/>
+        <MODULEPATH id="juce_graphics" path="~/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_basics" path="~/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_extra" path="~/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors_headless" path="~/JUCE/modules"/>
       </MODULEPATHS>
     </XCODE_MAC>
   </EXPORTFORMATS>

@@ -125,6 +125,14 @@ double TransportService::getBarPhase() const {
 
 double TransportService::getPpqPosition() const { return currentBeat; }
 
+double TransportService::getSamplesPerBar() const {
+  // Calculate samples per bar (assuming 4/4 time signature)
+  double currentBpmValue = bpm.load();
+  double beatsPerSecond = currentBpmValue / 60.0;
+  double samplesPerBeat = sampleRate / beatsPerSecond;
+  return samplesPerBeat * 4.0; // 4 beats per bar in 4/4 time
+}
+
 void TransportService::setMetronomeEnabled(bool enabled) {
   metronomeEnabled.store(enabled);
 }

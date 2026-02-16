@@ -12,13 +12,14 @@ interface MixerViewProps {
 }
 
 export const MixerControls: React.FC<{ state: AppState, onSlotVolumeChange: (slotIndex: number, volume: number) => void }> = ({ state, onSlotVolumeChange }) => {
-    // 8 Slots
+    // 8 Slots - safely access state.slots
+    const stateSlots = state?.slots || [];
     const slots = Array.from({ length: 8 }, (_, i) => {
-        return state.slots[i] || {
-            id: `slot - ${i} `,
+        return stateSlots[i] || {
+            id: `slot-${i}`,
             state: "EMPTY",
             volume: 0.7,
-            name: `Slot ${i + 1} `,
+            name: `Slot ${i + 1}`,
             instrumentCategory: "none"
         };
     });
@@ -71,27 +72,46 @@ export const MixerControls: React.FC<{ state: AppState, onSlotVolumeChange: (slo
 };
 
 export const MixerView: React.FC<MixerViewProps> = ({ state, onToggleMetronome }) => {
+    // Ensure we have transport data
+    const transport = state?.transport || { bpm: 120, metronomeEnabled: false, isPlaying: false };
+    const slots = state?.slots || [];
+    
     return (
-        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: 16, gap: 24, boxSizing: 'border-box' }}>
+        <div style={{
+            height: '100%',
+            width: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            padding: 16,
+            gap: 24,
+            boxSizing: 'border-box',
+            overflow: 'auto'
+        }}>
             {/* Top Section: Transport & Quick Settings */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, alignItems: 'center' }}>
+            <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr 1fr',
+                gap: 12,
+                alignItems: 'center',
+                flexShrink: 0
+            }}>
                 <button
                     onClick={onToggleMetronome}
                     className="glass-panel interactive-element"
                     style={{
-                        background: state.transport.metronomeEnabled ? 'rgba(0, 229, 255, 0.1)' : 'var(--glass-bg)',
-                        border: state.transport.metronomeEnabled ? '1px solid var(--neon-cyan)' : '1px solid var(--glass-border)',
+                        background: transport.metronomeEnabled ? 'rgba(0, 229, 255, 0.1)' : 'var(--glass-bg)',
+                        border: transport.metronomeEnabled ? '1px solid var(--neon-cyan)' : '1px solid var(--glass-border)',
                         borderRadius: 8, padding: 12,
-                        color: state.transport.metronomeEnabled ? 'var(--neon-cyan)' : '#fff',
+                        color: transport.metronomeEnabled ? 'var(--neon-cyan)' : '#fff',
                         display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer',
                         gap: 6
                     }}>
-                    <Icon name="grid" size={16} color={state.transport.metronomeEnabled ? 'var(--neon-cyan)' : '#888'} />
+                    <Icon name="grid" size={16} color={transport.metronomeEnabled ? 'var(--neon-cyan)' : '#888'} />
                     <span style={{ fontSize: 9, fontWeight: 'bold' }}>QUANTISET</span>
                 </button>
 
                 <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 24, fontWeight: 'bold', letterSpacing: '-0.02em' }}>{state.transport.bpm.toFixed(1)}</div>
+                    <div style={{ fontSize: 24, fontWeight: 'bold', letterSpacing: '-0.02em' }}>{transport.bpm.toFixed(1)}</div>
                     <div style={{ fontSize: 9, color: 'var(--text-secondary)', fontWeight: 900 }}>BPM</div>
                 </div>
 
@@ -108,17 +128,23 @@ export const MixerView: React.FC<MixerViewProps> = ({ state, onToggleMetronome }
             </div>
 
             {/* Slot Layout Grid (Top half visualization) */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+                minHeight: 0
+            }}>
                 <div style={{ fontSize: 10, fontWeight: 900, color: 'var(--text-secondary)', letterSpacing: '0.1em' }}>
                     SLOT STATUS
                 </div>
                 <div style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
                     gap: 10,
-                    gridAutoRows: 'auto'
+                    gridAutoRows: 'minmax(80px, auto)'
                 }}>
-                    {state.slots.map((slot, i) => (
+                    {slots.length > 0 ? slots.map((slot, i) => (
                         <SlotIndicator
                             key={slot.id}
                             slotId={i}
@@ -129,7 +155,16 @@ export const MixerView: React.FC<MixerViewProps> = ({ state, onToggleMetronome }
                             progress={0}
                             label={slot.name}
                         />
-                    ))}
+                    )) : (
+                        <div style={{
+                            gridColumn: '1 / -1',
+                            textAlign: 'center',
+                            color: 'var(--text-secondary)',
+                            padding: 40
+                        }}>
+                            No slots available
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

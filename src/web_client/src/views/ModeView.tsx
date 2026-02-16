@@ -18,7 +18,7 @@ export const ModeView: React.FC<ModeViewProps> = ({ onSelectMode }) => {
     ];
 
     return (
-        <div style={{ padding: 20 }}>
+        <div style={{ padding: 20, height: '100%', display: 'flex', flexDirection: 'column' }}>
             <div style={{
                 fontSize: 10,
                 fontWeight: 900,
@@ -29,9 +29,11 @@ export const ModeView: React.FC<ModeViewProps> = ({ onSelectMode }) => {
                 SELECT MODE
             </div>
             <div style={{
+                flex: 1,
                 display: 'grid',
-                gridTemplateColumns: 'repeat(4, 1fr)',
-                gap: 12
+                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                gap: 12,
+                alignContent: 'start'
             }}>
                 {categories.map(cat => (
                     <button

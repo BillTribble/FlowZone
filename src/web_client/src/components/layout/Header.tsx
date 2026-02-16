@@ -4,6 +4,7 @@ interface HeaderProps {
     isPlaying?: boolean;
     onTogglePlay?: () => void;
     connected?: boolean;
+    onHomeClick?: () => void;
 }
 
 import React from 'react';
@@ -14,7 +15,8 @@ export const Header: React.FC<HeaderProps> = ({
     bpm = 120.0,
     isPlaying = false,
     onTogglePlay,
-    connected = false
+    connected = false,
+    onHomeClick
 }) => {
     return (
         <div
@@ -34,8 +36,29 @@ export const Header: React.FC<HeaderProps> = ({
                 zIndex: 20
             }}
         >
-            {/* Left: Home / Connection Status */}
+            {/* Left: Home Button + Connection Status */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <button
+                    onClick={onHomeClick}
+                    className="interactive-element"
+                    title="Jam Manager"
+                    style={{
+                        background: 'none',
+                        border: '1px solid var(--glass-border)',
+                        borderRadius: 6,
+                        padding: 6,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--text-secondary)',
+                        transition: 'all 0.2s ease',
+                        width: 32,
+                        height: 32
+                    }}
+                >
+                    <Icon name="grid" size={18} color="var(--text-secondary)" />
+                </button>
                 <div style={{
                     width: 8,
                     height: 8,
@@ -43,14 +66,6 @@ export const Header: React.FC<HeaderProps> = ({
                     background: connected ? 'var(--neon-cyan)' : '#f43f5e',
                     boxShadow: connected ? '0 0 10px var(--neon-cyan)' : '0 0 10px #f43f5e'
                 }} />
-                <span style={{
-                    color: 'var(--text-secondary)',
-                    fontSize: 10,
-                    fontWeight: 900,
-                    letterSpacing: '0.1em'
-                }}>
-                    FLOWZONE
-                </span>
             </div>
 
             {/* Center: Context */}

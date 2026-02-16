@@ -4,6 +4,7 @@ import { AppState } from '../../../shared/protocol/schema';
 interface PlayViewProps {
     state: AppState;
     onSelectPreset: (category: string, preset: string) => void;
+    selectedPreset?: string | null;
 }
 
 // Hardcoded presets for V1 (mirrors Spec)
@@ -15,11 +16,11 @@ const PRESETS: Record<string, string[]> = {
     infinite_fx: ['Keymasher', 'Ripper', 'Ringmod', 'Bitcrusher', 'Degrader', 'Pitchmod', 'Multicomb', 'Freezer', 'Zap Delay', 'Dub Delay', 'Compressor', 'Trance Gate']
 };
 
-export const PlayView: React.FC<PlayViewProps> = ({ state, onSelectPreset }) => {
+export const PlayView: React.FC<PlayViewProps> = ({ state, onSelectPreset, selectedPreset }) => {
     // Current category from state or default to drums
     const category = state.activeMode?.category || 'drums';
     const presets = PRESETS[category] || [];
-    const activePreset = state.activeMode?.presetName;
+    const activePreset = selectedPreset || state.activeMode?.presetName;
 
     return (
         <div style={{
@@ -43,9 +44,10 @@ export const PlayView: React.FC<PlayViewProps> = ({ state, onSelectPreset }) => 
             <div style={{
                 flex: 1,
                 display: 'grid',
-                gridTemplateColumns: 'repeat(4, 1fr)',
-                gridTemplateRows: 'repeat(3, 1fr)',
-                gap: 12
+                gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+                gridAutoRows: '1fr',
+                gap: 12,
+                alignContent: 'start'
             }}>
                 {presets.map((preset, i) => {
                     const isActive = preset === activePreset;
@@ -54,16 +56,19 @@ export const PlayView: React.FC<PlayViewProps> = ({ state, onSelectPreset }) => 
                             key={i}
                             className={`glass-panel interactive-element ${isActive ? 'neon-glow' : ''}`}
                             style={{
-                                background: isActive ? 'rgba(0, 229, 255, 0.1)' : 'var(--glass-bg)',
+                                background: isActive ? 'rgba(0, 229, 255, 0.2)' : 'var(--glass-bg)',
                                 border: isActive ? '2px solid var(--neon-cyan)' : '1px solid var(--glass-border)',
                                 color: isActive ? 'var(--neon-cyan)' : 'var(--text-primary)',
                                 borderRadius: 8,
                                 fontSize: 11,
-                                fontWeight: 'bold',
+                                fontWeight: isActive ? 900 : 'bold',
                                 cursor: 'pointer',
-                                transition: 'all 0.1s ease',
+                                transition: 'all 0.2s ease',
                                 textTransform: 'uppercase',
-                                letterSpacing: '0.02em'
+                                letterSpacing: '0.02em',
+                                boxShadow: isActive ? '0 0 20px rgba(0, 229, 255, 0.3), inset 0 0 10px rgba(0, 229, 255, 0.1)' : 'none',
+                                transform: isActive ? 'scale(1.02)' : 'scale(1)',
+                                minHeight: 60
                             }}
                             onClick={() => {
                                 onSelectPreset(category, preset);

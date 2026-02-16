@@ -53,8 +53,11 @@ export const PadGrid: React.FC<PadGridProps> = ({
             display: 'grid',
             gridTemplateColumns: 'repeat(4, 1fr)',
             gridTemplateRows: 'repeat(4, 1fr)',
-            gap: 12,
-            padding: 12
+            gap: 8,
+            padding: 8,
+            boxSizing: 'border-box',
+            minHeight: 0,
+            minWidth: 0
         }}>
             {Array.from({ length: 16 }, (_, i) => {
                 const row = Math.floor(i / 4);

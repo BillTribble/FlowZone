@@ -26,6 +26,8 @@ public:
 
   double getBarPhase() const;    // 0.0 to 1.0
   double getPpqPosition() const; // Current beat position
+  
+  double getSamplesPerBar() const; // Calculate samples per bar
 
   void setMetronomeEnabled(bool enabled);
   bool isMetronomeEnabled() const;
