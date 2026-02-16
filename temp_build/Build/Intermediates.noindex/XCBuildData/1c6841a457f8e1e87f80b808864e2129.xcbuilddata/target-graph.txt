@@ -1,0 +1,13 @@
+Target dependency graph (5 targets)
+Target 'FlowZone - All' in project 'FlowZone'
+➜ Explicit dependency on target 'FlowZone - VST3' in project 'FlowZone'
+➜ Explicit dependency on target 'FlowZone - Standalone Plugin' in project 'FlowZone'
+➜ Explicit dependency on target 'FlowZone - Shared Code' in project 'FlowZone'
+➜ Explicit dependency on target 'FlowZone - VST3 Manifest Helper' in project 'FlowZone'
+Target 'FlowZone - Standalone Plugin' in project 'FlowZone'
+➜ Explicit dependency on target 'FlowZone - Shared Code' in project 'FlowZone'
+Target 'FlowZone - VST3' in project 'FlowZone'
+➜ Explicit dependency on target 'FlowZone - Shared Code' in project 'FlowZone'
+➜ Explicit dependency on target 'FlowZone - VST3 Manifest Helper' in project 'FlowZone'
+Target 'FlowZone - VST3 Manifest Helper' in project 'FlowZone' (no dependencies)
+Target 'FlowZone - Shared Code' in project 'FlowZone' (no dependencies)

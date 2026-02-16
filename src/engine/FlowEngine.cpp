@@ -35,6 +35,27 @@ void FlowEngine::prepareToPlay(double sampleRate, int samplesPerBlock) {
 
   // Start UI broadcasting timer (60Hz = 16.6ms)
   startTimerHz(60);
+
+  // Load last session on startup
+  auto appData =
+      juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+          .getChildFile("FlowZone");
+  if (!appData.exists())
+    appData.createDirectory();
+
+  auto sessionFile = appData.getChildFile("last_session.flow");
+  if (sessionFile.existsAsFile()) {
+    AppState loadedState;
+    if (sessionManager.loadSession(sessionFile, loadedState).wasOk()) {
+      sessionManager.setState(loadedState);
+      juce::Logger::writeToLog("Loaded existing session state with " +
+                               juce::String(loadedState.sessions.size()) +
+                               " jams.");
+    }
+  } else {
+    // First run: create a default session
+    createNewJam();
+  }
 }
 
 void FlowEngine::updatePeakLevel(const juce::AudioBuffer<float> &buffer) {
@@ -414,8 +435,17 @@ void FlowEngine::createNewJam() {
     newSession.emoji = "🎵";
     newSession.createdAt = juce::Time::currentTimeMillis();
 
-    // Add to sessions list
-    s.sessions.push_back(newSession);
+    // If this is the very first session, ensure it's in the list
+    bool exists = false;
+    for (const auto &sess : s.sessions) {
+      if (sess.id == sessionId) {
+        exists = true;
+        break;
+      }
+    }
+    if (!exists) {
+      s.sessions.push_back(newSession);
+    }
 
     // Set as current session
     s.session = newSession;

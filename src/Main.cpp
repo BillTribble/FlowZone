@@ -12,7 +12,7 @@
 
 //==============================================================================
 class FlowZoneStandaloneApplication : public juce::JUCEApplication,
-                                       public juce::AudioIODeviceCallback {
+                                      public juce::AudioIODeviceCallback {
 public:
   //==============================================================================
   FlowZoneStandaloneApplication() {}
@@ -35,30 +35,33 @@ public:
 
     // 2. Initialize Audio Device Manager
     audioDeviceManager.reset(new juce::AudioDeviceManager());
-    
+
     // Initialize audio with stereo input and output
-    juce::String error = audioDeviceManager->initialise(
-        2,    // number of input channels
-        2,    // number of output channels
-        nullptr, // no saved state
-        true  // select default device
-    );
-    
+    juce::String error =
+        audioDeviceManager->initialise(2,       // number of input channels
+                                       2,       // number of output channels
+                                       nullptr, // no saved state
+                                       true     // select default device
+        );
+
     if (error.isNotEmpty()) {
-        juce::Logger::writeToLog("Audio Device Error: " + error);
+      juce::Logger::writeToLog("Audio Device Error: " + error);
     } else {
-        juce::Logger::writeToLog("Audio Device initialized successfully");
-        juce::Logger::writeToLog("Input device: " + (audioDeviceManager->getCurrentAudioDevice() ?
-            audioDeviceManager->getCurrentAudioDevice()->getName() : "None"));
+      juce::Logger::writeToLog("Audio Device initialized successfully");
+      juce::Logger::writeToLog(
+          "Input device: " +
+          (audioDeviceManager->getCurrentAudioDevice()
+               ? audioDeviceManager->getCurrentAudioDevice()->getName()
+               : "None"));
     }
-    
+
     // Set up audio callback
     audioDeviceManager->addAudioCallback(this);
-    
+
     // Prepare engine for audio processing
-    if (auto* device = audioDeviceManager->getCurrentAudioDevice()) {
-        engine->prepareToPlay(device->getCurrentSampleRate(),
-                             device->getCurrentBufferSizeSamples());
+    if (auto *device = audioDeviceManager->getCurrentAudioDevice()) {
+      engine->prepareToPlay(device->getCurrentSampleRate(),
+                            device->getCurrentBufferSizeSamples());
     }
 
     // 3. Initialize Server
@@ -76,7 +79,12 @@ public:
     server->setInitialStateCallback([this]() -> std::string {
       if (engine) {
         auto state = engine->getSessionManager().getCurrentState();
-        return juce::JSON::toString(state.toVar()).toStdString();
+        juce::DynamicObject *root = new juce::DynamicObject();
+        root->setProperty("type", "STATE_FULL");
+        root->setProperty("revisionId",
+                          engine->getBroadcaster().getRevisionId());
+        root->setProperty("data", state.toVar());
+        return juce::JSON::toString(juce::var(root)).toStdString();
       }
       return "{}";
     });
@@ -90,16 +98,19 @@ public:
 
     server->start();
 
+    // 7. Create and show the main window
+    mainWindow.reset(new MainWindow(getApplicationName()));
+
     juce::Logger::writeToLog("FlowZone Engine Started on port 50001");
   }
 
   void shutdown() override {
     // Clean shutdown: remove audio callback before destroying engine
     if (audioDeviceManager) {
-        audioDeviceManager->removeAudioCallback(this);
-        audioDeviceManager->closeAudioDevice();
+      audioDeviceManager->removeAudioCallback(this);
+      audioDeviceManager->closeAudioDevice();
     }
-    
+
     server->stop();
     server.reset();
     engine.reset();
@@ -114,49 +125,48 @@ public:
     // to close.
     quit();
   }
-  
+
   //==============================================================================
   // AudioIODeviceCallback implementation
-  void audioDeviceIOCallbackWithContext(const float *const *inputChannelData,
-                                       int numInputChannels,
-                                       float *const *outputChannelData,
-                                       int numOutputChannels,
-                                       int numSamples,
-                                       const juce::AudioIODeviceCallbackContext &context) override {
+  void audioDeviceIOCallbackWithContext(
+      const float *const *inputChannelData, int numInputChannels,
+      float *const *outputChannelData, int numOutputChannels, int numSamples,
+      const juce::AudioIODeviceCallbackContext &context) override {
     juce::ignoreUnused(context);
-    
-    if (!engine) return;
-    
+
+    if (!engine)
+      return;
+
     // Create buffers for processing
     juce::AudioBuffer<float> buffer(numOutputChannels, numSamples);
     juce::MidiBuffer midiMessages;
-    
+
     // Copy input to buffer
     for (int ch = 0; ch < numInputChannels && ch < numOutputChannels; ++ch) {
-        if (inputChannelData[ch] != nullptr) {
-            buffer.copyFrom(ch, 0, inputChannelData[ch], numSamples);
-        }
+      if (inputChannelData[ch] != nullptr) {
+        buffer.copyFrom(ch, 0, inputChannelData[ch], numSamples);
+      }
     }
-    
+
     // Process through engine
     engine->processBlock(buffer, midiMessages);
-    
+
     // Copy output from buffer
     for (int ch = 0; ch < numOutputChannels; ++ch) {
-        if (outputChannelData[ch] != nullptr) {
-            memcpy(outputChannelData[ch], buffer.getReadPointer(ch),
-                   sizeof(float) * numSamples);
-        }
+      if (outputChannelData[ch] != nullptr) {
+        memcpy(outputChannelData[ch], buffer.getReadPointer(ch),
+               sizeof(float) * numSamples);
+      }
     }
   }
-  
+
   void audioDeviceAboutToStart(juce::AudioIODevice *device) override {
     if (engine && device) {
-        engine->prepareToPlay(device->getCurrentSampleRate(),
-                             device->getCurrentBufferSizeSamples());
+      engine->prepareToPlay(device->getCurrentSampleRate(),
+                            device->getCurrentBufferSizeSamples());
     }
   }
-  
+
   void audioDeviceStopped() override {
     // Engine cleanup if needed
   }

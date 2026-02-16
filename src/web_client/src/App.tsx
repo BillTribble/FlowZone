@@ -24,12 +24,62 @@ function App() {
     // Initialize client once
     const [wsClient] = useState(() => new WebSocketClient('ws://localhost:50001'))
 
+    // Helper to apply JSON Patch (RFC 6902)
+    const applyPatch = (state: AppState, ops: any[]): AppState => {
+        const newState = JSON.parse(JSON.stringify(state)); // Deep clone
+        for (const op of ops) {
+            const pathParts = op.path.split('/').filter((p: string) => p !== '');
+            let current = newState;
+            for (let i = 0; i < pathParts.length - 1; i++) {
+                const part = pathParts[i];
+                if (current[part] === undefined) {
+                    if (op.op === 'add') {
+                        current[part] = isNaN(Number(pathParts[i + 1])) ? {} : [];
+                    } else break;
+                }
+                current = current[part];
+            }
+
+            const lastPart = pathParts[pathParts.length - 1];
+            if (op.op === 'add' || op.op === 'replace') {
+                if (Array.isArray(current) && lastPart === '-') {
+                    current.push(op.value);
+                } else {
+                    current[lastPart] = op.value;
+                }
+            } else if (op.op === 'remove') {
+                if (Array.isArray(current)) {
+                    current.splice(parseInt(lastPart), 1);
+                } else {
+                    delete current[lastPart];
+                }
+            }
+        }
+        return newState;
+    };
+
     useEffect(() => {
         console.log('[App] Initializing WebSocket connection...');
-        wsClient.connect((newState) => {
-            console.log('[App] State update received:', newState);
-            setState(newState)
-            setConnected(true)
+        wsClient.connect((message) => {
+            console.log('[App] Message received:', message.type);
+
+            if (message.type === 'STATE_FULL') {
+                console.log('[App] Full state update received:', message.data);
+                setState(message.data);
+                setConnected(true);
+            } else if (message.type === 'STATE_PATCH') {
+                setState((prevState) => {
+                    if (!prevState) return null;
+                    const nextState = applyPatch(prevState, message.ops);
+                    console.log('[App] State patched:', nextState);
+                    return nextState;
+                });
+            } else {
+                // Legacy / Direct handle
+                console.log('[App] Direct state update received:', message);
+                setState(message);
+                setConnected(true);
+            }
         })
         return () => {
             // wsClient.disconnect()
