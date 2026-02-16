@@ -42,16 +42,24 @@ void DrumEngine::reset() {
 }
 
 void DrumEngine::setKit(const juce::String &kitName) {
-  // Basic assignment for "synthetic" kit
-  // 0: Kick, 1: Snare, 2: Closed Hat, 3: Open Hat, etc.
-  padTypes[0] = DrumVoice::Type::Kick;
-  padTypes[1] = DrumVoice::Type::Snare;
-  padTypes[2] = DrumVoice::Type::Hihat;
-  padTypes[3] = DrumVoice::Type::Hihat;
-
-  for (int i = 4; i < 16; ++i) {
-    padTypes[i] = DrumVoice::Type::Perc;
-  }
+  // Complete drum kit mapping for all 16 pads
+  // Standard GM drum layout adapted for pads
+  padTypes[0] = DrumVoice::Type::Kick;        // Pad 0: Kick
+  padTypes[1] = DrumVoice::Type::Snare;       // Pad 1: Snare
+  padTypes[2] = DrumVoice::Type::Hihat;       // Pad 2: Closed HH
+  padTypes[3] = DrumVoice::Type::Hihat;       // Pad 3: Open HH
+  padTypes[4] = DrumVoice::Type::TomLow;      // Pad 4: Low Tom
+  padTypes[5] = DrumVoice::Type::TomMid;      // Pad 5: Mid Tom
+  padTypes[6] = DrumVoice::Type::TomHigh;     // Pad 6: High Tom
+  padTypes[7] = DrumVoice::Type::Clap;        // Pad 7: Clap
+  padTypes[8] = DrumVoice::Type::Rim;         // Pad 8: Rim Shot
+  padTypes[9] = DrumVoice::Type::Cowbell;     // Pad 9: Cowbell
+  padTypes[10] = DrumVoice::Type::Clave;      // Pad 10: Clave
+  padTypes[11] = DrumVoice::Type::Perc;       // Pad 11: Perc 1
+  padTypes[12] = DrumVoice::Type::Perc;       // Pad 12: Perc 2
+  padTypes[13] = DrumVoice::Type::Perc;       // Pad 13: Perc 3
+  padTypes[14] = DrumVoice::Type::Perc;       // Pad 14: Perc 4
+  padTypes[15] = DrumVoice::Type::Perc;       // Pad 15: Perc 5
 
   juce::ignoreUnused(kitName);
 }

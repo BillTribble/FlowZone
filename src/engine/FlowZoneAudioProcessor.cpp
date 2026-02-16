@@ -164,15 +164,13 @@ void FlowZoneAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   auto totalNumInputChannels = getTotalNumInputChannels();
   auto totalNumOutputChannels = getTotalNumOutputChannels();
 
-  // In case we have more outputs than inputs, this code clears any output
-  // channels that didn't contain input data, (because these aren't
-  // guaranteed to be empty - they may contain garbage).
-  // This is here to avoid people getting screaming feedback
-  // when they first compile a plugin, but obviously you don't need to keep
-  // this code if your algorithm always overwrites all the output channels.
+  // CRITICAL: Do NOT clear input channels - we need the mic input!
+  // Only clear extra output channels that don't have corresponding inputs.
+  // The engine needs access to the input audio for mic processing and retrospective looping.
   for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
     buffer.clear(i, 0, buffer.getNumSamples());
 
+  // Process with engine - this captures input audio and generates output
   engine.processBlock(buffer, midiMessages);
 }
 
