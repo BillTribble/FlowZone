@@ -174,6 +174,27 @@ void FlowEngine::loadPreset(const juce::String &category,
   });
 }
 
+void FlowEngine::setActiveCategory(const juce::String &category) {
+  juce::Logger::writeToLog("Set Active Category: " + category);
+
+  sessionManager.updateState([&](AppState &s) {
+    s.activeMode.category = category;
+    // Determine if this is an FX mode
+    s.activeMode.isFxMode = (category == "fx" || category == "infinite_fx");
+  });
+}
+
+void FlowEngine::loadRiff(const juce::String &riffId) {
+  juce::Logger::writeToLog("Load Riff: " + riffId);
+  
+  // TODO: Implement riff loading from history
+  // For now, just log the request
+  // In full implementation:
+  // 1. Find riff in state.riffHistory by ID
+  // 2. Load the riff's layer data into slots
+  // 3. Update transport and playback state
+}
+
 void FlowEngine::triggerPad(int padIndex, float velocity) {
   juce::Logger::writeToLog("Pad Trigger: " + juce::String(padIndex) +
                            " vel=" + juce::String(velocity));

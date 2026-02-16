@@ -9,6 +9,7 @@ interface MixerViewProps {
     onToggleMetronome: () => void;
     onSlotVolumeChange: (slotIndex: number, volume: number) => void;
     onSelectSlot: (slotIndex: number) => void;
+    onMoreSettings?: () => void;
 }
 
 export const MixerControls: React.FC<{ state: AppState, onSlotVolumeChange: (slotIndex: number, volume: number) => void }> = ({ state, onSlotVolumeChange }) => {
@@ -71,7 +72,7 @@ export const MixerControls: React.FC<{ state: AppState, onSlotVolumeChange: (slo
     );
 };
 
-export const MixerView: React.FC<MixerViewProps> = ({ state, onToggleMetronome }) => {
+export const MixerView: React.FC<MixerViewProps> = ({ state, onToggleMetronome, onMoreSettings }) => {
     // Ensure we have transport data
     const transport = state?.transport || { bpm: 120, metronomeEnabled: false, isPlaying: false };
     const slots = state?.slots || [];
@@ -98,6 +99,7 @@ export const MixerView: React.FC<MixerViewProps> = ({ state, onToggleMetronome }
                 <button
                     onClick={onToggleMetronome}
                     className="glass-panel interactive-element"
+                    title="Toggle Metronome & Quantization"
                     style={{
                         background: transport.metronomeEnabled ? 'rgba(0, 229, 255, 0.1)' : 'var(--glass-bg)',
                         border: transport.metronomeEnabled ? '1px solid var(--neon-cyan)' : '1px solid var(--glass-border)',
@@ -116,7 +118,9 @@ export const MixerView: React.FC<MixerViewProps> = ({ state, onToggleMetronome }
                 </div>
 
                 <button
+                    onClick={onMoreSettings}
                     className="glass-panel interactive-element"
+                    title="More Settings"
                     style={{
                         background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: 8, padding: 12, color: '#fff',
                         display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer',

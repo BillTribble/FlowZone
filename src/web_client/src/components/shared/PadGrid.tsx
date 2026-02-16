@@ -56,8 +56,6 @@ export const PadGrid: React.FC<PadGridProps> = ({
             gap: 8,
             padding: 8,
             boxSizing: 'border-box',
-            minHeight: 0,
-            minWidth: 0,
             overflow: 'hidden'
         }}>
             {Array.from({ length: 16 }, (_, i) => {

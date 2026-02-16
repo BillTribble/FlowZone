@@ -32,6 +32,7 @@ export const Pad: React.FC<PadProps> = ({
             className={`interactive-element ${active ? 'neon-glow' : ''}`}
             style={{
                 width: '100%',
+                height: '100%',
                 aspectRatio: '1/1',
                 borderRadius: 8,
                 backgroundColor: active ? color : (isRoot ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.02)'),
@@ -46,7 +47,8 @@ export const Pad: React.FC<PadProps> = ({
                 position: 'relative',
                 overflow: 'hidden',
                 transition: 'all 0.1s cubic-bezier(0.4, 0, 0.2, 1)',
-                backdropFilter: 'blur(4px)'
+                backdropFilter: 'blur(4px)',
+                boxSizing: 'border-box'
             }}
         >
             {/* Inner Glow */}

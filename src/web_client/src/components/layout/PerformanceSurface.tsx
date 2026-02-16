@@ -30,6 +30,7 @@ export const PerformanceSurface: React.FC<PerformanceSurfaceProps> = ({ mode, on
     const [activePads, setActivePads] = React.useState<Set<number>>(new Set());
 
     const handlePadDown = (midi: number, padId: number) => {
+        console.log('[PerformanceSurface] Pad down - midi:', midi, 'padId:', padId);
         setActivePads(prev => new Set(prev).add(padId));
         onPadTrigger(midi, 1.0); // Using midi instead of padId as 'note'
     };

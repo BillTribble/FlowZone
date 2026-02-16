@@ -33,6 +33,8 @@ public:
 
   // Command Handlers (called by Dispatcher)
   void loadPreset(const juce::String &category, const juce::String &presetName);
+  void setActiveCategory(const juce::String &category);
+  void loadRiff(const juce::String &riffId);
   void triggerPad(int padIndex, float velocity);
   void updateXY(float x, float y);
   void setLoopLength(int bars);

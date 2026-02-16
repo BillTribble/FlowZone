@@ -1,7 +1,7 @@
 import React from 'react';
 import { Icon } from '../shared/Icon';
 
-export type TabId = 'mode' | 'play' | 'adjust' | 'mixer';
+export type TabId = 'jam-manager' | 'mode' | 'play' | 'adjust' | 'mixer';
 
 interface NavigationProps {
     activeTab: TabId;
@@ -10,6 +10,7 @@ interface NavigationProps {
 
 export const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
     const tabs: { id: TabId; label: string; icon: string }[] = [
+        { id: 'jam-manager', label: 'JAMS', icon: 'home' },
         { id: 'mode', label: 'MODE', icon: 'grid' },
         { id: 'play', label: 'PLAY', icon: 'wave' },
         { id: 'adjust', label: 'ADJUST', icon: 'settings' },

@@ -23,6 +23,8 @@ private:
   void handleSetBpm(FlowEngine &engine, double bpm);
   void handleSetPreset(FlowEngine &engine, const juce::String &category,
                        const juce::String &preset);
+  void handleSetMode(FlowEngine &engine, const juce::String &category);
+  void handleLoadRiff(FlowEngine &engine, const juce::String &riffId);
   void handleNoteOn(FlowEngine &engine, int pad, float velocity);
   void handleXYChange(FlowEngine &engine, float x, float y);
   void handleSetLoopLength(FlowEngine &engine, int bars);

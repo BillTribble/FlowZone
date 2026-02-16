@@ -17,6 +17,9 @@ interface MainLayoutProps {
     onPadTrigger: (padId: number, val: number) => void;
     onXYChange: (x: number, y: number) => void;
     onHomeClick?: () => void;
+    riffHistory?: any[];
+    onLoadRiff?: (riffId: string) => void;
+    waveformData?: Float32Array;
 }
 
 
@@ -33,8 +36,13 @@ export const MainLayout: React.FC<MainLayoutProps & { bottomContent?: React.Reac
     onPadTrigger,
     onXYChange,
     bottomContent,
-    onHomeClick
+    onHomeClick,
+    riffHistory = [],
+    onLoadRiff,
+    waveformData
 }) => {
+    // Generate fallback waveform data if not provided
+    const displayWaveform = waveformData || new Float32Array(256).fill(0);
     return (
         <div style={{
             display: 'flex',
@@ -83,19 +91,31 @@ export const MainLayout: React.FC<MainLayoutProps & { bottomContent?: React.Reac
                     background: 'rgba(0,0,0,0.2)',
                     alignItems: 'center'
                 }}>
-                    {/* Mock Riff Data for now */}
-                    {[1, 2, 3, 4, 5].map(id => (
-                        <RiffIndicator
-                            key={id}
-                            id={`riff-${id}`}
-                            timestamp={`12:00:0${id}`}
-                            layers={[
-                                { id: 'l1', source: 'drums', level: 0.8 },
-                                { id: 'l2', source: 'notes', level: id / 5 }
-                            ]}
-                            isActive={id === 1}
-                        />
-                    ))}
+                    {riffHistory.length > 0 ? (
+                        riffHistory.map((riff, index) => (
+                            <RiffIndicator
+                                key={riff.id}
+                                id={riff.id}
+                                timestamp={new Date(riff.timestamp).toLocaleTimeString()}
+                                layers={riff.colors?.map((color: string, i: number) => ({
+                                    id: `layer-${i}`,
+                                    source: 'notes',
+                                    level: 0.8
+                                })) || []}
+                                isActive={index === 0}
+                                onClick={onLoadRiff}
+                            />
+                        ))
+                    ) : (
+                        <div style={{
+                            fontSize: 11,
+                            color: 'var(--text-secondary)',
+                            padding: '0 8px',
+                            fontStyle: 'italic'
+                        }}>
+                            No riff history yet - start playing to create riffs
+                        </div>
+                    )}
                 </div>
 
                 {/* Waveform Area (Bottom of Top Half) */}
@@ -105,7 +125,7 @@ export const MainLayout: React.FC<MainLayoutProps & { bottomContent?: React.Reac
                     borderTop: '1px solid var(--glass-border)'
                 }}>
                     <WaveformCanvas
-                        data={new Float32Array(256).map(() => Math.random() * 2 - 1)}
+                        data={displayWaveform}
                         height={60}
                         color="var(--neon-cyan)"
                         opacity={0.6}

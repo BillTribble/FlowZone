@@ -32,6 +32,10 @@ void CommandDispatcher::dispatch(const juce::String &jsonCommand,
   } else if (cmdType == "SET_PRESET") {
     handleSetPreset(engine, jsonVar["category"].toString(),
                     jsonVar["preset"].toString());
+  } else if (cmdType == "SET_MODE") {
+    handleSetMode(engine, jsonVar["category"].toString());
+  } else if (cmdType == "LOAD_RIFF") {
+    handleLoadRiff(engine, jsonVar["riffId"].toString());
   } else if (cmdType == "NOTE_ON") {
     handleNoteOn(engine, (int)jsonVar["pad"], (float)jsonVar["val"]);
   } else if (cmdType == "XY_CHANGE") {
@@ -73,6 +77,20 @@ void CommandDispatcher::handleSetPreset(FlowEngine &engine,
                                         const juce::String &preset) {
   // Forward to Engine to handle preset loading logic
   engine.loadPreset(category, preset);
+}
+
+void CommandDispatcher::handleSetMode(FlowEngine &engine,
+                                       const juce::String &category) {
+  // Set the active mode category (drums, notes, bass, fx, etc.)
+  DBG("[CommandDispatcher] Set mode to category: " + category);
+  engine.setActiveCategory(category);
+}
+
+void CommandDispatcher::handleLoadRiff(FlowEngine &engine,
+                                        const juce::String &riffId) {
+  // Load a riff from history
+  DBG("[CommandDispatcher] Load riff: " + riffId);
+  engine.loadRiff(riffId);
 }
 
 void CommandDispatcher::handleNoteOn(FlowEngine &engine, int pad,

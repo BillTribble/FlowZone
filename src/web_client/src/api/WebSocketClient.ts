@@ -22,7 +22,7 @@ export class WebSocketClient {
         this.ws = new WebSocket(this.url);
 
         this.ws.onopen = () => {
-            console.log("Connected to FlowZone Engine");
+            console.log("[WebSocket] ✅ Connected to FlowZone Engine at", this.url);
             // this.isConnected = true;
             this.reconnectDelay = 1000; // Reset delay
 
@@ -31,7 +31,7 @@ export class WebSocketClient {
         };
 
         this.ws.onclose = () => {
-            console.log("Disconnected. Reconnecting in " + this.reconnectDelay + "ms");
+            console.warn("[WebSocket] ⚠️ Disconnected. Reconnecting in " + this.reconnectDelay + "ms");
             // this.isConnected = false;
             setTimeout(() => {
                 this.reconnectDelay = Math.min(this.reconnectDelay * 2, this.maxReconnectDelay);
@@ -40,16 +40,29 @@ export class WebSocketClient {
         };
 
         this.ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            if (this.onStateChange) {
-                this.onStateChange(data);
+            console.log("[WebSocket] 📥 Message received:", event.data.substring(0, 200) + (event.data.length > 200 ? '...' : ''));
+            try {
+                const data = JSON.parse(event.data);
+                console.log("[WebSocket] Parsed state keys:", Object.keys(data));
+                if (this.onStateChange) {
+                    this.onStateChange(data);
+                }
+            } catch (err) {
+                console.error("[WebSocket] Failed to parse message:", err);
             }
+        };
+
+        this.ws.onerror = (error) => {
+            console.error("[WebSocket] ❌ Error:", error);
         };
     }
 
     send(command: any) {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            console.log("[WebSocket] 📤 Sending command:", command);
             this.ws.send(JSON.stringify(command));
+        } else {
+            console.warn("[WebSocket] ⚠️ Cannot send command - socket not open. State:", this.ws?.readyState);
         }
     }
 }

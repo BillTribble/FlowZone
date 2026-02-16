@@ -21,6 +21,8 @@ export const PlayView: React.FC<PlayViewProps> = ({ state, onSelectPreset, selec
     const category = state.activeMode?.category || 'drums';
     const presets = PRESETS[category] || [];
     const activePreset = selectedPreset || state.activeMode?.presetName;
+    
+    console.log('[PlayView] Render - category:', category, 'activeMode:', state.activeMode, 'presets count:', presets.length);
 
     return (
         <div style={{
