@@ -15,26 +15,30 @@ FlowZoneAudioProcessorEditor::FlowZoneAudioProcessorEditor(
   if (envUrl.isNotEmpty()) {
     urlToLoad = envUrl;
   } else {
-    // 2. Heuristic: in development, we usually have the src directory
-    // We'll check for a "DEBUG" flag or just try the dev server
-#if DEBUG
-    urlToLoad = "http://localhost:5173";
-#else
-    // In production, we load from the bundled/relative dist folder
-    auto executable =
+    // 2. Search for the local dist/index.html file
+    // We'll check several potential relative paths to find the project root
+    auto currentFile =
         juce::File::getSpecialLocation(juce::File::currentExecutableFile);
-    auto projectDir = executable.getParentDirectory()
-                          .getParentDirectory()
-                          .getParentDirectory(); // Adjust based on build layout
-    auto distFile = projectDir.getChildFile("src/web_client/dist/index.html");
+    juce::File distFile;
+
+    // Try up to 8 levels up (to cover standard build structures and bundles)
+    auto searchDir = currentFile.getParentDirectory();
+    for (int i = 0; i < 8; ++i) {
+      auto potentialDist =
+          searchDir.getChildFile("src/web_client/dist/index.html");
+      if (potentialDist.existsAsFile()) {
+        distFile = potentialDist;
+        break;
+      }
+      searchDir = searchDir.getParentDirectory();
+    }
 
     if (distFile.existsAsFile()) {
       urlToLoad = "file://" + distFile.getFullPathName();
     } else {
-      // Last resort fallback to dev server if file not found
+      // 3. Last resort fallback to dev server
       urlToLoad = "http://localhost:5173";
     }
-#endif
   }
 
   webView.goToURL(urlToLoad);
