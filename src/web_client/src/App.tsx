@@ -239,11 +239,23 @@ function App() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontFamily: 'sans-serif'
+                fontFamily: 'sans-serif',
+                textAlign: 'center',
+                padding: '20px'
             }}>
-                <div style={{ textAlign: 'center' }}>
-                    <h1>FlowZone</h1>
-                    <p style={{ color: '#666' }}>Connecting to Engine...</p>
+                <div>
+                    <h1 style={{ marginBottom: '20px', color: 'var(--neon-cyan, #00e5ff)' }}>FlowZone</h1>
+                    <div className="glass-panel" style={{ padding: '40px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)' }}>
+                        <p style={{ fontSize: '18px', marginBottom: '10px' }}>Connecting to Engine...</p>
+                        <p style={{ color: '#888', fontSize: '14px', maxWidth: '400px' }}>
+                            Ensuring connection to the FlowZone audio engine on port 50001.
+                        </p>
+                        {!connected && (
+                            <p style={{ marginTop: '20px', color: '#666', fontSize: '12px' }}>
+                                If this persists, ensure the FlowZone application is running.
+                            </p>
+                        )}
+                    </div>
                 </div>
             </div>
         )
