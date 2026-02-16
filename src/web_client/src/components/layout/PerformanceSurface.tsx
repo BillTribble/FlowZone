@@ -49,10 +49,8 @@ export const PerformanceSurface: React.FC<PerformanceSurfaceProps> = ({ mode, on
                 return next;
             });
         }
-        // Send NOTE_OFF for synths (not needed for drums as they're one-shot)
-        if (activeCategory !== 'drums') {
-            onPadRelease(midi);
-        }
+        // Always send NOTE_OFF for visual feedback (drums process it differently than synths)
+        onPadRelease(midi);
     };
 
     return (

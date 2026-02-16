@@ -11,7 +11,8 @@
 #include <JuceHeader.h>
 
 //==============================================================================
-class FlowZoneStandaloneApplication : public juce::JUCEApplication {
+class FlowZoneStandaloneApplication : public juce::JUCEApplication,
+                                       public juce::AudioIODeviceCallback {
 public:
   //==============================================================================
   FlowZoneStandaloneApplication() {}
@@ -32,10 +33,38 @@ public:
     // 1. Initialize Engine
     engine.reset(new flowzone::FlowEngine());
 
-    // 2. Initialize Server
+    // 2. Initialize Audio Device Manager
+    audioDeviceManager.reset(new juce::AudioDeviceManager());
+    
+    // Initialize audio with stereo input and output
+    juce::String error = audioDeviceManager->initialise(
+        2,    // number of input channels
+        2,    // number of output channels
+        nullptr, // no saved state
+        true  // select default device
+    );
+    
+    if (error.isNotEmpty()) {
+        juce::Logger::writeToLog("Audio Device Error: " + error);
+    } else {
+        juce::Logger::writeToLog("Audio Device initialized successfully");
+        juce::Logger::writeToLog("Input device: " + (audioDeviceManager->getCurrentAudioDevice() ?
+            audioDeviceManager->getCurrentAudioDevice()->getName() : "None"));
+    }
+    
+    // Set up audio callback
+    audioDeviceManager->addAudioCallback(this);
+    
+    // Prepare engine for audio processing
+    if (auto* device = audioDeviceManager->getCurrentAudioDevice()) {
+        engine->prepareToPlay(device->getCurrentSampleRate(),
+                             device->getCurrentBufferSizeSamples());
+    }
+
+    // 3. Initialize Server
     server.reset(new WebSocketServer(50001));
 
-    // 3. Connect Broadcaster to Server
+    // 4. Connect Broadcaster to Server
     engine->getBroadcaster().setMessageCallback(
         [this](const juce::String &msg) {
           if (server) {
@@ -43,7 +72,7 @@ public:
           }
         });
 
-    // 4. Setup Initial State Callback
+    // 5. Setup Initial State Callback
     server->setInitialStateCallback([this]() -> std::string {
       if (engine) {
         auto state = engine->getSessionManager().getCurrentState();
@@ -52,7 +81,7 @@ public:
       return "{}";
     });
 
-    // 5. Setup Message Handling (Commands from Frontend)
+    // 6. Setup Message Handling (Commands from Frontend)
     server->setOnMessageCallback([this](const std::string &msg) {
       if (engine) {
         engine->getCommandQueue().push(juce::String(msg));
@@ -65,9 +94,16 @@ public:
   }
 
   void shutdown() override {
+    // Clean shutdown: remove audio callback before destroying engine
+    if (audioDeviceManager) {
+        audioDeviceManager->removeAudioCallback(this);
+        audioDeviceManager->closeAudioDevice();
+    }
+    
     server->stop();
     server.reset();
     engine.reset();
+    audioDeviceManager.reset();
     mainWindow = nullptr; // (deletes our window)
   }
 
@@ -77,6 +113,52 @@ public:
     // request and let the app carry on running, or call quit() to allow the app
     // to close.
     quit();
+  }
+  
+  //==============================================================================
+  // AudioIODeviceCallback implementation
+  void audioDeviceIOCallbackWithContext(const float *const *inputChannelData,
+                                       int numInputChannels,
+                                       float *const *outputChannelData,
+                                       int numOutputChannels,
+                                       int numSamples,
+                                       const juce::AudioIODeviceCallbackContext &context) override {
+    juce::ignoreUnused(context);
+    
+    if (!engine) return;
+    
+    // Create buffers for processing
+    juce::AudioBuffer<float> buffer(numOutputChannels, numSamples);
+    juce::MidiBuffer midiMessages;
+    
+    // Copy input to buffer
+    for (int ch = 0; ch < numInputChannels && ch < numOutputChannels; ++ch) {
+        if (inputChannelData[ch] != nullptr) {
+            buffer.copyFrom(ch, 0, inputChannelData[ch], numSamples);
+        }
+    }
+    
+    // Process through engine
+    engine->processBlock(buffer, midiMessages);
+    
+    // Copy output from buffer
+    for (int ch = 0; ch < numOutputChannels; ++ch) {
+        if (outputChannelData[ch] != nullptr) {
+            memcpy(outputChannelData[ch], buffer.getReadPointer(ch),
+                   sizeof(float) * numSamples);
+        }
+    }
+  }
+  
+  void audioDeviceAboutToStart(juce::AudioIODevice *device) override {
+    if (engine && device) {
+        engine->prepareToPlay(device->getCurrentSampleRate(),
+                             device->getCurrentBufferSizeSamples());
+    }
+  }
+  
+  void audioDeviceStopped() override {
+    // Engine cleanup if needed
   }
 
   void anotherInstanceStarted(const juce::String &commandLine) override {
@@ -139,6 +221,7 @@ public:
 private:
   std::unique_ptr<flowzone::FlowEngine> engine;
   std::unique_ptr<WebSocketServer> server;
+  std::unique_ptr<juce::AudioDeviceManager> audioDeviceManager;
   std::unique_ptr<MainWindow> mainWindow;
 };
 

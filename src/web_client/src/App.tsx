@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { WebSocketClient } from './api/WebSocketClient'
 import { AppState } from '../../shared/protocol/schema'
 import { MainLayout } from './components/layout/MainLayout'
@@ -153,18 +153,31 @@ function App() {
         )
     }
 
-    // WebSocket Handlers
-    const handlePadTrigger = (padId: number, val: number) => {
+    // WebSocket Handlers - use useCallback to ensure stable references for keyboard handler
+    const handlePadTrigger = useCallback((padId: number, val: number) => {
         console.log('[App] Pad trigger:', { padId, val });
         
         // Update visual feedback for pad clicks
-        // Need to convert MIDI note back to padId (0-15)
-        let visualPadId = padId;
+        // Build proper reverse MIDI→padId mapping
+        let visualPadId = -1;
         if (selectedCategory === 'drums') {
             visualPadId = padId - 36; // Drums: MIDI 36-51 → pad 0-15
         } else {
-            // Notes/Bass: need to reverse the scale mapping (approximate)
-            visualPadId = padId - 48; // Simplified - assumes linear for now
+            // Notes/Bass: reverse scale-aware mapping
+            const baseNote = 48;
+            const intervals = [0, 2, 4, 5, 7, 9, 11]; // major scale
+            const numSteps = intervals.length;
+            
+            // Find which pad would produce this MIDI note
+            for (let pad = 0; pad < 16; pad++) {
+                const octave = Math.floor(pad / numSteps);
+                const degree = pad % numSteps;
+                const expectedMidi = baseNote + (octave * 12) + intervals[degree];
+                if (expectedMidi === padId) {
+                    visualPadId = pad;
+                    break;
+                }
+            }
         }
         
         if (visualPadId >= 0 && visualPadId < 16) {
@@ -172,17 +185,29 @@ function App() {
         }
         
         wsClient.send({ cmd: "NOTE_ON", pad: padId, val });
-    };
+    }, [wsClient, selectedCategory]);
 
-    const handlePadRelease = (padId: number) => {
+    const handlePadRelease = useCallback((padId: number) => {
         console.log('[App] Pad release:', { padId });
         
-        // Update visual feedback for pad releases
-        let visualPadId = padId;
+        // Update visual feedback for pad releases - same reverse mapping
+        let visualPadId = -1;
         if (selectedCategory === 'drums') {
             visualPadId = padId - 36;
         } else {
-            visualPadId = padId - 48;
+            const baseNote = 48;
+            const intervals = [0, 2, 4, 5, 7, 9, 11];
+            const numSteps = intervals.length;
+            
+            for (let pad = 0; pad < 16; pad++) {
+                const octave = Math.floor(pad / numSteps);
+                const degree = pad % numSteps;
+                const expectedMidi = baseNote + (octave * 12) + intervals[degree];
+                if (expectedMidi === padId) {
+                    visualPadId = pad;
+                    break;
+                }
+            }
         }
         
         if (visualPadId >= 0 && visualPadId < 16) {
@@ -194,7 +219,84 @@ function App() {
         }
         
         wsClient.send({ cmd: "NOTE_OFF", pad: padId });
-    };
+    }, [wsClient, selectedCategory]);
+
+    // Re-bind keyboard listeners when handlers change
+    useEffect(() => {
+        const keyToPadIndex: { [key: string]: number } = {
+            'a': 0, 's': 1, 'd': 2, 'f': 3,
+            'g': 4, 'h': 5, 'j': 6, 'k': 7,
+            'l': 8, ';': 9, ':': 10, '"': 11
+        };
+
+        const SCALE_INTERVALS: { [key: string]: number[] } = {
+            major: [0, 2, 4, 5, 7, 9, 11]
+        };
+
+        const getMidiNote = (padId: number, baseNote: number) => {
+            if (selectedCategory === 'drums') {
+                return baseNote + padId;
+            } else {
+                const intervals = SCALE_INTERVALS.major;
+                const numSteps = intervals.length;
+                const octave = Math.floor(padId / numSteps);
+                const degree = padId % numSteps;
+                return baseNote + (octave * 12) + intervals[degree];
+            }
+        };
+
+        const activeKeys = new Set<string>();
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const key = e.key.toLowerCase();
+            if (activeKeys.has(key)) return;
+            activeKeys.add(key);
+
+            if (key in keyToPadIndex) {
+                e.preventDefault();
+                const padIndex = keyToPadIndex[key];
+                const baseNote = selectedCategory === 'drums' ? 36 : 48;
+                const midiNote = getMidiNote(padIndex, baseNote);
+                setActivePads(prev => new Set(prev).add(padIndex));
+                handlePadTrigger(midiNote, 1.0);
+                return;
+            }
+
+            const loopLengths: { [key: string]: number } = { '1': 1, '2': 2, '3': 4, '4': 8 };
+            if (key in loopLengths) {
+                e.preventDefault();
+                wsClient.send({ cmd: "SET_LOOP_LENGTH", bars: loopLengths[key] });
+            }
+        };
+
+        const handleKeyUp = (e: KeyboardEvent) => {
+            const key = e.key.toLowerCase();
+            activeKeys.delete(key);
+
+            if (key in keyToPadIndex) {
+                const padIndex = keyToPadIndex[key];
+                setActivePads(prev => {
+                    const next = new Set(prev);
+                    next.delete(padIndex);
+                    return next;
+                });
+                
+                if (selectedCategory !== 'drums') {
+                    const baseNote = 48;
+                    const midiNote = getMidiNote(padIndex, baseNote);
+                    handlePadRelease(midiNote);
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keyup', handleKeyUp);
+        };
+    }, [handlePadTrigger, handlePadRelease, wsClient, selectedCategory]);
 
     const handleXYChange = (x: number, y: number) => {
         wsClient.send({ cmd: "XY_CHANGE", x, y });
