@@ -1,5 +1,6 @@
 #pragma once
 
+#define NO_SSL
 #include "civetweb.h"
 #include <JuceHeader.h>
 #include <string>

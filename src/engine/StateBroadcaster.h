@@ -1,5 +1,5 @@
 #pragma once
-#include "../../shared/protocol/schema.h"
+#include "../shared/protocol/schema.h"
 #include "server/WebSocketServer.h"
 #include <JuceHeader.h>
 
