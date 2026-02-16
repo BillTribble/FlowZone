@@ -44,12 +44,20 @@ export const PerformanceSurface: React.FC<PerformanceSurfaceProps> = ({ mode, on
     };
 
     return (
-        <PadGrid
-            baseNote={48}
-            scale="major"
-            activePads={activePads}
-            onPadDown={handlePadDown}
-            onPadUp={handlePadUp}
-        />
+        <div style={{
+            height: '100%',
+            width: '100%',
+            display: 'flex',
+            boxSizing: 'border-box',
+            overflow: 'hidden'
+        }}>
+            <PadGrid
+                baseNote={48}
+                scale="major"
+                activePads={activePads}
+                onPadDown={handlePadDown}
+                onPadUp={handlePadUp}
+            />
+        </div>
     );
 };

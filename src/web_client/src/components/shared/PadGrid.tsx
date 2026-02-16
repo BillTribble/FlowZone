@@ -57,7 +57,8 @@ export const PadGrid: React.FC<PadGridProps> = ({
             padding: 8,
             boxSizing: 'border-box',
             minHeight: 0,
-            minWidth: 0
+            minWidth: 0,
+            overflow: 'hidden'
         }}>
             {Array.from({ length: 16 }, (_, i) => {
                 const row = Math.floor(i / 4);
