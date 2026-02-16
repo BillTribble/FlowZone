@@ -78,9 +78,17 @@ juce::var AppState::toVar() const {
   {
     juce::DynamicObject *micObj = new juce::DynamicObject();
     micObj->setProperty("inputGain", mic.inputGain);
+    micObj->setProperty("inputLevel", mic.inputLevel);
     micObj->setProperty("monitorInput", mic.monitorInput);
     micObj->setProperty("monitorUntilLooped", mic.monitorUntilLooped);
     obj->setProperty("mic", micObj);
+  }
+
+  // Looper
+  {
+    juce::DynamicObject *looperObj = new juce::DynamicObject();
+    looperObj->setProperty("inputLevel", looper.inputLevel);
+    obj->setProperty("looper", looperObj);
   }
 
   // Slots
@@ -234,9 +242,15 @@ AppState AppState::fromVar(const juce::var &v) {
   // Mic
   if (auto micObj = v["mic"]; micObj.isObject()) {
     state.mic.inputGain = static_cast<float>(micObj["inputGain"]);
+    state.mic.inputLevel = static_cast<float>(micObj["inputLevel"]);
     state.mic.monitorInput = static_cast<bool>(micObj["monitorInput"]);
     state.mic.monitorUntilLooped =
         static_cast<bool>(micObj["monitorUntilLooped"]);
+  }
+
+  // Looper
+  if (auto looperObj = v["looper"]; looperObj.isObject()) {
+    state.looper.inputLevel = static_cast<float>(looperObj["inputLevel"]);
   }
 
   // Slots

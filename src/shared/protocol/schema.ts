@@ -92,6 +92,9 @@ export interface AppState {
         monitorInput: boolean;
         monitorUntilLooped: boolean;
     };
+    looper: {
+        inputLevel: number;
+    };
     slots: SlotState[];
     riffHistory: RiffHistoryEntry[];
     settings: {

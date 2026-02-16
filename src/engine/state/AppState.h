@@ -86,6 +86,10 @@ struct AppState {
     bool monitorUntilLooped = false;
   } mic;
 
+  struct Looper {
+    float inputLevel = 0.0f; // 0.0 to 1.0 peak level for retrospective buffer input
+  } looper;
+
   std::vector<SlotState> slots;
   std::vector<RiffHistoryEntry> riffHistory;
 

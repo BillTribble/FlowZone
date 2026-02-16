@@ -283,7 +283,7 @@ function App() {
                 gap: 60,
                 padding: 40
             }}>
-                {/* Input Level Monitor */}
+                {/* Input Level Monitor (Read-only meter) */}
                 <div style={{
                     display: 'flex',
                     flexDirection: 'column',
@@ -300,16 +300,35 @@ function App() {
                     }}>
                         INPUT LEVEL
                     </div>
-                    <div className="interactive-element" style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
-                        <Fader
-                            label="INPUT"
-                            value={0}
-                            meterValue={state?.mic?.inputLevel ?? 0}
-                            height="100%"
-                            width={40}
-                            color="var(--neon-green)"
-                        />
+                    <div className="glass-panel" style={{
+                        flex: 1,
+                        width: 40,
+                        position: 'relative',
+                        background: 'rgba(0,0,0,0.3)',
+                        border: '1px solid var(--glass-border)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'flex-end'
+                    }}>
+                        {/* VU Meter */}
+                        <div style={{
+                            width: '100%',
+                            height: `${(state?.mic?.inputLevel ?? 0) * 100}%`,
+                            background: `linear-gradient(to top, var(--neon-green) 0%, #fff 100%)`,
+                            opacity: 0.8,
+                            transition: 'height 0.05s linear',
+                            boxShadow: `0 0 15px var(--neon-green)`
+                        }} />
                     </div>
+                    <span style={{
+                        fontSize: '10px',
+                        color: 'var(--text-secondary)',
+                        textTransform: 'uppercase',
+                        fontWeight: 'bold',
+                        letterSpacing: '0.05em'
+                    }}>
+                        INPUT
+                    </span>
                 </div>
                 
                 {/* Center Controls */}
@@ -473,6 +492,7 @@ function App() {
             onHomeClick={handleHomeClick}
             riffHistory={state?.riffHistory || []}
             onLoadRiff={handleLoadRiff}
+            looperInputLevel={state?.looper?.inputLevel ?? 0}
         >
             {activeTab === 'mode' && <ModeView onSelectMode={handleSelectMode} />}
             {activeTab === 'play' && <PlayView

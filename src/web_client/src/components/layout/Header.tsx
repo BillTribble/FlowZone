@@ -6,6 +6,7 @@ interface HeaderProps {
     onPanic?: () => void;
     connected?: boolean;
     onHomeClick?: () => void;
+    looperInputLevel?: number;
 }
 
 import React, { useRef } from 'react';
@@ -18,7 +19,8 @@ export const Header: React.FC<HeaderProps> = ({
     onTogglePlay,
     onPanic,
     connected = false,
-    onHomeClick
+    onHomeClick,
+    looperInputLevel = 0
 }) => {
     const longPressTimer = useRef<number | null>(null);
     const [isPressing, setIsPressing] = React.useState(false);
@@ -100,6 +102,45 @@ export const Header: React.FC<HeaderProps> = ({
                     background: connected ? 'var(--neon-cyan)' : '#f43f5e',
                     boxShadow: connected ? '0 0 10px var(--neon-cyan)' : '0 0 10px #f43f5e'
                 }} />
+            </div>
+
+            {/* Looper Input Level Meter */}
+            <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8
+            }}>
+                <div style={{
+                    fontSize: 9,
+                    fontWeight: 700,
+                    color: 'var(--text-secondary)',
+                    letterSpacing: '0.1em',
+                    textTransform: 'uppercase'
+                }}>
+                    LOOPER IN
+                </div>
+                <div style={{
+                    width: 80,
+                    height: 6,
+                    background: 'rgba(0,0,0,0.3)',
+                    borderRadius: 3,
+                    border: '1px solid var(--glass-border)',
+                    overflow: 'hidden',
+                    position: 'relative'
+                }}>
+                    <div style={{
+                        position: 'absolute',
+                        left: 0,
+                        top: 0,
+                        bottom: 0,
+                        width: `${looperInputLevel * 100}%`,
+                        background: looperInputLevel > 0.95 ? '#f43f5e' :
+                                   looperInputLevel > 0.7 ? '#fbbf24' :
+                                   'var(--neon-cyan)',
+                        boxShadow: looperInputLevel > 0 ? `0 0 8px ${looperInputLevel > 0.95 ? '#f43f5e' : 'var(--neon-cyan)'}` : 'none',
+                        transition: 'width 0.05s linear'
+                    }} />
+                </div>
             </div>
 
             {/* Center: Context */}

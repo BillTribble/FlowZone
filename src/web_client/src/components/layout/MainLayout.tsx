@@ -24,6 +24,7 @@ interface MainLayoutProps {
     riffHistory?: any[];
     onLoadRiff?: (riffId: string) => void;
     waveformData?: Float32Array;
+    looperInputLevel?: number;
 }
 
 
@@ -47,7 +48,8 @@ export const MainLayout: React.FC<MainLayoutProps & { bottomContent?: React.Reac
     onHomeClick,
     riffHistory = [],
     onLoadRiff,
-    waveformData
+    waveformData,
+    looperInputLevel = 0
 }) => {
     // Generate fallback waveform data if not provided
     const displayWaveform = waveformData || new Float32Array(256).fill(0);
@@ -72,6 +74,7 @@ export const MainLayout: React.FC<MainLayoutProps & { bottomContent?: React.Reac
                 onTogglePlay={onTogglePlay}
                 onPanic={onPanic}
                 onHomeClick={onHomeClick}
+                looperInputLevel={looperInputLevel}
             />
 
             {/* 2. Top Half: View Content + Visualization */}

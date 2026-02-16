@@ -81,6 +81,16 @@ void FlowEngine::processBlock(juce::AudioBuffer<float> &buffer,
     buffer.addFrom(ch, 0, engineBuffer, ch, 0, buffer.getNumSamples());
   }
   
+  // Calculate peak level of what's being captured to retrospective buffer
+  float peakLevel = 0.0f;
+  for (int ch = 0; ch < retroCaptureBuffer.getNumChannels(); ++ch) {
+    const float* channelData = retroCaptureBuffer.getReadPointer(ch);
+    for (int i = 0; i < retroCaptureBuffer.getNumSamples(); ++i) {
+      peakLevel = std::max(peakLevel, std::abs(channelData[i]));
+    }
+  }
+  retroBufferPeakLevel.store(peakLevel);
+  
   // Capture to retro buffer and feature extractor
   retroBuffer.pushBlock(retroCaptureBuffer);
   featureExtractor.pushAudioBlock(retroCaptureBuffer);
@@ -120,6 +130,9 @@ void FlowEngine::broadcastState() {
   
   // Sync Mic Input Level
   state.mic.inputLevel = micProcessor.getPeakLevel();
+  
+  // Sync Looper Input Level (peak of what's going into retrospective buffer)
+  state.looper.inputLevel = retroBufferPeakLevel;
 
   // Use patch-based update (will auto-decide patch vs snapshot)
   broadcaster.broadcastStateUpdate(state);

@@ -81,6 +81,9 @@ private:
   // Active MIDI buffer for triggered notes
   juce::MidiBuffer activeMidi;
   double currentSampleRate = 44100.0;
+  
+  // Peak level tracking for retrospective buffer input
+  std::atomic<float> retroBufferPeakLevel{0.0f};
 
   std::vector<std::unique_ptr<Slot>> slots;
 
