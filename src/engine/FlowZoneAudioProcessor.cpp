@@ -17,6 +17,26 @@ FlowZoneAudioProcessor::FlowZoneAudioProcessor()
       engine(), server(50001)
 #endif
 {
+  // Discover project root and set document root for the server
+  auto currentFile =
+      juce::File::getSpecialLocation(juce::File::currentExecutableFile);
+  juce::File projectRoot;
+  auto searchDir = currentFile.getParentDirectory();
+  for (int i = 0; i < 8; ++i) {
+    if (searchDir.getChildFile("FlowZone.jucer").existsAsFile()) {
+      projectRoot = searchDir;
+      break;
+    }
+    searchDir = searchDir.getParentDirectory();
+  }
+
+  if (projectRoot.isDirectory()) {
+    auto distDir = projectRoot.getChildFile("src/web_client/dist");
+    if (distDir.isDirectory()) {
+      server.setDocumentRoot(distDir.getFullPathName().toStdString());
+    }
+  }
+
   // Mark application as active (crash detection)
   crashGuard.markActive();
 

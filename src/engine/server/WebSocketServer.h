@@ -21,14 +21,12 @@ public:
   // Send a message to all connected clients
   void broadcast(const std::string &message);
 
-  // Func returning the initial state as JSON string
-  void setInitialStateCallback(std::function<std::string()> callback);
-
-  // Func handling received messages
-  void setOnMessageCallback(std::function<void(const std::string &)> callback);
+  // Set the directory to serve files from
+  void setDocumentRoot(const std::string &path);
 
 private:
   int port;
+  std::string documentRoot;
   struct mg_context *ctx = nullptr;
 
   std::mutex connectionsMutex;

@@ -9,13 +9,23 @@ void WebSocketServer::start() {
     return;
 
   std::string portStr = std::to_string(port);
-  const char *options[] = {"listening_ports", portStr.c_str(),
-                           "websocket_timeout_ms", "3600000", nullptr};
+  std::vector<const char *> options;
+  options.push_back("listening_ports");
+  options.push_back(portStr.c_str());
+  options.push_back("websocket_timeout_ms");
+  options.push_back("3600000");
+
+  if (!documentRoot.empty()) {
+    options.push_back("document_root");
+    options.push_back(documentRoot.c_str());
+  }
+
+  options.push_back(nullptr);
 
   struct mg_callbacks callbacks;
   memset(&callbacks, 0, sizeof(callbacks));
 
-  ctx = mg_start(&callbacks, this, options);
+  ctx = mg_start(&callbacks, this, options.data());
 
   // Set WebSocket handlers for root path "/"
   mg_set_websocket_handler(ctx, "/", websocket_connect_handler,
@@ -36,6 +46,10 @@ void WebSocketServer::broadcast(const std::string &message) {
     mg_websocket_write(conn, MG_WEBSOCKET_OPCODE_TEXT, message.c_str(),
                        message.length());
   }
+}
+
+void WebSocketServer::setDocumentRoot(const std::string &path) {
+  documentRoot = path;
 }
 
 void WebSocketServer::setInitialStateCallback(

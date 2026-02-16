@@ -15,30 +15,10 @@ FlowZoneAudioProcessorEditor::FlowZoneAudioProcessorEditor(
   if (envUrl.isNotEmpty()) {
     urlToLoad = envUrl;
   } else {
-    // 2. Search for the local dist/index.html file
-    // We'll check several potential relative paths to find the project root
-    auto currentFile =
-        juce::File::getSpecialLocation(juce::File::currentExecutableFile);
-    juce::File distFile;
-
-    // Try up to 8 levels up (to cover standard build structures and bundles)
-    auto searchDir = currentFile.getParentDirectory();
-    for (int i = 0; i < 8; ++i) {
-      auto potentialDist =
-          searchDir.getChildFile("src/web_client/dist/index.html");
-      if (potentialDist.existsAsFile()) {
-        distFile = potentialDist;
-        break;
-      }
-      searchDir = searchDir.getParentDirectory();
-    }
-
-    if (distFile.existsAsFile()) {
-      urlToLoad = "file://" + distFile.getFullPathName();
-    } else {
-      // 3. Last resort fallback to dev server
-      urlToLoad = "http://localhost:5173";
-    }
+    // 2. Default to our embedded CivetWeb server on 50001
+    // This server is configured in FlowZoneAudioProcessor to point to the local
+    // dist folder
+    urlToLoad = "http://localhost:50001";
   }
 
   webView.goToURL(urlToLoad);
