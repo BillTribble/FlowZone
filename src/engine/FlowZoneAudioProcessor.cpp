@@ -14,6 +14,15 @@ FlowZoneAudioProcessor::FlowZoneAudioProcessor()
       )
 #endif
 {
+  // Mark application as active (crash detection)
+  crashGuard.markActive();
+  
+  // Check for previous crash and safe mode
+  if (crashGuard.wasCrashed()) {
+    DBG("CrashGuard: Previous crash detected");
+    DBG("Safe Mode: " << crashGuard.getSafeModeDescription());
+  }
+  
   // Set up WebSocket → CommandQueue flow
   server.setOnMessageCallback([this](const std::string &msg) {
     // Push received command into engine's command queue
@@ -50,7 +59,10 @@ FlowZoneAudioProcessor::FlowZoneAudioProcessor()
   server.start();
 }
 
-FlowZoneAudioProcessor::~FlowZoneAudioProcessor() {}
+FlowZoneAudioProcessor::~FlowZoneAudioProcessor() {
+  // Mark clean shutdown
+  crashGuard.markClean();
+}
 
 const juce::String FlowZoneAudioProcessor::getName() const {
   return JucePlugin_Name;

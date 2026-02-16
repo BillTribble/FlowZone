@@ -1,5 +1,6 @@
 #pragma once
 
+#include "CrashGuard.h"
 #include "FlowEngine.h"
 #include "server/WebSocketServer.h"
 #include <JuceHeader.h>
@@ -49,8 +50,12 @@ public:
   flowzone::FlowEngine &getEngine() { return engine; }
   TransportService &getTransportService() { return engine.getTransport(); }
 
+  // Accessor for CrashGuard
+  flowzone::CrashGuard &getCrashGuard() { return crashGuard; }
+
 private:
   //==============================================================================
+  flowzone::CrashGuard crashGuard;
   flowzone::FlowEngine engine;
   WebSocketServer server{50001};
 
