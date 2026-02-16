@@ -60,6 +60,8 @@ void FlowEngine::processBlock(juce::AudioBuffer<float> &buffer,
   activeMidi.clear(); // Clear for next block
 
   // Process audio engines based on active mode
+  auto state = sessionManager.getCurrentState();
+
   // Clear pre-allocated buffers
   engineBuffer.clear();
   retroCaptureBuffer.clear();
