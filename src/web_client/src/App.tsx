@@ -41,26 +41,8 @@ function App() {
     const [performanceMode, setPerformanceMode] = useState<'PADS' | 'XY'>('PADS');
     const [isPlaying, setIsPlaying] = useState(false);
 
-    if (!state) {
-        return (
-            <div style={{
-                height: '100vh',
-                background: '#121212',
-                color: '#fff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontFamily: 'sans-serif'
-            }}>
-                <div style={{ textAlign: 'center' }}>
-                    <h1>FlowZone</h1>
-                    <p style={{ color: '#666' }}>Connecting to Engine...</p>
-                </div>
-            </div>
-        )
-    }
-
     // WebSocket Handlers - use useCallback to ensure stable references for keyboard handler
+    // IMPORTANT: These must be defined BEFORE any early returns to comply with Rules of Hooks
     const handlePadTrigger = useCallback((padId: number, val: number) => {
         console.log('[App] Pad trigger:', { padId, val });
         
@@ -204,6 +186,26 @@ function App() {
             window.removeEventListener('keyup', handleKeyUp);
         };
     }, [handlePadTrigger, handlePadRelease, wsClient, selectedCategory]);
+
+    // Early return after all hooks are defined (Rules of Hooks compliance)
+    if (!state) {
+        return (
+            <div style={{
+                height: '100vh',
+                background: '#121212',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontFamily: 'sans-serif'
+            }}>
+                <div style={{ textAlign: 'center' }}>
+                    <h1>FlowZone</h1>
+                    <p style={{ color: '#666' }}>Connecting to Engine...</p>
+                </div>
+            </div>
+        )
+    }
 
     const handleXYChange = (x: number, y: number) => {
         wsClient.send({ cmd: "XY_CHANGE", x, y });

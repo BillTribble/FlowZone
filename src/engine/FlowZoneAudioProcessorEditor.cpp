@@ -8,7 +8,7 @@ FlowZoneAudioProcessorEditor::FlowZoneAudioProcessorEditor(
 
   // In development, point to the Vite dev server
   // In production, this would point to a local file or embedded resource
-  webView.goToURL("http://localhost:5174");
+  webView.goToURL("http://localhost:5173");
 
   setSize(1200, 800);
   setResizable(true, true); // Enable window resizing
