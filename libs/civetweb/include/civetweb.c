@@ -20,6 +20,8 @@
  * THE SOFTWARE.
  */
 
+
+#define NO_SSL
 #if defined(__GNUC__) || defined(__MINGW32__)
 #ifndef GCC_VERSION
 #define GCC_VERSION                                                            \
