@@ -49,6 +49,10 @@ If that audit trail is missing, then you must act as if the operation never happ
 - **Language:** C++20
 - **Project Config:** Projucer (generates Xcode project)
 - **IDE:** Xcode (builds & debugging)
+  - **Xcode.app location:** `/Applications/Xcode.app`
+  - **xcodebuild:** `/Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild`
+  - **Developer directory:** `/Applications/Xcode.app/Contents/Developer` (configured via `xcode-select`)
+  - **Build command:** `xcodebuild -project Builds/MacOSX/FlowZone.xcodeproj -scheme "FlowZone - All" -configuration Debug`
 - **Code Authoring:** Antigravity (AI-assisted coding → passed to Xcode for compilation)
 - **Platform:** macOS (Apple Silicon Native), Standalone App
 - **Frontend:** React 18.3.1 (TypeScript 5.x) — embedded via `juce::WebBrowserComponent`
