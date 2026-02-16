@@ -55,6 +55,11 @@ export const PadGrid: React.FC<PadGridProps> = ({
     const numSteps = intervals.length;
 
     const getMidiNote = (padId: number) => {
+        // In drum mode, use direct sequential mapping (36, 37, 38, 39...)
+        if (isDrumMode) {
+            return baseNote + padId;
+        }
+        // In melodic mode, use scale-aware mapping
         const octave = Math.floor(padId / numSteps);
         const degree = padId % numSteps;
         return baseNote + (octave * 12) + intervals[degree];

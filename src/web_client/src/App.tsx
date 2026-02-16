@@ -156,11 +156,43 @@ function App() {
     // WebSocket Handlers
     const handlePadTrigger = (padId: number, val: number) => {
         console.log('[App] Pad trigger:', { padId, val });
+        
+        // Update visual feedback for pad clicks
+        // Need to convert MIDI note back to padId (0-15)
+        let visualPadId = padId;
+        if (selectedCategory === 'drums') {
+            visualPadId = padId - 36; // Drums: MIDI 36-51 → pad 0-15
+        } else {
+            // Notes/Bass: need to reverse the scale mapping (approximate)
+            visualPadId = padId - 48; // Simplified - assumes linear for now
+        }
+        
+        if (visualPadId >= 0 && visualPadId < 16) {
+            setActivePads(prev => new Set(prev).add(visualPadId));
+        }
+        
         wsClient.send({ cmd: "NOTE_ON", pad: padId, val });
     };
 
     const handlePadRelease = (padId: number) => {
         console.log('[App] Pad release:', { padId });
+        
+        // Update visual feedback for pad releases
+        let visualPadId = padId;
+        if (selectedCategory === 'drums') {
+            visualPadId = padId - 36;
+        } else {
+            visualPadId = padId - 48;
+        }
+        
+        if (visualPadId >= 0 && visualPadId < 16) {
+            setActivePads(prev => {
+                const next = new Set(prev);
+                next.delete(visualPadId);
+                return next;
+            });
+        }
+        
         wsClient.send({ cmd: "NOTE_OFF", pad: padId });
     };
 

@@ -102,6 +102,10 @@ void FlowEngine::processBlock(juce::AudioBuffer<float> &buffer,
 
   // Check for sync merge arrival
   performMergeSync();
+  
+  // Broadcast state continuously for audio meter updates
+  // This ensures UI gets real-time feedback even without commands
+  broadcastState();
 }
 
 void FlowEngine::processCommands() {
