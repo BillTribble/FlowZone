@@ -7,6 +7,7 @@ interface PadGridProps {
     activePads: Set<number>;
     onPadDown: (midiNote: number, padId: number) => void;
     onPadUp: (midiNote: number, padId: number) => void;
+    isDrumMode?: boolean;
 }
 
 const SCALE_INTERVALS: Record<string, number[]> = {
@@ -22,12 +23,33 @@ const SCALE_INTERVALS: Record<string, number[]> = {
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
+// GM Drum mapping for MIDI notes 36-51
+const DRUM_NAMES: Record<number, string> = {
+    36: 'KICK',
+    37: 'RIM',
+    38: 'SNARE',
+    39: 'CLAP',
+    40: 'SNR 2',
+    41: 'TOM L',
+    42: 'HH CL',
+    43: 'TOM L',
+    44: 'HH PD',
+    45: 'TOM M',
+    46: 'HH OP',
+    47: 'TOM M',
+    48: 'TOM H',
+    49: 'CRASH',
+    50: 'TOM H',
+    51: 'RIDE'
+};
+
 export const PadGrid: React.FC<PadGridProps> = ({
     baseNote,
     scale,
     activePads,
     onPadDown,
-    onPadUp
+    onPadUp,
+    isDrumMode = false
 }) => {
     const intervals = SCALE_INTERVALS[scale] || SCALE_INTERVALS.major;
     const numSteps = intervals.length;
@@ -41,6 +63,9 @@ export const PadGrid: React.FC<PadGridProps> = ({
     const isRoot = (padId: number) => (padId % numSteps) === 0;
 
     const getNoteLabel = (midiNote: number) => {
+        if (isDrumMode && midiNote in DRUM_NAMES) {
+            return DRUM_NAMES[midiNote];
+        }
         const name = NOTE_NAMES[midiNote % 12];
         const oct = Math.floor(midiNote / 12) - 1;
         return `${name}${oct}`;

@@ -63,6 +63,7 @@ export const PerformanceSurface: React.FC<PerformanceSurfaceProps> = ({ mode, on
                 activePads={activePads}
                 onPadDown={handlePadDown}
                 onPadUp={handlePadUp}
+                isDrumMode={activeCategory === 'drums'}
             />
         </div>
     );
