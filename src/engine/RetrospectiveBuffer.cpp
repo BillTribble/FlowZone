@@ -85,32 +85,45 @@ void RetrospectiveBuffer::getPastAudio(int delayInSamples, int numSamples,
 
 std::vector<float> RetrospectiveBuffer::getWaveformData(int targetSamples) {
   std::vector<float> waveform(targetSamples, 0.0f);
-  
+
   if (bufferSize == 0 || targetSamples == 0) {
     return waveform;
   }
 
-  // Calculate how many source samples per target sample
-  int samplesPerBin = std::max(1, bufferSize / targetSamples);
+  // We want to show the most RECENT data.
+  // Let's show a 10-second window (or the whole buffer if smaller).
+  float windowSeconds = 10.0f;
+  // We assume 44100 if we don't have sample rate, but we can estimate from
+  // bufferSize/60
+  int samplesInWindow =
+      std::min(bufferSize, (int)(bufferSize * (windowSeconds / 60.0f)));
+  if (samplesInWindow <= 0)
+    samplesInWindow = bufferSize;
+
+  int samplesPerBin = std::max(1, samplesInWindow / targetSamples);
   int numChannels = buffer.getNumChannels();
-  
-  // Read from oldest data (current writeIndex) through the entire buffer
+
+  // Read starting from (writeIndex - samplesInWindow) up to writeIndex
+  int readStart = writeIndex - samplesInWindow;
+  while (readStart < 0)
+    readStart += bufferSize;
+
   for (int i = 0; i < targetSamples; ++i) {
     float peakVal = 0.0f;
-    
-    // Find peak value in this bin across all channels
+
     for (int s = 0; s < samplesPerBin; ++s) {
-      int sampleIdx = (writeIndex + i * samplesPerBin + s) % bufferSize;
-      
+      int sampleIdx = (readStart + i * samplesPerBin + s) % bufferSize;
+
       for (int ch = 0; ch < numChannels; ++ch) {
         float val = std::abs(buffer.getSample(ch, sampleIdx));
-        peakVal = std::max(peakVal, val);
+        if (val > peakVal)
+          peakVal = val;
       }
     }
-    
+
     waveform[i] = peakVal;
   }
-  
+
   return waveform;
 }
 

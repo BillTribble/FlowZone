@@ -112,7 +112,8 @@
   </MODULES>
   <JUCEOPTIONS JUCE_STRICT_REFCOUNTEDPOINTER="1" JUCE_VST3_CAN_REPLACE_VST2="0"/>
   <EXPORTFORMATS>
-    <XCODE_MAC targetFolder="Builds/MacOSX" extraCompilerFlags="-Wall -Wextra">
+    <XCODE_MAC targetFolder="Builds/MacOSX" extraCompilerFlags="-Wall -Wextra"
+               microphoneUsageDescription="FlowZone needs access to the microphone for retrospective looping and real-time processing.">
       <CONFIGURATIONS>
         <CONFIGURATION isDebug="1" name="Debug" targetName="FlowZone" headerPath="../../libs/civetweb/include;../../libs/catch2" defines="NO_SSL=1&#10;USE_WEBSOCKET=1"/>
         <CONFIGURATION isDebug="0" name="Release" targetName="FlowZone" headerPath="../../libs/civetweb/include;../../libs/catch2" defines="NO_SSL=1&#10;USE_WEBSOCKET=1"/>

@@ -23,7 +23,8 @@ void MicProcessor::process(const juce::AudioBuffer<float> &inputBuffer,
                            juce::AudioBuffer<float> &outputBuffer) {
   static int micLogCounter = 0;
   bool shouldLog = (++micLogCounter >= 86); // ~1/sec at 44100/512
-  if (shouldLog) micLogCounter = 0;
+  if (shouldLog)
+    micLogCounter = 0;
 
   int numSamples = inputBuffer.getNumSamples();
   int numChannels = inputBuffer.getNumChannels();
@@ -32,11 +33,12 @@ void MicProcessor::process(const juce::AudioBuffer<float> &inputBuffer,
     float inPeak = 0.0f;
     for (int ch = 0; ch < numChannels; ++ch)
       inPeak = std::max(inPeak, inputBuffer.getMagnitude(ch, 0, numSamples));
+
     flowzone::FileLogger::instance().log(
         flowzone::FileLogger::Category::AudioFlow,
-        "MIC_IN peak=" + std::to_string(inPeak) +
-        " gain=" + std::to_string(inputGain) +
-        " ch=" + std::to_string(numChannels));
+        "MIC_IN peak=" + std::to_string(inPeak) + " gain=" +
+            std::to_string(inputGain) + " ch=" + std::to_string(numChannels) +
+            " monitor=" + std::string(monitorEnabled ? "ON" : "OFF"));
   }
 
   // Copy input to internal buffer for processing
@@ -64,7 +66,8 @@ void MicProcessor::process(const juce::AudioBuffer<float> &inputBuffer,
   // ALWAYS write processed audio to output buffer for retrospective capture
   // This is critical - the retrospective buffer needs the processed audio
   // regardless of whether monitoring is enabled
-  for (int ch = 0; ch < outputBuffer.getNumChannels() && ch < numChannels; ++ch) {
+  for (int ch = 0; ch < outputBuffer.getNumChannels() && ch < numChannels;
+       ++ch) {
     outputBuffer.copyFrom(ch, 0, internalBuffer, ch, 0, numSamples);
   }
 
@@ -74,12 +77,13 @@ void MicProcessor::process(const juce::AudioBuffer<float> &inputBuffer,
       outPeak = std::max(outPeak, outputBuffer.getMagnitude(ch, 0, numSamples));
     flowzone::FileLogger::instance().log(
         flowzone::FileLogger::Category::AudioFlow,
-        "MIC_OUT peak=" + std::to_string(outPeak) +
-        " peakLevel=" + std::to_string(peakLevel.load()));
+        "MIC_OUT_BLOCK peak=" + std::to_string(outPeak) +
+            " curPeak=" + std::to_string(peakLevel.load()));
   }
-  
-  // If monitoring is disabled, we still wrote to outputBuffer for retro capture,
-  // but we won't add it to the main mix in FlowEngine (handled elsewhere)
+
+  // If monitoring is disabled, we still wrote to outputBuffer for retro
+  // capture, but we won't add it to the main mix in FlowEngine (handled
+  // elsewhere)
 }
 
 void MicProcessor::reset() { reverb.reset(); }
@@ -112,7 +116,7 @@ void MicProcessor::updatePeakLevel(const juce::AudioBuffer<float> &buffer) {
     float channelPeak = buffer.getMagnitude(ch, 0, buffer.getNumSamples());
     peak = std::max(peak, channelPeak);
   }
-  
+
   // Simple peak decay
   float currentPeak = peakLevel.load();
   if (peak > currentPeak) {
