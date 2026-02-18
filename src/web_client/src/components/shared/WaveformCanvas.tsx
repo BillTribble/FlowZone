@@ -28,6 +28,13 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
+        if (data && data.length > 0) {
+            const hasData = data.some(v => v > 0.001);
+            if (hasData) {
+                console.log('[WaveformCanvas] Rendering data with length:', data.length, 'max sample:', Math.max(...Array.from(data)));
+            }
+        }
+
         // Handle high DPI displays
         const dpr = window.devicePixelRatio || 1;
         const rect = canvas.getBoundingClientRect();

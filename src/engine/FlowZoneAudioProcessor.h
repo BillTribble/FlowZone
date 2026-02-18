@@ -12,6 +12,8 @@ public:
   FlowZoneAudioProcessor();
   ~FlowZoneAudioProcessor() override;
 
+  void init();
+
   //==============================================================================
   void prepareToPlay(double sampleRate, int samplesPerBlock) override;
   void releaseResources() override;

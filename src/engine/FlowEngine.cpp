@@ -65,7 +65,15 @@ void FlowEngine::updatePeakLevel(const juce::AudioBuffer<float> &buffer) {
     float channelPeak = buffer.getMagnitude(ch, 0, buffer.getNumSamples());
     peak = std::max(peak, channelPeak);
   }
-  retroBufferPeakLevel.store(peak);
+
+  // Use a decay similar to MicProcessor for smooth UI metering
+  float currentPeak = retroBufferPeakLevel.load();
+  if (peak > currentPeak) {
+    retroBufferPeakLevel.store(peak);
+  } else {
+    // Decay slowly (~150ms to drop significantly at 44.1kHz/512)
+    retroBufferPeakLevel.store(currentPeak * 0.95f);
+  }
 }
 
 void FlowEngine::processBlock(juce::AudioBuffer<float> &buffer,
