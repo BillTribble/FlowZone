@@ -1,4 +1,5 @@
 #include "MicProcessor.h"
+#include "FileLogger.h"
 #include <cmath>
 
 namespace flowzone {
@@ -20,8 +21,23 @@ void MicProcessor::prepare(double sampleRate, int samplesPerBlock) {
 
 void MicProcessor::process(const juce::AudioBuffer<float> &inputBuffer,
                            juce::AudioBuffer<float> &outputBuffer) {
+  static int micLogCounter = 0;
+  bool shouldLog = (++micLogCounter >= 86); // ~1/sec at 44100/512
+  if (shouldLog) micLogCounter = 0;
+
   int numSamples = inputBuffer.getNumSamples();
   int numChannels = inputBuffer.getNumChannels();
+
+  if (shouldLog) {
+    float inPeak = 0.0f;
+    for (int ch = 0; ch < numChannels; ++ch)
+      inPeak = std::max(inPeak, inputBuffer.getMagnitude(ch, 0, numSamples));
+    flowzone::FileLogger::instance().log(
+        flowzone::FileLogger::Category::AudioFlow,
+        "MIC_IN peak=" + std::to_string(inPeak) +
+        " gain=" + std::to_string(inputGain) +
+        " ch=" + std::to_string(numChannels));
+  }
 
   // Copy input to internal buffer for processing
   internalBuffer.setSize(numChannels, numSamples, false, false, true);
@@ -50,6 +66,16 @@ void MicProcessor::process(const juce::AudioBuffer<float> &inputBuffer,
   // regardless of whether monitoring is enabled
   for (int ch = 0; ch < outputBuffer.getNumChannels() && ch < numChannels; ++ch) {
     outputBuffer.copyFrom(ch, 0, internalBuffer, ch, 0, numSamples);
+  }
+
+  if (shouldLog) {
+    float outPeak = 0.0f;
+    for (int ch = 0; ch < outputBuffer.getNumChannels(); ++ch)
+      outPeak = std::max(outPeak, outputBuffer.getMagnitude(ch, 0, numSamples));
+    flowzone::FileLogger::instance().log(
+        flowzone::FileLogger::Category::AudioFlow,
+        "MIC_OUT peak=" + std::to_string(outPeak) +
+        " peakLevel=" + std::to_string(peakLevel.load()));
   }
   
   // If monitoring is disabled, we still wrote to outputBuffer for retro capture,

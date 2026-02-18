@@ -1,5 +1,7 @@
 // api/WebSocketClient.ts
 
+import { flowLogger } from './FlowLogger';
+
 export class WebSocketClient {
     private ws: WebSocket | null = null;
     private url: string;
@@ -23,6 +25,7 @@ export class WebSocketClient {
 
         this.ws.onopen = () => {
             console.log("[WebSocket] ✅ Connected to FlowZone Engine at", this.url);
+            flowLogger.log('WS', `CONNECTED to ${this.url}`);
             // this.isConnected = true;
             this.reconnectDelay = 1000; // Reset delay
 
@@ -32,6 +35,7 @@ export class WebSocketClient {
 
         this.ws.onclose = () => {
             console.warn("[WebSocket] ⚠️ Disconnected. Reconnecting in " + this.reconnectDelay + "ms");
+            flowLogger.log('WS', `DISCONNECTED, reconnecting in ${this.reconnectDelay}ms`);
             // this.isConnected = false;
             setTimeout(() => {
                 this.reconnectDelay = Math.min(this.reconnectDelay * 2, this.maxReconnectDelay);
@@ -43,16 +47,19 @@ export class WebSocketClient {
             console.log("[WebSocket] 📥 Message received:", event.data.substring(0, 200) + (event.data.length > 200 ? '...' : ''));
             try {
                 const data = JSON.parse(event.data);
+                flowLogger.log('WS', `RECEIVED type=${data.type || 'unknown'} keys=${Object.keys(data).join(',')} size=${event.data.length}`);
                 console.log("[WebSocket] Parsed state keys:", Object.keys(data));
                 if (this.onStateChange) {
                     this.onStateChange(data);
                 }
             } catch (err) {
+                flowLogger.log('WS', `PARSE ERROR: ${err}`);
                 console.error("[WebSocket] Failed to parse message:", err);
             }
         };
 
         this.ws.onerror = (error) => {
+            flowLogger.log('WS', `ERROR: ${error}`);
             console.error("[WebSocket] ❌ Error:", error);
         };
     }

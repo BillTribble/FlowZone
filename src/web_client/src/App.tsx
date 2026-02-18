@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { WebSocketClient } from './api/WebSocketClient'
+import { flowLogger } from './api/FlowLogger'
 import { AppState } from '../../shared/protocol/schema'
 import { MainLayout } from './components/layout/MainLayout'
 import { TabId } from './components/layout/Navigation'
@@ -65,18 +66,26 @@ function App() {
 
             if (message.type === 'STATE_FULL') {
                 console.log('[App] Full state update received:', message.data);
+                flowLogger.log('STATE', `STATE_FULL received, keys=${Object.keys(message.data || {}).join(',')}`);
+                if (message.data) {
+                    flowLogger.log('AUDIO', `INITIAL mic.inputLevel=${message.data.mic?.inputLevel} looper.inputLevel=${message.data.looper?.inputLevel}`);
+                }
                 setState(message.data);
                 setConnected(true);
             } else if (message.type === 'STATE_PATCH') {
                 setState((prevState) => {
                     if (!prevState) return null;
                     const nextState = applyPatch(prevState, message.ops);
-                    console.log('[App] State patched:', nextState);
+                    // Sampled logging for state patches
+                    flowLogger.logSampled('AUDIO', 'state_patch',
+                        `mic.inputLevel=${nextState.mic?.inputLevel?.toFixed(4)} looper.inputLevel=${nextState.looper?.inputLevel?.toFixed(4)} waveformNonZero=${nextState.looper?.waveformData?.some((v: number) => v > 0.001) ? 'YES' : 'NO'}`,
+                        60);
                     return nextState;
                 });
             } else {
                 // Legacy / Direct handle
                 console.log('[App] Direct state update received:', message);
+                flowLogger.log('STATE', `DIRECT state update`);
                 setState(message);
                 setConnected(true);
             }

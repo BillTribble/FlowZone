@@ -1,4 +1,5 @@
 #include "WebSocketServer.h"
+#include "../FileLogger.h"
 
 WebSocketServer::WebSocketServer(int p) : port(p) {}
 
@@ -41,7 +42,13 @@ void WebSocketServer::stop() {
 }
 
 void WebSocketServer::broadcast(const std::string &message) {
+  static int broadcastCounter = 0;
   std::lock_guard<std::mutex> lock(connectionsMutex);
+  flowzone::FileLogger::instance().logSampled(
+      flowzone::FileLogger::Category::WebSocket,
+      "BROADCAST to " + std::to_string(connections.size()) +
+          " clients, " + std::to_string(message.length()) + " bytes",
+      broadcastCounter, 60);
   for (auto *conn : connections) {
     mg_websocket_write(conn, MG_WEBSOCKET_OPCODE_TEXT, message.c_str(),
                        message.length());
@@ -100,12 +107,21 @@ void WebSocketServer::onReady(struct mg_connection *conn) {
     connections.insert(conn);
   }
 
+  flowzone::FileLogger::instance().log(
+      flowzone::FileLogger::Category::WebSocket,
+      "CLIENT CONNECTED, total=" + std::to_string(connections.size()));
+
   if (getInitialState) {
     std::string stateJson = getInitialState();
+    flowzone::FileLogger::instance().log(
+        flowzone::FileLogger::Category::WebSocket,
+        "SENDING INITIAL STATE, " + std::to_string(stateJson.length()) + " bytes");
     mg_websocket_write(conn, MG_WEBSOCKET_OPCODE_TEXT, stateJson.c_str(),
                        stateJson.length());
   } else {
-    // Fallback if no state callback set
+    flowzone::FileLogger::instance().log(
+        flowzone::FileLogger::Category::WebSocket,
+        "WARNING: No initial state callback set!");
     const char *msg = "{\"error\": \"No state callback set\"}";
     mg_websocket_write(conn, MG_WEBSOCKET_OPCODE_TEXT, msg, strlen(msg));
   }
@@ -116,6 +132,9 @@ int WebSocketServer::onData(struct mg_connection *conn, int bits, char *data,
   juce::ignoreUnused(conn, bits);
   if (onMessage) {
     std::string msg(data, len);
+    flowzone::FileLogger::instance().log(
+        flowzone::FileLogger::Category::WebSocket,
+        "RECEIVED CMD: " + msg.substr(0, 120));
     onMessage(msg);
   }
   return 1; // Keep open
@@ -124,4 +143,7 @@ int WebSocketServer::onData(struct mg_connection *conn, int bits, char *data,
 void WebSocketServer::onClose(const struct mg_connection *conn) {
   std::lock_guard<std::mutex> lock(connectionsMutex);
   connections.erase(const_cast<struct mg_connection *>(conn));
+  flowzone::FileLogger::instance().log(
+      flowzone::FileLogger::Category::WebSocket,
+      "CLIENT DISCONNECTED, remaining=" + std::to_string(connections.size()));
 }

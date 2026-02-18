@@ -1,4 +1,5 @@
 #include "FlowEngine.h"
+#include "FileLogger.h"
 #include <algorithm>
 #include <cmath>
 #include <string>
@@ -69,6 +70,21 @@ void FlowEngine::updatePeakLevel(const juce::AudioBuffer<float> &buffer) {
 
 void FlowEngine::processBlock(juce::AudioBuffer<float> &buffer,
                               juce::MidiBuffer &midiMessages) {
+  static int audioLogCounter = 0;
+  bool shouldLog = (++audioLogCounter >= (int)(currentSampleRate / buffer.getNumSamples())); // ~1/sec
+  if (shouldLog) audioLogCounter = 0;
+
+  // Log input buffer peak
+  if (shouldLog) {
+    float inputPeak = 0.0f;
+    for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+      inputPeak = std::max(inputPeak, buffer.getMagnitude(ch, 0, buffer.getNumSamples()));
+    FileLogger::instance().log(FileLogger::Category::AudioFlow,
+        "INPUT peak=" + std::to_string(inputPeak) +
+        " ch=" + std::to_string(buffer.getNumChannels()) +
+        " samples=" + std::to_string(buffer.getNumSamples()));
+  }
+
   // Process incoming commands from Message Thread
   processCommands();
 
@@ -82,6 +98,12 @@ void FlowEngine::processBlock(juce::AudioBuffer<float> &buffer,
 
   // Process audio engines based on active mode
   auto state = sessionManager.getCurrentState();
+
+  if (shouldLog) {
+    FileLogger::instance().log(FileLogger::Category::AudioFlow,
+        "MODE category=" + state.activeMode.category.toStdString() +
+        " preset=" + state.activeMode.presetId.toStdString());
+  }
 
   // Clear pre-allocated buffers
   engineBuffer.clear();
@@ -138,12 +160,30 @@ void FlowEngine::processBlock(juce::AudioBuffer<float> &buffer,
     }
   }
 
+  // Log engine output and retro capture peaks
+  if (shouldLog) {
+    float engPeak = 0.0f;
+    float retroPeak = 0.0f;
+    for (int ch = 0; ch < engineBuffer.getNumChannels(); ++ch)
+      engPeak = std::max(engPeak, engineBuffer.getMagnitude(ch, 0, buffer.getNumSamples()));
+    for (int ch = 0; ch < retroCaptureBuffer.getNumChannels(); ++ch)
+      retroPeak = std::max(retroPeak, retroCaptureBuffer.getMagnitude(ch, 0, buffer.getNumSamples()));
+    FileLogger::instance().log(FileLogger::Category::AudioFlow,
+        "ENGINE peak=" + std::to_string(engPeak) +
+        " RETRO_CAPTURE peak=" + std::to_string(retroPeak));
+  }
+
   // Update peak level for UI (atomic store)
   updatePeakLevel(retroCaptureBuffer);
 
   // Capture to retro buffer and feature extractor
   retroBuffer.pushBlock(retroCaptureBuffer);
   featureExtractor.pushAudioBlock(retroCaptureBuffer);
+
+  if (shouldLog) {
+    FileLogger::instance().log(FileLogger::Category::AudioFlow,
+        "RETRO_BUFFER_PEAK atomic=" + std::to_string(retroBufferPeakLevel.load()));
+  }
 
   // Sum slots into buffer
   for (auto &slot : slots) {
@@ -164,6 +204,10 @@ void FlowEngine::processCommands() {
 }
 
 void FlowEngine::broadcastState() {
+  static int stateLogCounter = 0;
+  bool shouldLog = (++stateLogCounter >= 60); // ~1/sec at 60Hz
+  if (shouldLog) stateLogCounter = 0;
+
   // This is called FROM THE MESSAGE THREAD via timerCallback
   auto state = sessionManager.getCurrentState();
 
@@ -182,6 +226,19 @@ void FlowEngine::broadcastState() {
 
   // Sync Looper Waveform Data (O(N) operation - now safe on message thread)
   state.looper.waveformData = retroBuffer.getWaveformData(256);
+
+  if (shouldLog) {
+    // Check if waveform has any non-zero data
+    bool hasWaveform = false;
+    for (float v : state.looper.waveformData) {
+      if (v > 0.001f) { hasWaveform = true; break; }
+    }
+    FileLogger::instance().log(FileLogger::Category::StateBroadcast,
+        "STATE mic.inputLevel=" + std::to_string(state.mic.inputLevel) +
+        " looper.inputLevel=" + std::to_string(state.looper.inputLevel) +
+        " waveformHasData=" + std::string(hasWaveform ? "YES" : "NO") +
+        " mode=" + state.activeMode.category.toStdString());
+  }
 
   // Use patch-based update
   broadcaster.broadcastStateUpdate(state);

@@ -24,6 +24,12 @@ public:
   // Set the directory to serve files from
   void setDocumentRoot(const std::string &path);
 
+  // Set callback for providing initial state to new connections
+  void setInitialStateCallback(std::function<std::string()> callback);
+
+  // Set callback for handling incoming messages from clients
+  void setOnMessageCallback(std::function<void(const std::string &)> callback);
+
 private:
   int port;
   std::string documentRoot;
