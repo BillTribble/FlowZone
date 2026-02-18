@@ -56,20 +56,20 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
         const step = w / data.length;
         const midY = h / 2;
 
-        ctx.moveTo(0, midY);
-
         for (let i = 0; i < data.length; i++) {
             const x = i * step;
-            // Shift data if it's 0-1 range vs -1 to 1
-            // Assuming -1 to 1 for raw audio
-            const y = midY - (data[i] * (h / 2) * 0.9);
-            ctx.lineTo(x, y);
+            const val = Math.max(0.01, data[i]); // Min visible height
+            const amplitude = (val * (h / 2) * 0.9);
+
+            // Draw top half
+            ctx.moveTo(x, midY - amplitude);
+            ctx.lineTo(x, midY + amplitude);
         }
 
         ctx.stroke();
 
         // Optional: add a subtle neon glow to the waveform
-        ctx.shadowBlur = 10;
+        ctx.shadowBlur = 5;
         ctx.shadowColor = color;
         ctx.stroke();
 
