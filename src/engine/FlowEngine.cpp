@@ -63,6 +63,9 @@ void FlowEngine::processBlock(juce::AudioBuffer<float> &buffer,
   if (state.activeMode.category == "mic") {
     micProcessor.process(buffer, engineBuffer);
 
+    // After processing mic, clear the main buffer to remove raw input/noise
+    buffer.clear();
+
     for (int ch = 0; ch < retroCaptureBuffer.getNumChannels() &&
                      ch < engineBuffer.getNumChannels();
          ++ch) {
@@ -70,30 +73,39 @@ void FlowEngine::processBlock(juce::AudioBuffer<float> &buffer,
     }
 
     if (state.mic.monitorInput || state.mic.monitorUntilLooped) {
-      for (int ch = 0; ch < buffer.getNumChannels(); ++ch) {
-        buffer.addFrom(ch, 0, engineBuffer, ch, 0, numSamples);
+      for (int ch = 0;
+           ch < buffer.getNumChannels() && ch < engineBuffer.getNumChannels();
+           ++ch) {
+        buffer.copyFrom(ch, 0, engineBuffer, ch, 0, numSamples);
       }
     }
-  } else if (state.activeMode.category == "drums") {
-    drumEngine.process(engineBuffer, combinedMidi);
-    for (int ch = 0; ch < retroCaptureBuffer.getNumChannels() &&
-                     ch < engineBuffer.getNumChannels();
-         ++ch) {
-      retroCaptureBuffer.copyFrom(ch, 0, engineBuffer, ch, 0, numSamples);
-    }
-  } else if (state.activeMode.category == "notes" ||
-             state.activeMode.category == "bass") {
-    synthEngine.process(engineBuffer, combinedMidi);
-    for (int ch = 0; ch < retroCaptureBuffer.getNumChannels() &&
-                     ch < engineBuffer.getNumChannels();
-         ++ch) {
-      retroCaptureBuffer.copyFrom(ch, 0, engineBuffer, ch, 0, numSamples);
-    }
-  }
+  } else {
+    // If not in mic mode, still clear the main buffer to remove any raw mic
+    // bleed
+    buffer.clear();
 
-  if (state.activeMode.category != "mic") {
-    for (int ch = 0; ch < buffer.getNumChannels(); ++ch) {
-      buffer.addFrom(ch, 0, engineBuffer, ch, 0, numSamples);
+    if (state.activeMode.category == "drums") {
+      drumEngine.process(engineBuffer, combinedMidi);
+      for (int ch = 0; ch < retroCaptureBuffer.getNumChannels() &&
+                       ch < engineBuffer.getNumChannels();
+           ++ch) {
+        retroCaptureBuffer.copyFrom(ch, 0, engineBuffer, ch, 0, numSamples);
+      }
+    } else if (state.activeMode.category == "notes" ||
+               state.activeMode.category == "bass") {
+      synthEngine.process(engineBuffer, combinedMidi);
+      for (int ch = 0; ch < retroCaptureBuffer.getNumChannels() &&
+                       ch < engineBuffer.getNumChannels();
+           ++ch) {
+        retroCaptureBuffer.copyFrom(ch, 0, engineBuffer, ch, 0, numSamples);
+      }
+    }
+
+    // Add synth/drums to the now-clear buffer
+    for (int ch = 0;
+         ch < buffer.getNumChannels() && ch < engineBuffer.getNumChannels();
+         ++ch) {
+      buffer.copyFrom(ch, 0, engineBuffer, ch, 0, numSamples);
     }
   }
 
