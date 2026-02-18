@@ -17,7 +17,7 @@ void Slot::prepareToPlay(double sampleRate, int samplesPerBlock) {
 
 void Slot::processBlock(juce::AudioBuffer<float> &outputBuffer,
                         int numSamples) {
-  if (state.state != "PLAYING" || audioData.getNumSamples() == 0)
+  if (state.state != "PLAYING" || state.muted || audioData.getNumSamples() == 0)
     return;
 
   int sourceSamples = audioData.getNumSamples();

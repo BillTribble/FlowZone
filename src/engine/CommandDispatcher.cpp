@@ -63,12 +63,19 @@ void CommandDispatcher::dispatch(const juce::String &jsonCommand,
   } else if (cmdType == "LOAD_JAM") {
     handleLoadJam(engine, jsonVar["sessionId"].toString());
   } else if (cmdType == "RENAME_JAM") {
-    handleRenameJam(engine, jsonVar["sessionId"].toString(),
-                    jsonVar["name"].toString(),
-                    jsonVar.hasProperty("emoji") ? jsonVar["emoji"].toString() : "");
+    handleRenameJam(
+        engine, jsonVar["sessionId"].toString(), jsonVar["name"].toString(),
+        jsonVar.hasProperty("emoji") ? jsonVar["emoji"].toString() : "");
   } else if (cmdType == "DELETE_JAM") {
     handleDeleteJam(engine, jsonVar["sessionId"].toString());
+  } else if (cmdType == "COMMIT") {
+    handleCommit(engine);
   }
+}
+
+void CommandDispatcher::handleCommit(FlowEngine &engine) {
+  DBG("[CommandDispatcher] COMMIT retrospective audio to slot");
+  engine.commitLooper();
 }
 
 void CommandDispatcher::handlePlay(FlowEngine &engine) {
@@ -100,14 +107,14 @@ void CommandDispatcher::handleSetPreset(FlowEngine &engine,
 }
 
 void CommandDispatcher::handleSetMode(FlowEngine &engine,
-                                       const juce::String &category) {
+                                      const juce::String &category) {
   // Set the active mode category (drums, notes, bass, fx, etc.)
   DBG("[CommandDispatcher] Set mode to category: " + category);
   engine.setActiveCategory(category);
 }
 
 void CommandDispatcher::handleLoadRiff(FlowEngine &engine,
-                                        const juce::String &riffId) {
+                                       const juce::String &riffId) {
   // Load a riff from history
   DBG("[CommandDispatcher] Load riff: " + riffId);
   engine.loadRiff(riffId);
@@ -162,18 +169,22 @@ void CommandDispatcher::handleNewJam(FlowEngine &engine) {
   engine.createNewJam();
 }
 
-void CommandDispatcher::handleLoadJam(FlowEngine &engine, const juce::String &sessionId) {
+void CommandDispatcher::handleLoadJam(FlowEngine &engine,
+                                      const juce::String &sessionId) {
   DBG("[CommandDispatcher] Load jam: " + sessionId);
   engine.loadJam(sessionId);
 }
 
-void CommandDispatcher::handleRenameJam(FlowEngine &engine, const juce::String &sessionId,
-                                       const juce::String &name, const juce::String &emoji) {
+void CommandDispatcher::handleRenameJam(FlowEngine &engine,
+                                        const juce::String &sessionId,
+                                        const juce::String &name,
+                                        const juce::String &emoji) {
   DBG("[CommandDispatcher] Rename jam: " + sessionId + " to " + name);
   engine.renameJam(sessionId, name, emoji);
 }
 
-void CommandDispatcher::handleDeleteJam(FlowEngine &engine, const juce::String &sessionId) {
+void CommandDispatcher::handleDeleteJam(FlowEngine &engine,
+                                        const juce::String &sessionId) {
   DBG("[CommandDispatcher] Delete jam: " + sessionId);
   engine.deleteJam(sessionId);
 }

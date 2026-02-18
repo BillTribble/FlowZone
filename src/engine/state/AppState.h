@@ -19,6 +19,8 @@ struct SlotState {
   juce::String id;
   juce::String state = "EMPTY"; // EMPTY, PLAYING, MUTED
   float volume = 1.0f;
+  bool muted = false;
+  juce::String riffId;
   juce::String name;
   juce::String instrumentCategory = "drums";
   juce::String presetId = "mic_input";
@@ -45,7 +47,7 @@ struct AppState {
     juce::String emoji;
     int64_t createdAt = 0;
   };
-  
+
   std::vector<Session> sessions;
   Session session;
 
@@ -87,8 +89,10 @@ struct AppState {
   } mic;
 
   struct Looper {
-    float inputLevel = 0.0f; // 0.0 to 1.0 peak level for retrospective buffer input
-    std::vector<float> waveformData; // Downsampled waveform for UI visualization (256 samples)
+    float inputLevel =
+        0.0f; // 0.0 to 1.0 peak level for retrospective buffer input
+    std::vector<float>
+        waveformData; // Downsampled waveform for UI visualization (256 samples)
   } looper;
 
   std::vector<SlotState> slots;

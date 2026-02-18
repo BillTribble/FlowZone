@@ -49,6 +49,7 @@ public:
   void setLoopLength(int bars);
   void setSlotVolume(int slotIndex, float volume);
   void setSlotMuted(int slotIndex, bool muted);
+  void commitLooper();
 
   // Mic controls
   void setInputGain(float gainDb);

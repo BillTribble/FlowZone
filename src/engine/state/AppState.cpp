@@ -88,14 +88,14 @@ juce::var AppState::toVar() const {
   {
     juce::DynamicObject *looperObj = new juce::DynamicObject();
     looperObj->setProperty("inputLevel", looper.inputLevel);
-    
+
     // Waveform data for visualization
     juce::Array<juce::var> waveformArr;
     for (float sample : looper.waveformData) {
       waveformArr.add(sample);
     }
     looperObj->setProperty("waveformData", waveformArr);
-    
+
     obj->setProperty("looper", looperObj);
   }
 
@@ -107,6 +107,8 @@ juce::var AppState::toVar() const {
       sObj->setProperty("id", slot.id);
       sObj->setProperty("state", slot.state);
       sObj->setProperty("volume", slot.volume);
+      sObj->setProperty("muted", slot.muted);
+      sObj->setProperty("riffId", slot.riffId);
       sObj->setProperty("name", slot.name);
       sObj->setProperty("instrumentCategory", slot.instrumentCategory);
       sObj->setProperty("presetId", slot.presetId);
@@ -259,7 +261,7 @@ AppState AppState::fromVar(const juce::var &v) {
   // Looper
   if (auto looperObj = v["looper"]; looperObj.isObject()) {
     state.looper.inputLevel = static_cast<float>(looperObj["inputLevel"]);
-    
+
     // Waveform data
     if (auto waveformArr = looperObj["waveformData"]; waveformArr.isArray()) {
       state.looper.waveformData.clear();
@@ -276,6 +278,8 @@ AppState AppState::fromVar(const juce::var &v) {
       slot.id = sVal["id"].toString();
       slot.state = sVal["state"].toString();
       slot.volume = static_cast<float>(sVal["volume"]);
+      slot.muted = static_cast<bool>(sVal["muted"]);
+      slot.riffId = sVal["riffId"].toString();
       slot.name = sVal["name"].toString();
       slot.instrumentCategory = sVal["instrumentCategory"].toString();
       slot.presetId = sVal["presetId"].toString();

@@ -40,6 +40,8 @@ public:
   const SlotState &getState() const { return state; }
 
   void setVolume(float newVolume) { state.volume = newVolume; }
+  void setMuted(bool muted) { state.muted = muted; }
+  bool isMuted() const { return state.muted; }
   void setState(const juce::String &newState) { state.state = newState; }
 
   bool isFull() const { return state.state != "EMPTY"; }

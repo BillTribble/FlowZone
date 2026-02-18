@@ -31,6 +31,7 @@ private:
   void handleSetLoopLength(FlowEngine &engine, int bars);
   void handleSetSlotMuted(FlowEngine &engine, int index, bool muted);
   void handleSetSlotVolume(FlowEngine &engine, int index, float volume);
+  void handleCommit(FlowEngine &engine);
   void handleSetInputGain(FlowEngine &engine, float gainDb);
   void handleToggleMonitorInput(FlowEngine &engine);
   void handleToggleMonitorUntilLooped(FlowEngine &engine);
@@ -38,7 +39,7 @@ private:
   void handleNewJam(FlowEngine &engine);
   void handleLoadJam(FlowEngine &engine, const juce::String &sessionId);
   void handleRenameJam(FlowEngine &engine, const juce::String &sessionId,
-                      const juce::String &name, const juce::String &emoji);
+                       const juce::String &name, const juce::String &emoji);
   void handleDeleteJam(FlowEngine &engine, const juce::String &sessionId);
 };
 

@@ -6,8 +6,6 @@ FlowZoneAudioProcessor::FlowZoneAudioProcessor()
     : juce::AudioProcessor(
           juce::AudioProcessor::BusesProperties()
               .withInput("Input", juce::AudioChannelSet::stereo(), true)
-              .withInput("Extra Inputs",
-                         juce::AudioChannelSet::discreteChannels(14), false)
               .withOutput("Output", juce::AudioChannelSet::stereo(), true)
               .withOutput("Out 3-4", juce::AudioChannelSet::stereo(), false)
               .withOutput("Out 5-6", juce::AudioChannelSet::stereo(), false)
@@ -98,12 +96,18 @@ void FlowZoneAudioProcessor::changeProgramName(int index,
 
 void FlowZoneAudioProcessor::prepareToPlay(double sampleRate,
                                            int samplesPerBlock) {
-  // Request Microphone permission
-  juce::RuntimePermissions::request(
-      juce::RuntimePermissions::recordAudio,
-      [this, sampleRate, samplesPerBlock](bool granted) {
-        engine.prepareToPlay(sampleRate, samplesPerBlock);
-      });
+  // Always prepare the engine immediately
+  engine.prepareToPlay(sampleRate, samplesPerBlock);
+
+  // Request Microphone permission (macOS/iOS/Android) for actual audio flow
+  if (!juce::RuntimePermissions::isGranted(
+          juce::RuntimePermissions::recordAudio)) {
+    juce::RuntimePermissions::request(
+        juce::RuntimePermissions::recordAudio, [](bool granted) {
+          juce::Logger::writeToLog(granted ? "Microphone permission GRANTED"
+                                           : "Microphone permission DENIED");
+        });
+  }
 }
 
 void FlowZoneAudioProcessor::releaseResources() {}
@@ -130,9 +134,17 @@ void FlowZoneAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   auto totalNumInputChannels = getTotalNumInputChannels();
   auto totalNumOutputChannels = getTotalNumOutputChannels();
 
-  for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-    buffer.clear(i, 0, buffer.getNumSamples());
+  // If we have fewer inputs than outputs, clear the extra outputs
+  // But NEVER clear channels 0-1 if they might be engine outputs,
+  // unless we are sure they are not input channels being used as placeholders.
+  for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i) {
+    if (i >= 2) { // Keep stereo mix path alive
+      buffer.clear(i, 0, buffer.getNumSamples());
+    }
+  }
 
+  // If no inputs are enabled in settings, we won't get mic audio,
+  // but we still want instruments to work.
   engine.processBlock(buffer, midiMessages);
 }
 
