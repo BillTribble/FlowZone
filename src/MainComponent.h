@@ -2,6 +2,8 @@
 #include "LevelMeter.h"
 #include "RetrospectiveBuffer.h"
 #include "Riff.h"
+#include "RiffHistoryPanel.h"
+#include "RiffPlaybackEngine.h"
 #include "WaveformPanel.h"
 #include <juce_audio_utils/juce_audio_utils.h>
 
@@ -34,6 +36,7 @@ private:
   juce::TextButton monitorButton{"MONITOR: OFF"};
   juce::Label titleLabel;
   WaveformPanel waveformPanel;
+  RiffHistoryPanel riffHistoryPanel;
 
   // Audio pipeline
   RetrospectiveBuffer retroBuffer;
@@ -44,6 +47,7 @@ private:
   std::atomic<float> peakLevel{0.0f};  // peak level from audio callback
   std::atomic<bool> monitorOn{false};  // route mic to output?
   RiffHistory riffHistory;
+  RiffPlaybackEngine riffEngine;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };

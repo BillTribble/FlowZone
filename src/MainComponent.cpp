@@ -67,6 +67,14 @@ MainComponent::MainComponent() {
   // --- Waveform Panel ---
   addAndMakeVisible(waveformPanel);
   waveformPanel.setBPM(120.0);
+
+  // --- Riff History Panel ---
+  addAndMakeVisible(riffHistoryPanel);
+  riffHistoryPanel.setHistory(&riffHistory);
+  riffHistoryPanel.onRiffSelected = [this](const Riff &riff) {
+    juce::Logger::writeToLog("Riff selected from history: " + riff.name);
+    riffEngine.playRiff(riff);
+  };
   waveformPanel.onLoopTriggered = [this](int bars) {
     juce::Logger::writeToLog(
         "Retrospective Loop Triggered: " + juce::String(bars) + " bars");
@@ -107,10 +115,11 @@ MainComponent::MainComponent() {
 MainComponent::~MainComponent() { shutdownAudio(); }
 
 //==============================================================================
-void MainComponent::prepareToPlay(int /*samplesPerBlockExpected*/,
+void MainComponent::prepareToPlay(int samplesPerBlockExpected,
                                   double sampleRate) {
   currentSampleRate = sampleRate;
   retroBuffer.prepare(sampleRate, 60); // 60 seconds storage
+  riffEngine.prepare(sampleRate, samplesPerBlockExpected);
   waveformPanel.setSampleRate(sampleRate);
 }
 
@@ -151,6 +160,9 @@ void MainComponent::getNextAudioBlock(
   for (int ch = 0; ch < std::min(numInputChannels, 2); ++ch)
     chanPtrs[ch] = buffer->getReadPointer(ch, startSample);
   retroBuffer.pushBlock(chanPtrs, std::min(numInputChannels, 2), numSamples);
+
+  // Sum riff playback into the output
+  riffEngine.processNextBlock(*buffer);
 
   // If monitor is OFF, clear the output buffer (silence)
   if (!monitorOn.load()) {
@@ -223,7 +235,9 @@ void MainComponent::resized() {
   levelMeter.setBounds(meterBounds);
 
   // --- Waveform Panel at the bottom, full width, 120px ---
-  waveformPanel.setBounds(getLocalBounds().reduced(0).removeFromBottom(120));
+  auto bottomArea = getLocalBounds().removeFromBottom(200);
+  waveformPanel.setBounds(bottomArea.removeFromTop(120));
+  riffHistoryPanel.setBounds(bottomArea);
 }
 
 //==============================================================================

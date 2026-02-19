@@ -24,6 +24,8 @@ target_sources(FlowZone PRIVATE
     src/RetrospectiveBuffer.cpp
     src/WaveformPanel.cpp
     src/Riff.h
+    src/RiffHistoryPanel.cpp
+    src/RiffPlaybackEngine.cpp
 )
 
 target_compile_definitions(FlowZone PRIVATE

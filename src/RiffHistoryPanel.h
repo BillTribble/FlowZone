@@ -1,0 +1,40 @@
+#pragma once
+#include "Riff.h"
+#include <functional>
+#include <juce_gui_basics/juce_gui_basics.h>
+#include <vector>
+
+/**
+ * A horizontal row showing the history of captured riffs.
+ * Riffs flow from right to left (newest on the right).
+ */
+class RiffHistoryPanel : public juce::Component {
+public:
+  RiffHistoryPanel();
+  ~RiffHistoryPanel() override = default;
+
+  void setHistory(const RiffHistory *history);
+
+  void paint(juce::Graphics &g) override;
+  void resized() override;
+  void mouseDown(const juce::MouseEvent &e) override;
+
+  std::function<void(const Riff &)> onRiffSelected;
+
+private:
+  struct RiffItem {
+    const Riff *riff;
+    juce::Rectangle<float> bounds;
+    std::vector<float> thumbnail;
+  };
+
+  void updateItems();
+  std::vector<float> generateThumbnail(const juce::AudioBuffer<float> &audio,
+                                       int numPoints);
+
+  const RiffHistory *riffHistory{nullptr};
+  std::vector<RiffItem> items;
+  int selectedRiffIndex{-1};
+
+  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(RiffHistoryPanel)
+};
