@@ -64,23 +64,28 @@ MainComponent::MainComponent() {
   };
   addAndMakeVisible(monitorButton);
 
+  // --- Waveform Panel ---
+  addAndMakeVisible(waveformPanel);
+  waveformPanel.setBPM(120.0);
+
   // --- Audio Setup ---
-  // Request 0 outputs and 1-2 inputs initially; the AudioDeviceManager
-  // will pick the default mic.
+  // Request 2 inputs and 2 outputs — mic feeds left channel primarily.
   setAudioChannels(2, 2);
 
   // --- Timer for UI update at ~30fps ---
   startTimerHz(30);
 
-  setSize(400, 600);
+  setSize(400, 750);
 }
 
 MainComponent::~MainComponent() { shutdownAudio(); }
 
 //==============================================================================
 void MainComponent::prepareToPlay(int /*samplesPerBlockExpected*/,
-                                  double /*sampleRate*/) {
-  // Nothing to prepare for this simple prototype
+                                  double sampleRate) {
+  currentSampleRate = sampleRate;
+  retroBuffer.prepare(sampleRate, 60); // 60 seconds storage
+  waveformPanel.setSampleRate(sampleRate);
 }
 
 void MainComponent::getNextAudioBlock(
@@ -113,6 +118,13 @@ void MainComponent::getNextAudioBlock(
 
   // Store peak for UI (atomic, lock-free)
   peakLevel.store(peak);
+
+  // Push post-gain audio into retrospective ring buffer (no allocation, no
+  // lock) Build a temporary channel pointer array on the stack — no heap use.
+  const float *chanPtrs[2] = {nullptr, nullptr};
+  for (int ch = 0; ch < std::min(numInputChannels, 2); ++ch)
+    chanPtrs[ch] = buffer->getReadPointer(ch, startSample);
+  retroBuffer.pushBlock(chanPtrs, std::min(numInputChannels, 2), numSamples);
 
   // If monitor is OFF, clear the output buffer (silence)
   if (!monitorOn.load()) {
@@ -183,10 +195,22 @@ void MainComponent::resized() {
   auto meterBounds =
       meterArea.withSizeKeepingCentre(meterWidth, meterArea.getHeight() - 20);
   levelMeter.setBounds(meterBounds);
+
+  // --- Waveform Panel at the bottom, full width, 120px ---
+  waveformPanel.setBounds(getLocalBounds().reduced(0).removeFromBottom(120));
 }
 
 //==============================================================================
 void MainComponent::timerCallback() {
   // Read peak from audio thread (atomic) and update the meter
   levelMeter.setLevel(peakLevel.load());
+
+  // Feed waveform panel: 8 bars at 120 BPM, downsampled to panel pixel width
+  if (currentSampleRate > 0.0) {
+    const int panelW = std::max(waveformPanel.getWidth(), 1);
+    const double framesPerBar = currentSampleRate * (60.0 / 120.0) * 4.0;
+    const int eightBars = static_cast<int>(framesPerBar * 8.0);
+    auto waveData = retroBuffer.getWaveformData(eightBars, panelW);
+    waveformPanel.setWaveformData(waveData);
+  }
 }

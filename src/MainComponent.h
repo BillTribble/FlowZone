@@ -1,10 +1,12 @@
 #pragma once
 #include "LevelMeter.h"
+#include "RetrospectiveBuffer.h"
+#include "WaveformPanel.h"
 #include <juce_audio_utils/juce_audio_utils.h>
 
 //==============================================================================
-/// Main component: mic input with gain control, level meter, and monitor
-/// toggle. Inherits AudioAppComponent for easy audio device integration.
+/// Main component: mic input with gain control, level meter, monitor toggle,
+/// and retrospective waveform display.
 class MainComponent : public juce::AudioAppComponent, private juce::Timer {
 public:
   MainComponent();
@@ -30,6 +32,11 @@ private:
   LevelMeter levelMeter;
   juce::TextButton monitorButton{"MONITOR: OFF"};
   juce::Label titleLabel;
+  WaveformPanel waveformPanel;
+
+  // Audio pipeline
+  RetrospectiveBuffer retroBuffer;
+  double currentSampleRate{0.0};
 
   // Atomic state shared with audio thread
   std::atomic<float> gainLinear{1.0f}; // linear gain (default 0dB = 1.0)

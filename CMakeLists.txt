@@ -21,6 +21,8 @@ target_sources(FlowZone PRIVATE
     src/Main.cpp
     src/MainComponent.cpp
     src/LevelMeter.cpp
+    src/RetrospectiveBuffer.cpp
+    src/WaveformPanel.cpp
 )
 
 target_compile_definitions(FlowZone PRIVATE
