@@ -26,6 +26,30 @@ void WaveformPanel::setSampleRate(double sampleRate) {
 }
 
 //==============================================================================
+void WaveformPanel::mouseDown(const juce::MouseEvent &e) {
+  if (getWidth() <= 0)
+    return;
+
+  int section = e.x / (getWidth() / 4);
+  section = std::clamp(section, 0, 3);
+
+  highlightedSection = section;
+  startTimer(150); // Flash for 150ms
+  repaint();
+
+  if (onLoopTriggered) {
+    constexpr int bars[] = {8, 4, 2, 1};
+    onLoopTriggered(bars[section]);
+  }
+}
+
+void WaveformPanel::timerCallback() {
+  stopTimer();
+  highlightedSection = -1;
+  repaint();
+}
+
+//==============================================================================
 void WaveformPanel::resized() { repaint(); }
 
 //==============================================================================
@@ -70,6 +94,12 @@ void WaveformPanel::paint(juce::Graphics &g) {
     g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
     g.drawText(juce::String(sectionBars[i]), sectionX, 4, sectionW, 14,
                juce::Justification::centred, false);
+
+    // --- Highlight (if active) ---
+    if (i == highlightedSection) {
+      g.setColour(juce::Colours::white.withAlpha(0.12f));
+      g.fillRect(sectionRect);
+    }
 
     // --- Waveform ---
     const auto &data = sectionData[static_cast<size_t>(i)];

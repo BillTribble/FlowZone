@@ -67,6 +67,10 @@ MainComponent::MainComponent() {
   // --- Waveform Panel ---
   addAndMakeVisible(waveformPanel);
   waveformPanel.setBPM(120.0);
+  waveformPanel.onLoopTriggered = [](int bars) {
+    juce::Logger::writeToLog(
+        "Retrospective Loop Triggered: " + juce::String(bars) + " bars");
+  };
 
   // --- Audio Setup ---
   // Request 2 inputs and 2 outputs — mic feeds left channel primarily.
