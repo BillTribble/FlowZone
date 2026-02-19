@@ -379,7 +379,7 @@ If you see unexpected changes in the working tree (modified files you didn't tou
 **MANDATORY WORKFLOW:**
 
 1. **File issues for remaining work** — Create beads (`br create ...`) for anything that needs follow-up
-2. **Run quality gates** (if code changed) — Build, tests, linters
+2. **Run quality gates** — **MANDATORY**: Rebuild the app using `xcodebuild` (e.g., `xcodebuild -project build/FlowZone.xcodeproj -scheme FlowZone -configuration Debug`). Verify tests and linters.
 3. **Update issue status** — Close finished work (`br close ...`), update in-progress items
 4. **PUSH TO REMOTE** — This is MANDATORY:
    ```bash
