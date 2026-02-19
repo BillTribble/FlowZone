@@ -92,8 +92,12 @@ void RiffHistoryPanel::paint(juce::Graphics &g) {
 
   for (size_t i = 0; i < items.size(); ++i) {
     const auto &item = items[i];
-    const bool isSelected = (static_cast<int>(i) == selectedRiffIndex);
+    const bool isSelected = (item.riff->id == selectedRiffId);
     const bool isPlaying = isRiffPlaying ? isRiffPlaying(item.riff->id) : false;
+
+    // Save state to clip everything to the box
+    g.saveState();
+    g.reduceClipRegion(item.bounds.toNearestInt());
 
     // Box background
     g.setColour(juce::Colour(0xFF16162B));
@@ -103,15 +107,15 @@ void RiffHistoryPanel::paint(juce::Graphics &g) {
       g.setColour(juce::Colours::cyan.withAlpha(0.15f));
       g.fillRoundedRectangle(item.bounds, 6.0f);
       g.setColour(juce::Colours::cyan);
-      g.drawRoundedRectangle(item.bounds, 6.0f, 2.0f);
+      g.drawRoundedRectangle(item.bounds.reduced(1.0f), 6.0f, 2.0f);
     } else if (isSelected) {
       g.setColour(juce::Colours::white.withAlpha(0.1f));
       g.fillRoundedRectangle(item.bounds, 6.0f);
       g.setColour(juce::Colour(0xFF00CC66));
-      g.drawRoundedRectangle(item.bounds, 6.0f, 2.0f);
+      g.drawRoundedRectangle(item.bounds.reduced(1.0f), 6.0f, 2.0f);
     } else {
       g.setColour(juce::Colours::white.withAlpha(0.1f));
-      g.drawRoundedRectangle(item.bounds, 6.0f, 1.0f);
+      g.drawRoundedRectangle(item.bounds.reduced(0.5f), 6.0f, 1.0f);
     }
 
     // Mini-waveform
@@ -127,13 +131,15 @@ void RiffHistoryPanel::paint(juce::Graphics &g) {
       g.drawLine(x, midY - peak * scaleY, x, midY + peak * scaleY, 1.0f);
     }
 
-    // Name & Layers
+    // Name & Layers (Fitted text with ellipsis to prevent overlap)
     g.setColour(juce::Colours::white.withAlpha(0.7f));
     g.setFont(juce::FontOptions(10.0f));
     juce::String label =
         item.riff->name + " (L" + juce::String(item.riff->layers) + ")";
-    g.drawText(label, item.bounds.reduced(4, 2),
-               juce::Justification::bottomLeft, false);
+    g.drawFittedText(label, item.bounds.reduced(6, 4).toNearestInt(),
+                     juce::Justification::bottomLeft, 1);
+
+    g.restoreState();
   }
 
   if (items.empty() && riffHistory) {
@@ -146,11 +152,11 @@ void RiffHistoryPanel::paint(juce::Graphics &g) {
 void RiffHistoryPanel::resized() { updateItems(); }
 
 void RiffHistoryPanel::mouseDown(const juce::MouseEvent &e) {
-  for (int i = 0; i < static_cast<int>(items.size()); ++i) {
-    if (items[static_cast<size_t>(i)].bounds.contains(e.position)) {
-      selectedRiffIndex = i;
+  for (const auto &item : items) {
+    if (item.bounds.contains(e.position)) {
+      selectedRiffId = item.riff->id;
       if (onRiffSelected)
-        onRiffSelected(*items[static_cast<size_t>(i)].riff);
+        onRiffSelected(*item.riff);
       repaint();
       return;
     }

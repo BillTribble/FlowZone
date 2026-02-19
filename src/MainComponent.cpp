@@ -176,13 +176,13 @@ void MainComponent::getNextAudioBlock(
     chanPtrs[ch] = buffer->getReadPointer(ch, startSample);
   retroBuffer.pushBlock(chanPtrs, std::min(numInputChannels, 2), numSamples);
 
-  // Sum riff playback into the output
-  riffEngine.processNextBlock(*buffer);
-
-  // If monitor is OFF, clear the output buffer (silence)
+  // If monitor is OFF, clear the input from the buffer before mixing riffs
   if (!monitorOn.load()) {
     bufferToFill.clearActiveBufferRegion();
   }
+
+  // Sum riff playback into the output
+  riffEngine.processNextBlock(*buffer);
   // If monitor is ON, the input data (post-gain) is already in the buffer
   // and will be sent to the output as-is.
 }

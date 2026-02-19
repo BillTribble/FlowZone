@@ -49,6 +49,7 @@ void RiffPlaybackEngine::playRiff(const juce::Uuid &id,
   playing->finished = false;
 
   const juce::ScopedLock sl(lock);
+  playingRiffs.clear(); // Exclusive playback: stop any currently playing riffs
   playingRiffs.push_back(std::move(playing));
 }
 
