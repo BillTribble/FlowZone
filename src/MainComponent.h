@@ -1,6 +1,7 @@
 #pragma once
 #include "LevelMeter.h"
 #include "RetrospectiveBuffer.h"
+#include "Riff.h"
 #include "WaveformPanel.h"
 #include <juce_audio_utils/juce_audio_utils.h>
 
@@ -42,6 +43,7 @@ private:
   std::atomic<float> gainLinear{1.0f}; // linear gain (default 0dB = 1.0)
   std::atomic<float> peakLevel{0.0f};  // peak level from audio callback
   std::atomic<bool> monitorOn{false};  // route mic to output?
+  RiffHistory riffHistory;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };

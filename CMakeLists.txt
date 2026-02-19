@@ -23,6 +23,7 @@ target_sources(FlowZone PRIVATE
     src/LevelMeter.cpp
     src/RetrospectiveBuffer.cpp
     src/WaveformPanel.cpp
+    src/Riff.h
 )
 
 target_compile_definitions(FlowZone PRIVATE

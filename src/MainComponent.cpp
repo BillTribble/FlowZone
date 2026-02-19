@@ -67,9 +67,31 @@ MainComponent::MainComponent() {
   // --- Waveform Panel ---
   addAndMakeVisible(waveformPanel);
   waveformPanel.setBPM(120.0);
-  waveformPanel.onLoopTriggered = [](int bars) {
+  waveformPanel.onLoopTriggered = [this](int bars) {
     juce::Logger::writeToLog(
         "Retrospective Loop Triggered: " + juce::String(bars) + " bars");
+
+    if (currentSampleRate <= 0.0)
+      return;
+
+    // BPM calculation (using 120.0 for now)
+    const double bpm = 120.0;
+    const double framesPerBar = currentSampleRate * (60.0 / bpm) * 4.0;
+    const int numFrames = static_cast<int>(framesPerBar * bars);
+
+    Riff newRiff;
+    newRiff.bpm = bpm;
+    newRiff.bars = bars;
+    newRiff.name = "Riff " + juce::String(riffHistory.size() + 1);
+
+    // Capture the audio from the buffer
+    retroBuffer.getAudioRegion(newRiff.audio, numFrames);
+
+    juce::Logger::writeToLog("Captured Riff: " + newRiff.name + " (" +
+                             juce::String(numFrames) + " samples)");
+
+    // Add to history
+    riffHistory.addRiff(std::move(newRiff));
   };
 
   // --- Audio Setup ---

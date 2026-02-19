@@ -79,3 +79,37 @@ RetrospectiveBuffer::getWaveformData(int numRecentSamples,
 
   return result;
 }
+
+//==============================================================================
+void RetrospectiveBuffer::getAudioRegion(juce::AudioBuffer<float> &dest,
+                                         int numSamples) const {
+  if (bufferCapacity == 0 || numSamples <= 0) {
+    dest.setSize(ringBuffer.getNumChannels(), 0);
+    return;
+  }
+
+  // Clamp to available capacity
+  numSamples = std::min(numSamples, bufferCapacity);
+
+  const int numBufChannels = ringBuffer.getNumChannels();
+  dest.setSize(numBufChannels, numSamples, false, true, true);
+
+  // Snapshot the write head
+  const int wi = writeIndex.load(std::memory_order_acquire);
+
+  for (int ch = 0; ch < numBufChannels; ++ch) {
+    // Determine the start position in the ring buffer (numSamples back from wi)
+    int startPos = (wi - numSamples + bufferCapacity) % bufferCapacity;
+
+    if (startPos + numSamples <= bufferCapacity) {
+      // Linear copy in one go
+      dest.copyFrom(ch, 0, ringBuffer, ch, startPos, numSamples);
+    } else {
+      // Wrapped copy: two parts
+      int firstPartSize = bufferCapacity - startPos;
+      dest.copyFrom(ch, 0, ringBuffer, ch, startPos, firstPartSize);
+      dest.copyFrom(ch, firstPartSize, ringBuffer, ch, 0,
+                    numSamples - firstPartSize);
+    }
+  }
+}
