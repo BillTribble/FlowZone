@@ -50,6 +50,8 @@ void CommandDispatcher::dispatch(const juce::String &jsonCommand,
     handleSetSlotMuted(engine, (int)jsonVar["index"], false);
   } else if (cmdType == "SET_VOL") {
     handleSetSlotVolume(engine, (int)jsonVar["index"], (float)jsonVar["val"]);
+  } else if (cmdType == "SET_SLOT_VOLUME") {
+    handleSetSlotVolume(engine, (int)jsonVar["slot"], (float)jsonVar["volume"]);
   } else if (cmdType == "SET_INPUT_GAIN") {
     handleSetInputGain(engine, (float)jsonVar["val"]);
   } else if (cmdType == "TOGGLE_MONITOR_INPUT") {

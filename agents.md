@@ -57,6 +57,11 @@ If that audit trail is missing, then you must act as if the operation never happ
 - **Platform:** macOS (Apple Silicon Native), Standalone App
 - **Frontend:** React 18.3.1 (TypeScript 5.x) — embedded via `juce::WebBrowserComponent`
 - **Reference:** See `Spec_FlowZone_Looper1.6.md` for the full technical design
+- **Log Files:** `~/FlowZone_Logs/` — separate files per category:
+  - `startup.log` — App lifecycle (startup/shutdown)
+  - `audio_flow.log` — Engine peak levels (sampled, audio thread safe)
+  - `state_broadcast.log` — State broadcast to UI (sampled ~1/sec)
+  - `ws_server.log` — WebSocket server events (connections, messages)
 
 ### Architecture Summary
 

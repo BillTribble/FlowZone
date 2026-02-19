@@ -8,6 +8,9 @@ FlowEngine::FlowEngine()
     : juce::Thread("AutoMergeThread"), transport(), dispatcher(), broadcaster(),
       sessionManager(), retroBuffer(), featureExtractor(), commandQueue() {
 
+  FileLogger::instance().log(FileLogger::Category::Startup,
+                             "FlowEngine constructor START");
+
   // Create 12 empty slots
   for (int i = 0; i < 12; ++i) {
     auto slot = std::make_unique<Slot>(i);
@@ -15,18 +18,35 @@ FlowEngine::FlowEngine()
   }
 
   createNewJam();
+  transport.play(); // Auto-play when opening a jam
   startTimerHz(60); // Broadcast state at 60Hz
+
+  FileLogger::instance().log(FileLogger::Category::Startup,
+                             "FlowEngine constructor DONE, transport playing");
 }
 
-FlowEngine::~FlowEngine() { stopThread(2000); }
+FlowEngine::~FlowEngine() {
+  FileLogger::instance().log(FileLogger::Category::Startup,
+                             "FlowEngine SHUTDOWN");
+  stopThread(2000);
+}
 
 void FlowEngine::prepareToPlay(double sampleRate, int samplesPerBlock) {
   currentSampleRate = sampleRate;
+
+  FileLogger::instance().log(FileLogger::Category::Startup,
+                             "prepareToPlay sr=" + std::to_string(sampleRate) +
+                                 " block=" + std::to_string(samplesPerBlock));
 
   transport.prepareToPlay(sampleRate, samplesPerBlock);
   drumEngine.prepare(sampleRate, samplesPerBlock);
   synthEngine.prepare(sampleRate, samplesPerBlock);
   micProcessor.prepare(sampleRate, samplesPerBlock);
+
+  // Set default mic gain to match AppState default of 0.67 (~7 dB)
+  float defaultGainDb = (0.67f * 100.0f) - 60.0f; // ~7 dB
+  micProcessor.setInputGain(defaultGainDb);
+
   retroBuffer.prepare(sampleRate, 60); // 60 seconds retrospective buffer
   featureExtractor.prepare(sampleRate, samplesPerBlock);
 
@@ -278,13 +298,27 @@ void FlowEngine::commitLooper() {
 }
 
 void FlowEngine::createNewJam() {
+  // Preserve existing sessions list
+  auto existingState = sessionManager.getCurrentState();
+
   AppState newState;
   newState.session.id = juce::Uuid().toString();
   newState.session.name = "New Jam";
+  newState.session.createdAt = juce::Time::currentTimeMillis();
   newState.activeMode.category = "drums";
   for (int i = 0; i < 12; ++i)
     newState.slots.push_back({});
+
+  // Copy existing sessions and add the new one
+  newState.sessions = existingState.sessions;
+  AppState::Session sessionEntry;
+  sessionEntry.id = newState.session.id;
+  sessionEntry.name = newState.session.name;
+  sessionEntry.createdAt = newState.session.createdAt;
+  newState.sessions.push_back(sessionEntry);
+
   sessionManager.setState(newState);
+  transport.play(); // Auto-play new jams
 }
 
 void FlowEngine::loadJam(const juce::String &sessionId) {}
@@ -301,7 +335,33 @@ void FlowEngine::broadcastState() {
   state.looper.waveformData = retroBuffer.getWaveformData(256);
   state.transport.isPlaying = transport.isPlaying();
   state.transport.bpm = transport.getBpm();
+  state.transport.barPhase = transport.getBarPhase();
+  state.transport.metronomeEnabled = transport.isMetronomeEnabled();
+  state.transport.loopLengthBars = transport.getLoopLengthBars();
   broadcaster.broadcastStateUpdate(state);
+
+  // Sampled logging for state broadcast debugging (~1/sec at 60Hz)
+  static int broadcastLogCounter = 0;
+  if (++broadcastLogCounter >= 60) {
+    broadcastLogCounter = 0;
+    float retroPeak = retroBufferPeakLevel.load();
+    float micPeak = micProcessor.getPeakLevel();
+    bool hasWaveform = false;
+    for (float v : state.looper.waveformData) {
+      if (v > 0.001f) {
+        hasWaveform = true;
+        break;
+      }
+    }
+    FileLogger::instance().log(
+        FileLogger::Category::StateBroadcast,
+        "BROADCAST retroPeak=" + std::to_string(retroPeak) +
+            " micPeak=" + std::to_string(micPeak) +
+            " playing=" + std::string(state.transport.isPlaying ? "Y" : "N") +
+            " mode=" + state.activeMode.category.toStdString() +
+            " waveform=" + std::string(hasWaveform ? "HAS_DATA" : "EMPTY") +
+            " sessions=" + std::to_string(state.sessions.size()));
+  }
 }
 
 void FlowEngine::updatePeakLevel(const juce::AudioBuffer<float> &buffer) {

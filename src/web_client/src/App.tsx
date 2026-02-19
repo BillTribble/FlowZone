@@ -349,6 +349,11 @@ function App() {
         wsClient.send({ cmd: "LOAD_RIFF", riffId });
     };
 
+    const handleCommit = () => {
+        console.log('[App] COMMIT retrospective buffer');
+        wsClient.send({ cmd: "COMMIT" });
+    };
+
     // Determine bottom content
     let bottomContent: React.ReactNode | undefined = undefined;
 
@@ -357,6 +362,7 @@ function App() {
             state={state}
             onSlotVolumeChange={handleSlotVolumeChange}
             isMixDirty={isMixDirty}
+            onCommit={handleCommit}
         />;
     } else if (selectedCategory === 'mic') {
         bottomContent = (
@@ -475,6 +481,7 @@ function App() {
             onLoadRiff={handleLoadRiff}
             looperInputLevel={state?.looper?.inputLevel ?? 0}
             waveformData={state?.looper?.waveformData ? new Float32Array(state.looper.waveformData) : undefined}
+            onCommit={handleCommit}
         >
             {activeTab === 'mode' && <ModeView onSelectMode={handleSelectMode} />}
             {activeTab === 'play' && <PlayView

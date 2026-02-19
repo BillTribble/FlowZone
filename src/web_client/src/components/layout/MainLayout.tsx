@@ -25,6 +25,7 @@ interface MainLayoutProps {
     onLoadRiff?: (riffId: string) => void;
     waveformData?: Float32Array;
     looperInputLevel?: number;
+    onCommit?: () => void;
 }
 
 
@@ -49,7 +50,8 @@ export const MainLayout: React.FC<MainLayoutProps & { bottomContent?: React.Reac
     riffHistory = [],
     onLoadRiff,
     waveformData,
-    looperInputLevel = 0
+    looperInputLevel = 0,
+    onCommit
 }) => {
     // Generate fallback waveform data if not provided
     const displayWaveform = waveformData || new Float32Array(256).fill(0);
@@ -131,17 +133,37 @@ export const MainLayout: React.FC<MainLayoutProps & { bottomContent?: React.Reac
                 </div>
 
                 {/* Waveform Area (Bottom of Top Half) */}
-                <div style={{
-                    height: 60,
-                    background: 'rgba(0,0,0,0.3)',
-                    borderTop: '1px solid var(--glass-border)'
-                }}>
+                <div
+                    onClick={onCommit}
+                    style={{
+                        height: 60,
+                        background: 'rgba(0,0,0,0.3)',
+                        borderTop: '1px solid var(--glass-border)',
+                        cursor: 'pointer',
+                        position: 'relative'
+                    }}
+                    title="Tap to commit retrospective buffer"
+                >
                     <WaveformCanvas
                         data={displayWaveform}
                         height={60}
                         color="var(--neon-cyan)"
                         opacity={0.6}
                     />
+                    {/* Commit overlay label */}
+                    <div style={{
+                        position: 'absolute',
+                        right: 12,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        fontSize: 9,
+                        fontWeight: 900,
+                        color: 'rgba(0, 229, 255, 0.5)',
+                        letterSpacing: '0.15em',
+                        pointerEvents: 'none'
+                    }}>
+                        TAP TO COMMIT
+                    </div>
                 </div>
             </div>
 

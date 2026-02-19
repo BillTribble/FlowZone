@@ -9,7 +9,8 @@
 namespace flowzone {
 
 /**
- * @brief File-based logger for debugging audio flow and WebSocket communication.
+ * @brief File-based logger for debugging audio flow and WebSocket
+ * communication.
  *
  * Writes timestamped entries to separate log files in ~/FlowZone_Logs/.
  * Designed to be concise (one line per event) and safe for audio thread use
@@ -17,7 +18,7 @@ namespace flowzone {
  */
 class FileLogger {
 public:
-  enum class Category { WebSocket, AudioFlow, StateBroadcast };
+  enum class Category { WebSocket, AudioFlow, StateBroadcast, Startup };
 
   static FileLogger &instance() {
     static FileLogger inst;
@@ -47,8 +48,7 @@ public:
 
 private:
   FileLogger() {
-    auto logDir = juce::File::getSpecialLocation(
-                      juce::File::userHomeDirectory)
+    auto logDir = juce::File::getSpecialLocation(juce::File::userHomeDirectory)
                       .getChildFile("FlowZone_Logs");
     if (!logDir.exists())
       logDir.createDirectory();
@@ -59,21 +59,31 @@ private:
     wsStream_.open(logPath_ + "/ws_server.log", std::ios::trunc);
     audioStream_.open(logPath_ + "/audio_flow.log", std::ios::trunc);
     stateStream_.open(logPath_ + "/state_broadcast.log", std::ios::trunc);
+    startupStream_.open(logPath_ + "/startup.log", std::ios::trunc);
 
     if (wsStream_.is_open())
-      wsStream_ << getTimestamp() << " === FlowZone WebSocket Log Started ===\n";
+      wsStream_ << getTimestamp()
+                << " === FlowZone WebSocket Log Started ===\n";
     if (audioStream_.is_open())
       audioStream_ << getTimestamp()
                    << " === FlowZone Audio Flow Log Started ===\n";
     if (stateStream_.is_open())
       stateStream_ << getTimestamp()
                    << " === FlowZone State Broadcast Log Started ===\n";
+    if (startupStream_.is_open())
+      startupStream_ << getTimestamp() << " === FlowZone STARTUP ===\n";
+    startupStream_.flush();
   }
 
   ~FileLogger() {
+    if (startupStream_.is_open()) {
+      startupStream_ << getTimestamp() << " === FlowZone SHUTDOWN ===\n";
+      startupStream_.flush();
+    }
     wsStream_.close();
     audioStream_.close();
     stateStream_.close();
+    startupStream_.close();
   }
 
   std::ofstream &getStream(Category cat) {
@@ -84,6 +94,8 @@ private:
       return audioStream_;
     case Category::StateBroadcast:
       return stateStream_;
+    case Category::Startup:
+      return startupStream_;
     }
     return wsStream_; // fallback
   }
@@ -99,6 +111,7 @@ private:
   std::ofstream wsStream_;
   std::ofstream audioStream_;
   std::ofstream stateStream_;
+  std::ofstream startupStream_;
 
   FileLogger(const FileLogger &) = delete;
   FileLogger &operator=(const FileLogger &) = delete;

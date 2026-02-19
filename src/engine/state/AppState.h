@@ -81,8 +81,7 @@ struct AppState {
   } activeFX;
 
   struct Mic {
-    float inputGain =
-        0.0f; // dB? Spec says -60 to +40, but likely represented as float here
+    float inputGain = 0.67f; // 0-1 normalized, default 2/3 per user request
     float inputLevel = 0.0f; // 0.0 to 1.0 peak level for metering
     bool monitorInput = false;
     bool monitorUntilLooped = false;
