@@ -39,13 +39,24 @@ void RiffPlaybackEngine::processNextBlock(
   }
 }
 
-void RiffPlaybackEngine::playRiff(const Riff &riff) {
+void RiffPlaybackEngine::playRiff(const juce::Uuid &id,
+                                  const juce::AudioBuffer<float> &audio) {
   auto playing = std::make_unique<PlayingRiff>();
+  playing->riffId = id;
   // Deep copy the audio to avoid lifetime issues in this prototype
-  playing->audio.makeCopyOf(riff.audio);
+  playing->audio.makeCopyOf(audio);
   playing->currentPosition = 0;
   playing->finished = false;
 
   const juce::ScopedLock sl(lock);
   playingRiffs.push_back(std::move(playing));
+}
+
+bool RiffPlaybackEngine::isRiffPlaying(const juce::Uuid &id) const {
+  const juce::ScopedLock sl(lock);
+  for (const auto &pr : playingRiffs) {
+    if (pr->riffId == id)
+      return true;
+  }
+  return false;
 }

@@ -73,7 +73,10 @@ MainComponent::MainComponent() {
   riffHistoryPanel.setHistory(&riffHistory);
   riffHistoryPanel.onRiffSelected = [this](const Riff &riff) {
     juce::Logger::writeToLog("Riff selected from history: " + riff.name);
-    riffEngine.playRiff(riff);
+    riffEngine.playRiff(riff.id, riff.audio);
+  };
+  riffHistoryPanel.isRiffPlaying = [this](const juce::Uuid &id) {
+    return riffEngine.isRiffPlaying(id);
   };
   waveformPanel.onLoopTriggered = [this](int bars) {
     juce::Logger::writeToLog(
@@ -82,24 +85,36 @@ MainComponent::MainComponent() {
     if (currentSampleRate <= 0.0)
       return;
 
-    // BPM calculation (using 120.0 for now)
     const double bpm = 120.0;
     const double framesPerBar = currentSampleRate * (60.0 / bpm) * 4.0;
     const int numFrames = static_cast<int>(framesPerBar * bars);
 
-    Riff newRiff;
-    newRiff.bpm = bpm;
-    newRiff.bars = bars;
-    newRiff.name = "Riff " + juce::String(riffHistory.size() + 1);
+    Riff *lastRiff = riffHistory.getLastRiff();
+    if (lastRiff != nullptr && lastRiff->bars == bars && lastRiff->layers < 8) {
+      juce::AudioBuffer<float> layerAudio;
+      retroBuffer.getAudioRegion(layerAudio, numFrames);
+      lastRiff->merge(layerAudio);
+      riffHistory.signalUpdate();
+      riffEngine.playRiff(lastRiff->id, lastRiff->audio);
+      juce::Logger::writeToLog("Merged into existing riff. Layers: " +
+                               juce::String(lastRiff->layers));
+    } else {
+      Riff newRiff;
+      newRiff.bpm = bpm;
+      newRiff.bars = bars;
+      newRiff.name = "Riff " + juce::String(riffHistory.size() + 1);
+      newRiff.layers = 1;
 
-    // Capture the audio from the buffer
-    retroBuffer.getAudioRegion(newRiff.audio, numFrames);
+      // Capture the audio from the buffer
+      retroBuffer.getAudioRegion(newRiff.audio, numFrames);
 
-    juce::Logger::writeToLog("Captured Riff: " + newRiff.name + " (" +
-                             juce::String(numFrames) + " samples)");
+      juce::Logger::writeToLog("Captured Riff: " + newRiff.name + " (" +
+                               juce::String(numFrames) + " samples)");
 
-    // Add to history
-    riffHistory.addRiff(std::move(newRiff));
+      // Add to history
+      const auto &ref = riffHistory.addRiff(std::move(newRiff));
+      riffEngine.playRiff(ref.id, ref.audio);
+    }
   };
 
   // --- Audio Setup ---

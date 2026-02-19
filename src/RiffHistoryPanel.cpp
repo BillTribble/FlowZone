@@ -73,8 +73,9 @@ RiffHistoryPanel::generateThumbnail(const juce::AudioBuffer<float> &audio,
 }
 
 void RiffHistoryPanel::paint(juce::Graphics &g) {
-  // Update items here if history size changed (naive but works for now)
-  if (riffHistory && items.size() != riffHistory->size()) {
+  // Update items here if history size or state changed
+  if (riffHistory && lastUpdateCounter != riffHistory->getUpdateCounter()) {
+    lastUpdateCounter = riffHistory->getUpdateCounter();
     updateItems();
   }
 
@@ -92,12 +93,18 @@ void RiffHistoryPanel::paint(juce::Graphics &g) {
   for (size_t i = 0; i < items.size(); ++i) {
     const auto &item = items[i];
     const bool isSelected = (static_cast<int>(i) == selectedRiffIndex);
+    const bool isPlaying = isRiffPlaying ? isRiffPlaying(item.riff->id) : false;
 
     // Box background
     g.setColour(juce::Colour(0xFF16162B));
     g.fillRoundedRectangle(item.bounds, 6.0f);
 
-    if (isSelected) {
+    if (isPlaying) {
+      g.setColour(juce::Colours::cyan.withAlpha(0.15f));
+      g.fillRoundedRectangle(item.bounds, 6.0f);
+      g.setColour(juce::Colours::cyan);
+      g.drawRoundedRectangle(item.bounds, 6.0f, 2.0f);
+    } else if (isSelected) {
       g.setColour(juce::Colours::white.withAlpha(0.1f));
       g.fillRoundedRectangle(item.bounds, 6.0f);
       g.setColour(juce::Colour(0xFF00CC66));
@@ -111,7 +118,8 @@ void RiffHistoryPanel::paint(juce::Graphics &g) {
     const float midY = item.bounds.getCentreY();
     const float scaleY = item.bounds.getHeight() * 0.35f;
 
-    g.setColour(juce::Colour(0xFF00CC66).withAlpha(0.6f));
+    g.setColour(isPlaying ? juce::Colours::cyan
+                          : juce::Colour(0xFF00CC66).withAlpha(0.6f));
     for (int pt = 0; pt < static_cast<int>(item.thumbnail.size()); ++pt) {
       float x = item.bounds.getX() + static_cast<float>(pt);
       float peak =
@@ -119,10 +127,12 @@ void RiffHistoryPanel::paint(juce::Graphics &g) {
       g.drawLine(x, midY - peak * scaleY, x, midY + peak * scaleY, 1.0f);
     }
 
-    // Name
+    // Name & Layers
     g.setColour(juce::Colours::white.withAlpha(0.7f));
     g.setFont(juce::FontOptions(10.0f));
-    g.drawText(item.riff->name, item.bounds.reduced(4, 2),
+    juce::String label =
+        item.riff->name + " (L" + juce::String(item.riff->layers) + ")";
+    g.drawText(label, item.bounds.reduced(4, 2),
                juce::Justification::bottomLeft, false);
   }
 

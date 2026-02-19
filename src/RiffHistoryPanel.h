@@ -20,6 +20,7 @@ public:
   void mouseDown(const juce::MouseEvent &e) override;
 
   std::function<void(const Riff &)> onRiffSelected;
+  std::function<bool(const juce::Uuid &)> isRiffPlaying;
 
 private:
   struct RiffItem {
@@ -35,6 +36,7 @@ private:
   const RiffHistory *riffHistory{nullptr};
   std::vector<RiffItem> items;
   int selectedRiffIndex{-1};
+  int lastUpdateCounter{-1};
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(RiffHistoryPanel)
 };

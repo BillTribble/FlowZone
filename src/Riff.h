@@ -39,6 +39,25 @@ struct Riff {
   // but we might need deep copy for the initial capture.
   Riff(const Riff &) = default;
   Riff &operator=(const Riff &) = default;
+
+  /** Merges new audio into this riff (layering). */
+  void merge(const juce::AudioBuffer<float> &newAudio) {
+    if (layers >= 8)
+      return;
+
+    const int numSamples = audio.getNumSamples();
+    if (numSamples == 0) {
+      audio.makeCopyOf(newAudio);
+    } else {
+      const int samplesToCopy = std::min(numSamples, newAudio.getNumSamples());
+      for (int ch = 0; ch < audio.getNumChannels(); ++ch) {
+        if (ch < newAudio.getNumChannels()) {
+          audio.addFrom(ch, 0, newAudio, ch, 0, samplesToCopy);
+        }
+      }
+    }
+    layers++;
+  }
 };
 
 /**
@@ -46,17 +65,25 @@ struct Riff {
  */
 class RiffHistory {
 public:
-  void addRiff(Riff &&riff) {
+  const Riff &addRiff(Riff &&riff) {
     history.push_back(std::move(riff));
     // Limit history size to 100 as per instructions
     if (history.size() > 100) {
       history.erase(history.begin());
     }
+    updateCounter++;
+    return history.back();
   }
+
+  Riff *getLastRiff() { return history.empty() ? nullptr : &history.back(); }
+
+  void signalUpdate() { updateCounter++; }
 
   const std::vector<Riff> &getHistory() const { return history; }
   size_t size() const { return history.size(); }
+  int getUpdateCounter() const { return updateCounter; }
 
 private:
   std::vector<Riff> history;
+  int updateCounter{0};
 };

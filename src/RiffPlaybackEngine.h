@@ -17,14 +17,14 @@ public:
 
   /**
    * Starts playback of a riff.
-   * This makes a copy of the riff's audio for playback or ideally just holds
-   * a reference if we can guarantee lifetime, but for a prototype, let's keep
-   * it safe.
    */
-  void playRiff(const Riff &riff);
+  void playRiff(const juce::Uuid &id, const juce::AudioBuffer<float> &audio);
+
+  bool isRiffPlaying(const juce::Uuid &id) const;
 
 private:
   struct PlayingRiff {
+    juce::Uuid riffId;
     juce::AudioBuffer<float> audio;
     int currentPosition{0};
     bool finished{false};
