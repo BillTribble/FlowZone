@@ -47,12 +47,12 @@ If that audit trail is missing, then you must act as if the operation never happ
 
 - **Framework:** JUCE 8.0.x
 - **Language:** C++20
-- **Project Config:** Projucer (generates Xcode project)
+- **Project Config:** CMake (generates Xcode project in `build/`)
 - **IDE:** Xcode (builds & debugging)
   - **Xcode.app location:** `/Applications/Xcode.app`
   - **xcodebuild:** `/Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild`
   - **Developer directory:** `/Applications/Xcode.app/Contents/Developer` (configured via `xcode-select`)
-  - **Build command:** `xcodebuild -project Builds/MacOSX/FlowZone.xcodeproj -scheme "FlowZone - All" -configuration Debug`
+  - **Build command:** `cmake --build build --config Debug` (or `xcodebuild -project build/FlowZone.xcodeproj -scheme FlowZone -configuration Debug`)
 - **Code Authoring:** Antigravity (AI-assisted coding → passed to Xcode for compilation)
 - **Platform:** macOS (Apple Silicon Native), Standalone App
 - **Frontend:** React 18.3.1 (TypeScript 5.x) — embedded via `juce::WebBrowserComponent`
@@ -72,7 +72,7 @@ If that audit trail is missing, then you must act as if the operation never happ
 | **Plugin Host (IPC)** | `src/host/` | C++20, Shared Memory RingBuffers |
 | **Shared Types** | `src/shared/` | C++ primitives (no JUCE deps) |
 | **Web Client (UI)** | `src/web_client/` | React 18.3.1, TypeScript, Vite, Tailwind CSS v4 (base utilities + custom design tokens per Spec §7.1) |
-| **Project Config** | `FlowZone.jucer` | Projucer → Xcode |
+| **Project Config** | `CMakeLists.txt` | CMake → Xcode |
 
 ### ⚠️ CRITICAL PLATFORM RULES
 
@@ -88,7 +88,7 @@ If that audit trail is missing, then you must act as if the operation never happ
 - ✅ Use React/TypeScript for the embedded web UI only
 - ✅ Respect the architecture: C++ Engine = Source of Truth, React = Stateless View
 - ✅ Use JUCE idioms (Component hierarchy, MessageManager, AudioProcessor patterns)
-- ✅ Use Projucer for project config; build & debug in Xcode
+- ✅ Use CMake for project config; build & debug in Xcode
 
 ---
 
@@ -275,8 +275,18 @@ Priorities:
 - `commands`: copy-paste shell commands for next steps
 
 ```bash
-bv --robot-triage        # THE MEGA-COMMAND: start here
-bv --robot-next          # Minimal: just the single top pick + claim command
+# 1) Start with triage (single-call mega-command)
+bv --robot-triage
+
+# 2) Minimal mode: just the top pick + claim command
+bv --robot-next
+
+# 3) Token-optimized output (TOON)
+bv --robot-triage --format toon
+export BV_OUTPUT_FORMAT=toon
+
+# 4) Full robot help
+bv --robot-help
 ```
 
 ### Other Useful bv Commands
