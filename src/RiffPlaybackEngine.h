@@ -18,7 +18,8 @@ public:
   /**
    * Starts playback of a riff.
    */
-  void playRiff(const juce::Uuid &id, const juce::AudioBuffer<float> &audio);
+  void playRiff(const juce::Uuid &id, const juce::AudioBuffer<float> &audio,
+                bool loop = false);
 
   bool isRiffPlaying(const juce::Uuid &id) const;
 
@@ -27,6 +28,7 @@ private:
     juce::Uuid riffId;
     juce::AudioBuffer<float> audio;
     int currentPosition{0};
+    bool looping{false};
     bool finished{false};
   };
 

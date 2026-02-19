@@ -73,7 +73,7 @@ MainComponent::MainComponent() {
   riffHistoryPanel.setHistory(&riffHistory);
   riffHistoryPanel.onRiffSelected = [this](const Riff &riff) {
     juce::Logger::writeToLog("Riff selected from history: " + riff.name);
-    riffEngine.playRiff(riff.id, riff.audio);
+    riffEngine.playRiff(riff.id, riff.audio, true);
   };
   riffHistoryPanel.isRiffPlaying = [this](const juce::Uuid &id) {
     return riffEngine.isRiffPlaying(id);
@@ -95,7 +95,7 @@ MainComponent::MainComponent() {
       retroBuffer.getAudioRegion(layerAudio, numFrames);
       lastRiff->merge(layerAudio);
       riffHistory.signalUpdate();
-      riffEngine.playRiff(lastRiff->id, lastRiff->audio);
+      riffEngine.playRiff(lastRiff->id, lastRiff->audio, true);
       juce::Logger::writeToLog("Merged into existing riff. Layers: " +
                                juce::String(lastRiff->layers));
     } else {
@@ -113,7 +113,7 @@ MainComponent::MainComponent() {
 
       // Add to history
       const auto &ref = riffHistory.addRiff(std::move(newRiff));
-      riffEngine.playRiff(ref.id, ref.audio);
+      riffEngine.playRiff(ref.id, ref.audio, true);
     }
   };
 
