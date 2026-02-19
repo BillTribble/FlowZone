@@ -205,12 +205,19 @@ void MainComponent::timerCallback() {
   // Read peak from audio thread (atomic) and update the meter
   levelMeter.setLevel(peakLevel.load());
 
-  // Feed waveform panel: 8 bars at 120 BPM, downsampled to panel pixel width
+  // Feed waveform panel sections: 8, 4, 2, 1 bars at current BPM
   if (currentSampleRate > 0.0) {
     const int panelW = std::max(waveformPanel.getWidth(), 1);
+    const int sectionW = std::max(panelW / 4, 1);
+
+    // BPM calculation (default 120)
     const double framesPerBar = currentSampleRate * (60.0 / 120.0) * 4.0;
-    const int eightBars = static_cast<int>(framesPerBar * 8.0);
-    auto waveData = retroBuffer.getWaveformData(eightBars, panelW);
-    waveformPanel.setWaveformData(waveData);
+
+    const int bars[] = {8, 4, 2, 1};
+    for (int i = 0; i < 4; ++i) {
+      const int numFrames = static_cast<int>(framesPerBar * bars[i]);
+      auto sectionData = retroBuffer.getWaveformData(numFrames, sectionW);
+      waveformPanel.setSectionData(i, sectionData);
+    }
   }
 }

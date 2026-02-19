@@ -12,10 +12,9 @@ public:
   WaveformPanel();
   ~WaveformPanel() override = default;
 
-  //==========================================================================
-  /// Called from the message-thread timer. Stores a snapshot and triggers a
-  /// repaint. The vector index 0 = oldest sample, last index = newest.
-  void setWaveformData(const std::vector<float> &data);
+  /// Called from the message-thread timer. Stores a snapshot for a section.
+  /// Index 0 = leftmost (8 bars), 3 = rightmost (1 bar).
+  void setSectionData(int sectionIndex, const std::vector<float> &data);
 
   /// Update BPM for bar-line positioning. Default 120.
   void setBPM(double bpm);
@@ -29,7 +28,7 @@ public:
   void resized() override;
 
 private:
-  std::vector<float> waveformData; // copy owned by message thread
+  std::array<std::vector<float>, 4> sectionData; // 4 vertical strips
   double currentBPM{120.0};
   double currentSampleRate{44100.0};
 
