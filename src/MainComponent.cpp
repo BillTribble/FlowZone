@@ -9,80 +9,26 @@ MainComponent::MainComponent() {
   // titleLabel.setJustificationType(juce::Justification::centred);
   // addAndMakeVisible(titleLabel);
 
-  // --- Gain Slider (rotary knob) ---
-  gainSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
-  gainSlider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
-  gainSlider.setRange(-60.0, 40.0, 0.1); // dB range
-  gainSlider.setValue(10.0);             // default 10dB
-  gainSlider.setColour(juce::Slider::rotarySliderFillColourId,
-                       juce::Colour(0xFF00CC66));
-  gainSlider.setColour(juce::Slider::rotarySliderOutlineColourId,
-                       juce::Colour(0xFF2A2A4A));
-  gainSlider.setColour(juce::Slider::thumbColourId, juce::Colours::white);
-  gainSlider.onValueChange = [this]() {
-    float dB = (float)gainSlider.getValue();
+  // --- Gain Knob ---
+  auto &gainSlider = gainKnob.getSlider();
+  gainSlider.setRange(-60.0, 12.0, 0.1);
+  gainSlider.setValue(10.0); // Initial Gain is 10 dB as requested
+  gainSlider.onValueChange = [this, &gainSlider]() {
+    float dB = static_cast<float>(gainSlider.getValue());
     gainLinear.store(juce::Decibels::decibelsToGain(dB));
-
-    // Update value label
-    gainValueLabel.setText(juce::String(dB, 1) + " dB",
-                           juce::dontSendNotification);
   };
-  addAndMakeVisible(gainSlider);
+  addAndMakeVisible(gainKnob);
 
-  // --- Gain Label ---
-  gainLabel.setText("GAIN", juce::dontSendNotification);
-  gainLabel.setFont(juce::FontOptions(14.0f, juce::Font::bold));
-  gainLabel.setColour(juce::Label::textColourId,
-                      juce::Colours::white.withAlpha(0.6f));
-  gainLabel.setJustificationType(juce::Justification::centred);
-  addAndMakeVisible(gainLabel);
-
-  // --- Gain Value Label ---
-  gainValueLabel.setText("0.0 dB", juce::dontSendNotification);
-  gainValueLabel.setFont(juce::FontOptions(16.0f));
-  gainValueLabel.setColour(juce::Label::textColourId, juce::Colours::white);
-  gainValueLabel.setJustificationType(juce::Justification::centred);
-  addAndMakeVisible(gainValueLabel);
-
-  // --- BPM Slider ---
-  bpmSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
-  bpmSlider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
-  bpmSlider.setRange(60.0, 200.0, 1.0);
+  // --- BPM Knob ---
+  auto &bpmSlider = bpmKnob.getSlider();
+  bpmSlider.setRange(40.0, 240.0, 1.0);
   bpmSlider.setValue(120.0);
-  bpmSlider.setColour(juce::Slider::rotarySliderFillColourId,
-                      juce::Colour(0xFF00AAFF)); // Blue for BPM
-  bpmSlider.setColour(juce::Slider::rotarySliderOutlineColourId,
-                      juce::Colour(0xFF2A2A4A));
-  bpmSlider.setColour(juce::Slider::thumbColourId, juce::Colours::white);
-  bpmSlider.onValueChange = [this]() {
-    double bpm = bpmSlider.getValue();
-    currentBpm.store(bpm);
-    bpmValueLabel.setText(juce::String(static_cast<int>(bpm)) + " BPM",
-                          juce::dontSendNotification);
-    waveformPanel.setBPM(bpm);
+  bpmSlider.onValueChange = [this, &bpmSlider]() {
+    double val = bpmSlider.getValue();
+    currentBpm.store(val);
+    waveformPanel.setBPM(val);
   };
-  addAndMakeVisible(bpmSlider);
-
-  bpmLabel.setText("BPM", juce::dontSendNotification);
-  bpmLabel.setFont(juce::FontOptions(14.0f, juce::Font::bold));
-  bpmLabel.setColour(juce::Label::textColourId,
-                     juce::Colours::white.withAlpha(0.6f));
-  bpmLabel.setJustificationType(juce::Justification::centred);
-  addAndMakeVisible(bpmLabel);
-
-  bpmValueLabel.setText("120 BPM", juce::dontSendNotification);
-  bpmValueLabel.setFont(juce::FontOptions(16.0f));
-  bpmValueLabel.setColour(juce::Label::textColourId, juce::Colours::white);
-  bpmValueLabel.setJustificationType(juce::Justification::centred);
-  addAndMakeVisible(bpmValueLabel);
-
-  // --- FX Parameters from XY Pad ---
-  fxXYPad.onXYChange = [this](float x, float y) {
-    // X -> Delay Time (100ms to 800ms)
-    delayTimeSec = 0.1f + (x * 0.7f);
-    // Y -> Feedback (0 to 0.9)
-    delayFeedback = y * 0.9f;
-  };
+  addAndMakeVisible(bpmKnob);
 
   // --- Reverb Controls ---
   reverbSizeSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
@@ -105,10 +51,6 @@ MainComponent::MainComponent() {
                             juce::Colours::white.withAlpha(0.6f));
   reverbSizeLabel.setJustificationType(juce::Justification::centred);
   addAndMakeVisible(reverbSizeLabel);
-
-  // Mixer slider removed as per user request (100% wet)
-
-  // reverbMixLabel removed
 
   // --- FX Parameters from XY Pad ---
   fxXYPad.onXYChange = [this](float x, float y) {
@@ -141,47 +83,42 @@ MainComponent::MainComponent() {
   // --- Monitor Button ---
   monitorButton.setClickingTogglesState(true);
   monitorButton.setColour(juce::TextButton::buttonColourId,
-                          juce::Colour(0xFF2A2A4A));
+                          juce::Colour(0xFF1A1A2E));
   monitorButton.setColour(juce::TextButton::buttonOnColourId,
                           juce::Colour(0xFF00CC66));
   monitorButton.setColour(juce::TextButton::textColourOffId,
-                          juce::Colours::white.withAlpha(0.7f));
+                          juce::Colours::white.withAlpha(0.6f));
   monitorButton.setColour(juce::TextButton::textColourOnId,
                           juce::Colours::black);
   monitorButton.onClick = [this]() {
-    bool isOn = monitorButton.getToggleState();
-    monitorOn.store(isOn);
-    monitorButton.setButtonText(isOn ? "MONITOR: ON" : "MONITOR: OFF");
+    bool on = monitorButton.getToggleState();
+    monitorOn.store(on);
+    monitorButton.setButtonText(on ? "MONITOR: ON" : "MONITOR: OFF");
   };
+  addAndMakeVisible(monitorButton);
 
   // --- Settings Button ---
   settingsButton.setColour(juce::TextButton::buttonColourId,
-                           juce::Colour(0xFF2A2A4A));
+                           juce::Colour(0xFF2A2A4A).withAlpha(0.8f));
   settingsButton.onClick = [this]() {
     if (deviceSelector == nullptr) {
       deviceSelector = std::make_unique<juce::AudioDeviceSelectorComponent>(
-          deviceManager, 0, 2, 0, 2, true, true, true, false);
-      deviceSelector->setSize(400, 600);
+          deviceManager, 1, 2, 2, 2, false, false, true, false);
+      deviceSelector->setSize(400, 400);
       juce::DialogWindow::LaunchOptions options;
-      options.content.setNonOwned(deviceSelector.get());
-      options.dialogTitle = "Audio/MIDI Settings";
-      options.componentToCentreAround = this;
-      options.dialogBackgroundColour = juce::Colour(0xFF16162B);
+      options.content.setOwned(deviceSelector.release());
+      options.dialogTitle = "AUDIO SETTINGS";
+      options.dialogBackgroundColour = juce::Colours::black;
       options.escapeKeyTriggersCloseButton = true;
-      options.useNativeTitleBar = true;
       options.resizable = false;
+      options.useNativeTitleBar = true;
       options.launchAsync();
-    } else {
-      // Just re-launch if already exists (or figure out how to handle multiple
-      // clicks) For now, let's just make it a modal or similar
     }
   };
 
-  // --- Middle Menu ---
+  // --- Middle Menu Panel (Mode & FX Tabs) ---
   addAndMakeVisible(middleMenuPanel);
-  middleMenuPanel.setupModeControls(gainSlider, gainLabel, gainValueLabel,
-                                    bpmSlider, bpmLabel, bpmValueLabel,
-                                    monitorButton);
+  middleMenuPanel.setupModeControls(gainKnob, bpmKnob, monitorButton);
   middleMenuPanel.setupFxControls(fxXYPad, reverbSizeSlider, reverbSizeLabel);
   // Add settings button to mode controls indirectly or just add it here
   addAndMakeVisible(settingsButton);
@@ -228,6 +165,13 @@ MainComponent::MainComponent() {
     for (const auto &r : riffHistory.getHistory()) {
       if (r.id == playingId && !playingId.isNull()) {
         newRiff = r; // Deep copy previous state
+
+        // Summing Logic: If we already have 8 layers, flatten them first.
+        if (newRiff.layers >= 8) {
+          juce::Logger::writeToLog(
+              "Summing 8 layers into history to reset staircase.");
+          newRiff.sumToSingleLayer();
+        }
         break;
       }
     }
@@ -357,21 +301,21 @@ void MainComponent::getNextAudioBlock(
   fxLevelSelector.setValue(active ? 1.0f : 0.0f);
 
   // Apply Delay Logic
-  for (int ch = 0; ch < buffer->getNumChannels(); ++ch) {
-    float *outData = buffer->getWritePointer(ch);
-    float *loopData = looperMixBuffer.getWritePointer(ch);
-    float *dData = delayBuffer.getWritePointer(ch);
-    const int dSize = delayBuffer.getNumSamples();
-    const float dTime = delayTimeSec.load();
-    const float dFeedback = delayFeedback.load();
-    const int dSamples = static_cast<int>(currentSampleRate * dTime);
+  for (int i = 0; i < numSamples; ++i) {
+    // Smoothed mix level (advance once per frame for stereo sync)
+    const float currentMix = fxLevelSelector.getNextValue();
 
-    for (int i = 0; i < numSamples; ++i) {
+    for (int ch = 0; ch < buffer->getNumChannels(); ++ch) {
+      float *outData = buffer->getWritePointer(ch);
+      float *loopData = looperMixBuffer.getWritePointer(ch);
+      float *dData = delayBuffer.getWritePointer(ch);
+      const int dSize = delayBuffer.getNumSamples();
+      const float dTime = delayTimeSec.load();
+      const float dFeedback = delayFeedback.load();
+      const int dSamples = static_cast<int>(currentSampleRate * dTime);
+
       const int readPos = (delayWritePos - dSamples + i + dSize) % dSize;
       const float dSample = dData[readPos];
-
-      // Smoothed mix level
-      const float currentMix = fxLevelSelector.getNextValue();
 
       // Capture current dry signals BEFORE mixing FX (for feeding delay line)
       const float dryLoop = loopData[i];

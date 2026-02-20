@@ -1,4 +1,5 @@
 #pragma once
+#include "LabeledKnob.h"
 #include "LevelMeter.h"
 #include "MiddleMenuPanel.h"
 #include "RetrospectiveBuffer.h"
@@ -31,9 +32,7 @@ private:
   void timerCallback() override;
 
   // UI components
-  juce::Slider gainSlider;
-  juce::Label gainLabel;
-  juce::Label gainValueLabel;
+  LabeledKnob gainKnob{"GAIN", "dB"};
   LevelMeter levelMeter;
   juce::TextButton monitorButton{"MONITOR: OFF"};
   juce::Label titleLabel;
@@ -42,9 +41,7 @@ private:
   WaveformPanel waveformPanel;
   RiffHistoryPanel riffHistoryPanel;
   MiddleMenuPanel middleMenuPanel;
-  juce::Slider bpmSlider;
-  juce::Label bpmLabel;
-  juce::Label bpmValueLabel;
+  LabeledKnob bpmKnob{"BPM"};
 
   // Reverb Controls
   juce::Slider reverbSizeSlider;

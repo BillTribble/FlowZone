@@ -47,18 +47,34 @@ struct Riff {
   Riff(const Riff &) = default;
   Riff &operator=(const Riff &) = default;
 
+  /**
+   * Sums all current layers into a single composite buffer and replaces
+   * the layer list with this summed result.
+   */
+  void sumToSingleLayer() {
+    if (layerBuffers.empty())
+      return;
+
+    juce::AudioBuffer<float> composite;
+    getCompositeAudio(composite);
+
+    layerBuffers.clear();
+    layerBuffers.push_back(std::move(composite));
+    layers = 1;
+  }
+
   /** Merges new audio into this riff (layering). */
-  void merge(const juce::AudioBuffer<float> &newAudio, int newBars) {
+  void merge(const juce::AudioBuffer<float> &newAudio, int barsToMerge) {
     if (layers >= 8)
       return;
 
-    if (newBars > bars)
-      bars = newBars;
+    if (barsToMerge > bars)
+      bars = barsToMerge;
 
     juce::AudioBuffer<float> layerCopy;
     layerCopy.makeCopyOf(newAudio);
     layerBuffers.push_back(std::move(layerCopy));
-    layerBars.push_back(newBars);
+    layerBars.push_back(barsToMerge);
     layers = static_cast<int>(layerBuffers.size());
   }
 

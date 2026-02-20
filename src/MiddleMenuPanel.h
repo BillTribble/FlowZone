@@ -1,4 +1,4 @@
-#pragma once
+#include "LabeledKnob.h"
 #include <juce_gui_basics/juce_gui_basics.h>
 
 /**
@@ -18,9 +18,7 @@ public:
   std::function<void(Tab)> onTabChanged;
 
   // Wire up controls from MainComponent
-  void setupModeControls(juce::Slider &gainSlider, juce::Label &gainLabel,
-                         juce::Label &gainValueLabel, juce::Slider &bpmSlider,
-                         juce::Label &bpmLabel, juce::Label &bpmValueLabel,
+  void setupModeControls(LabeledKnob &gainKnob, LabeledKnob &bpmKnob,
                          juce::TextButton &monitorButton);
   void setupFxControls(juce::Component &xyPad, juce::Slider &reverbSizeSlider,
                        juce::Label &reverbSizeLabel);
@@ -42,13 +40,9 @@ private:
   Tab activeTab{Tab::Mode};
 
   // Pointers to controls owned by MainComponent
-  juce::Slider *pGainSlider{nullptr};
-  juce::Label *pGainLabel{nullptr};
-  juce::Label *pGainValueLabel{nullptr};
+  LabeledKnob *pGainKnob{nullptr};
+  LabeledKnob *pBpmKnob{nullptr};
   juce::TextButton *pMonitorButton{nullptr};
-  juce::Slider *pBpmSlider{nullptr};
-  juce::Label *pBpmLabel{nullptr};
-  juce::Label *pBpmValueLabel{nullptr};
   juce::Component *pXYPad{nullptr};
   juce::Slider *pReverbSizeSlider{nullptr};
   juce::Label *pReverbSizeLabel{nullptr};

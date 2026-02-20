@@ -31,24 +31,15 @@ MiddleMenuPanel::MiddleMenuPanel() {
   updateVisibility();
 }
 
-void MiddleMenuPanel::setupModeControls(
-    juce::Slider &gainSlider, juce::Label &gainLabel,
-    juce::Label &gainValueLabel, juce::Slider &bpmSlider, juce::Label &bpmLabel,
-    juce::Label &bpmValueLabel, juce::TextButton &monitorButton) {
-  pGainSlider = &gainSlider;
-  pGainLabel = &gainLabel;
-  pGainValueLabel = &gainValueLabel;
-  pBpmSlider = &bpmSlider;
-  pBpmLabel = &bpmLabel;
-  pBpmValueLabel = &bpmValueLabel;
+void MiddleMenuPanel::setupModeControls(LabeledKnob &gainKnob,
+                                        LabeledKnob &bpmKnob,
+                                        juce::TextButton &monitorButton) {
+  pGainKnob = &gainKnob;
+  pBpmKnob = &bpmKnob;
   pMonitorButton = &monitorButton;
 
-  modeContainer.addAndMakeVisible(gainSlider);
-  modeContainer.addAndMakeVisible(gainLabel);
-  modeContainer.addAndMakeVisible(gainValueLabel);
-  modeContainer.addAndMakeVisible(bpmSlider);
-  modeContainer.addAndMakeVisible(bpmLabel);
-  modeContainer.addAndMakeVisible(bpmValueLabel);
+  modeContainer.addAndMakeVisible(gainKnob);
+  modeContainer.addAndMakeVisible(bpmKnob);
   modeContainer.addAndMakeVisible(monitorButton);
 
   updateVisibility();
@@ -142,38 +133,14 @@ void MiddleMenuPanel::resized() {
   autoQuantizeToggle.setBounds(toggleRow.reduced(5));
 
   // Layout MODE controls
-  if (pGainSlider && pGainLabel && pGainValueLabel && pBpmSlider && pBpmLabel &&
-      pBpmValueLabel && pMonitorButton) {
+  if (pGainKnob && pBpmKnob && pMonitorButton) {
     auto modeArea = modeContainer.getLocalBounds().reduced(10);
 
     // Three columns: Gain, BPM, Monitor
     int colW = modeArea.getWidth() / 3;
-    auto gainArea = modeArea.removeFromLeft(colW).reduced(5);
-    auto bpmArea = modeArea.removeFromLeft(colW).reduced(5);
-    auto monitorArea = modeArea.reduced(5);
-
-    // Labels right next to dials (Horizontal layout for dial + label)
-    // We'll put label at the top but smaller and shifted if possible,
-    // but "right next to" usually means side-by-side or very tight.
-    // Let's try side-by-side in each column.
-
-    // Gain Column
-    auto gainLabelArea = gainArea.removeFromTop(20);
-    pGainLabel->setBounds(
-        gainLabelArea.removeFromLeft(gainLabelArea.getWidth() / 2));
-    pGainValueLabel->setBounds(gainLabelArea);
-    pGainSlider->setBounds(gainArea);
-
-    // BPM Column
-    auto bpmLabelArea = bpmArea.removeFromTop(20);
-    pBpmLabel->setBounds(
-        bpmLabelArea.removeFromLeft(bpmLabelArea.getWidth() / 2));
-    pBpmValueLabel->setBounds(bpmLabelArea);
-    pBpmSlider->setBounds(bpmArea);
-
-    // Monitor Column
-    pMonitorButton->setBounds(monitorArea.withSize(monitorArea.getWidth(), 40)
-                                  .withCentre(monitorArea.getCentre()));
+    pGainKnob->setBounds(modeArea.removeFromLeft(colW).reduced(2));
+    pBpmKnob->setBounds(modeArea.removeFromLeft(colW).reduced(2));
+    pMonitorButton->setBounds(modeArea.reduced(2, 20));
   }
 
   // Layout FX controls
