@@ -108,8 +108,15 @@ MainComponent::MainComponent() {
     const double framesPerBar = currentSampleRate * (60.0 / bpm) * 4.0;
     const int numFrames = static_cast<int>(framesPerBar * bars);
 
+    const auto now = juce::Time::getMillisecondCounterHiRes() / 1000.0;
+    const double timeSinceLastCapture = now - lastCaptureTime;
+    lastCaptureTime = now;
+
     Riff *lastRiff = riffHistory.getLastRiff();
-    if (lastRiff != nullptr && lastRiff->bars == bars && lastRiff->layers < 8) {
+    // Only merge if it's the same bar length AND captured recently (within 5
+    // seconds)
+    if (lastRiff != nullptr && lastRiff->bars == bars && lastRiff->layers < 8 &&
+        timeSinceLastCapture < 5.0) {
       juce::AudioBuffer<float> layerAudio;
       retroBuffer.getAudioRegion(layerAudio, numFrames);
       lastRiff->merge(layerAudio);
@@ -128,7 +135,7 @@ MainComponent::MainComponent() {
       // Capture the audio from the buffer
       retroBuffer.getAudioRegion(newRiff.audio, numFrames);
 
-      juce::Logger::writeToLog("Captured Riff: " + newRiff.name + " (" +
+      juce::Logger::writeToLog("Captured New Riff: " + newRiff.name + " (" +
                                juce::String(numFrames) + " samples)");
 
       // Add to history

@@ -17,7 +17,6 @@ public:
 
   void paint(juce::Graphics &g) override;
   void resized() override;
-  void mouseDown(const juce::MouseEvent &e) override;
 
   std::function<void(const Riff &)> onRiffSelected;
   std::function<bool(const juce::Uuid &)> isRiffPlaying;
@@ -29,12 +28,27 @@ private:
     std::vector<float> thumbnail;
   };
 
-  void updateItems();
-  std::vector<float> generateThumbnail(const juce::AudioBuffer<float> &audio,
-                                       int numPoints);
+  /** Internal component that actually draws the riffs and is scrolled by the
+   * viewport. */
+  class ContentComponent : public juce::Component {
+  public:
+    ContentComponent(RiffHistoryPanel &p) : owner(p) {}
+    void paint(juce::Graphics &g) override;
+    void mouseDown(const juce::MouseEvent &e) override;
+    void updateItems();
+
+    std::vector<RiffItem> items;
+
+  private:
+    RiffHistoryPanel &owner;
+    std::vector<float> generateThumbnail(const juce::AudioBuffer<float> &audio,
+                                         int numPoints);
+  };
+
+  juce::Viewport viewport;
+  ContentComponent content;
 
   const RiffHistory *riffHistory{nullptr};
-  std::vector<RiffItem> items;
   juce::Uuid selectedRiffId;
   int lastUpdateCounter{-1};
   int lastRiffCount{0};

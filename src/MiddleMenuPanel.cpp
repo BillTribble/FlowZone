@@ -71,10 +71,7 @@ void MiddleMenuPanel::paint(juce::Graphics &g) {
   g.drawRoundedRectangle(contentArea, 6.0f, 1.0f);
 
   if (activeTab == Tab::FX) {
-    g.setColour(juce::Colours::white.withAlpha(0.3f));
-    g.setFont(juce::FontOptions(16.0f, juce::Font::italic));
-    g.drawText("FX Controls Coming Soon...", contentArea,
-               juce::Justification::centred, false);
+    // XY Pad is drawn by child component
   }
 }
 

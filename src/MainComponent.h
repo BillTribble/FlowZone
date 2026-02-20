@@ -59,6 +59,7 @@ private:
   std::atomic<float> delayTimeSec{0.5f};
   std::atomic<float> delayFeedback{0.5f};
   std::atomic<bool> fxEnabled{false};
+  double lastCaptureTime{0.0};
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };
