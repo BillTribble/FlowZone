@@ -37,6 +37,8 @@ private:
   LevelMeter levelMeter;
   juce::TextButton monitorButton{"MONITOR: OFF"};
   juce::Label titleLabel;
+  juce::TextButton playPauseButton{
+      "PAUSE"}; // Starts in playing mode (PAUSE is the action)
   WaveformPanel waveformPanel;
   RiffHistoryPanel riffHistoryPanel;
   MiddleMenuPanel middleMenuPanel;
@@ -55,9 +57,10 @@ private:
   double currentSampleRate{0.0};
 
   // Atomic state shared with audio thread
-  std::atomic<float> gainLinear{1.0f}; // linear gain (default 0dB = 1.0)
+  std::atomic<float> gainLinear{1.0f}; // linear gain
   std::atomic<float> peakLevel{0.0f};  // peak level from audio callback
   std::atomic<bool> monitorOn{false};  // route mic to output?
+  std::atomic<bool> isPlaying{true};   // play riffs?
   RiffHistory riffHistory;
   RiffPlaybackEngine riffEngine;
   std::atomic<double> currentBpm{120.0};
@@ -74,7 +77,7 @@ private:
   int delayWritePos{0};
   std::atomic<float> delayTimeSec{0.5f};
   std::atomic<float> delayFeedback{0.5f};
-  std::atomic<bool> fxEnabled{false};
+  std::atomic<bool> fxActive{false}; // active when XY pad is clicked
   double lastCaptureTime{0.0};
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)

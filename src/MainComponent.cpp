@@ -13,7 +13,7 @@ MainComponent::MainComponent() {
   gainSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
   gainSlider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
   gainSlider.setRange(-60.0, 40.0, 0.1); // dB range
-  gainSlider.setValue(0.0);              // default 0dB
+  gainSlider.setValue(10.0);             // default 10dB
   gainSlider.setColour(juce::Slider::rotarySliderFillColourId,
                        juce::Colour(0xFF00CC66));
   gainSlider.setColour(juce::Slider::rotarySliderOutlineColourId,
@@ -106,26 +106,9 @@ MainComponent::MainComponent() {
   reverbSizeLabel.setJustificationType(juce::Justification::centred);
   addAndMakeVisible(reverbSizeLabel);
 
-  reverbMixSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
-  reverbMixSlider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
-  reverbMixSlider.setRange(0.0, 1.0, 0.01);
-  reverbMixSlider.setValue(0.3);
-  reverbMixSlider.setColour(juce::Slider::rotarySliderFillColourId,
-                            juce::Colour(0xFFCC66FF));
-  reverbMixSlider.setColour(juce::Slider::rotarySliderOutlineColourId,
-                            juce::Colour(0xFF2A2A4A));
-  reverbMixSlider.setColour(juce::Slider::thumbColourId, juce::Colours::white);
-  reverbMixSlider.onValueChange = [this]() {
-    reverbWetLevel.store((float)reverbMixSlider.getValue());
-  };
-  addAndMakeVisible(reverbMixSlider);
+  // Mixer slider removed as per user request (100% wet)
 
-  reverbMixLabel.setText("MIX", juce::dontSendNotification);
-  reverbMixLabel.setFont(juce::FontOptions(14.0f, juce::Font::bold));
-  reverbMixLabel.setColour(juce::Label::textColourId,
-                           juce::Colours::white.withAlpha(0.6f));
-  reverbMixLabel.setJustificationType(juce::Justification::centred);
-  addAndMakeVisible(reverbMixLabel);
+  // reverbMixLabel removed
 
   // --- FX Parameters from XY Pad ---
   fxXYPad.onXYChange = [this](float x, float y) {
@@ -136,8 +119,24 @@ MainComponent::MainComponent() {
   };
 
   middleMenuPanel.onTabChanged = [this](MiddleMenuPanel::Tab tab) {
-    fxEnabled = (tab == MiddleMenuPanel::Tab::FX);
+    // Tab change no longer affects fxEnabled directly, it's mouse-down on XY
+    // Pad
   };
+
+  // --- Play/Pause Button ---
+  playPauseButton.setClickingTogglesState(true);
+  playPauseButton.setToggleState(
+      true, juce::dontSendNotification); // Default to Playing
+  playPauseButton.setColour(juce::TextButton::buttonColourId,
+                            juce::Colour(0xFF2A2A4A));
+  playPauseButton.setColour(juce::TextButton::buttonOnColourId,
+                            juce::Colour(0xFF00CC66));
+  playPauseButton.onClick = [this]() {
+    bool playing = playPauseButton.getToggleState();
+    isPlaying.store(playing);
+    playPauseButton.setButtonText(playing ? "PAUSE" : "PLAY");
+  };
+  addAndMakeVisible(playPauseButton);
 
   // --- Monitor Button ---
   monitorButton.setClickingTogglesState(true);
@@ -160,8 +159,7 @@ MainComponent::MainComponent() {
   middleMenuPanel.setupModeControls(gainSlider, gainLabel, gainValueLabel,
                                     bpmSlider, bpmLabel, bpmValueLabel,
                                     monitorButton);
-  middleMenuPanel.setupFxControls(fxXYPad, reverbSizeSlider, reverbMixSlider,
-                                  reverbSizeLabel, reverbMixLabel);
+  middleMenuPanel.setupFxControls(fxXYPad, reverbSizeSlider, reverbSizeLabel);
   // No need to addAndMakeVisible(monitorButton) here as setupModeControls does
   // it
 
@@ -174,7 +172,9 @@ MainComponent::MainComponent() {
   riffHistoryPanel.setHistory(&riffHistory);
   riffHistoryPanel.onRiffSelected = [this](const Riff &riff) {
     juce::Logger::writeToLog("Riff selected from history: " + riff.name);
-    riffEngine.playRiff(riff.id, riff.audio, true);
+    juce::AudioBuffer<float> composite;
+    riff.getCompositeAudio(composite);
+    riffEngine.playRiff(riff.id, composite, currentBpm.load(), true);
   };
   riffHistoryPanel.isRiffPlaying = [this](const juce::Uuid &id) {
     return riffEngine.isRiffPlaying(id);
@@ -195,15 +195,17 @@ MainComponent::MainComponent() {
     lastCaptureTime = now;
 
     Riff *lastRiff = riffHistory.getLastRiff();
-    // Only merge if it's the same bar length AND captured recently (within 5
-    // seconds)
+    // Only merge if it's the same bar length AND captured recently
     if (lastRiff != nullptr && lastRiff->bars == bars && lastRiff->layers < 8 &&
         timeSinceLastCapture < 5.0) {
       juce::AudioBuffer<float> layerAudio;
       retroBuffer.getAudioRegion(layerAudio, numFrames);
       lastRiff->merge(layerAudio);
       riffHistory.signalUpdate();
-      riffEngine.playRiff(lastRiff->id, lastRiff->audio, true);
+
+      juce::AudioBuffer<float> composite;
+      lastRiff->getCompositeAudio(composite);
+      riffEngine.playRiff(lastRiff->id, composite, bpm, true);
       riffHistoryPanel.repaint();
       juce::Logger::writeToLog("Merged into existing riff. Layers: " +
                                juce::String(lastRiff->layers));
@@ -215,14 +217,18 @@ MainComponent::MainComponent() {
       newRiff.layers = 1;
 
       // Capture the audio from the buffer
-      retroBuffer.getAudioRegion(newRiff.audio, numFrames);
+      juce::AudioBuffer<float> capturedAudio;
+      retroBuffer.getAudioRegion(capturedAudio, numFrames);
+      newRiff.merge(capturedAudio);
 
       juce::Logger::writeToLog("Captured New Riff: " + newRiff.name + " (" +
                                juce::String(numFrames) + " samples)");
 
       // Add to history
       const auto &ref = riffHistory.addRiff(std::move(newRiff));
-      riffEngine.playRiff(ref.id, ref.audio, true);
+      juce::AudioBuffer<float> composite;
+      ref.getCompositeAudio(composite);
+      riffEngine.playRiff(ref.id, composite, bpm, true);
       riffHistoryPanel.repaint();
     }
   };
@@ -265,87 +271,97 @@ void MainComponent::getNextAudioBlock(
 
   auto *buffer = bufferToFill.buffer;
   int numSamples = bufferToFill.numSamples;
-  int startSample = bufferToFill.startSample;
   int numInputChannels = buffer->getNumChannels();
 
-  // Read current gain (atomic, lock-free)
+  // 1. Process Input Gain
   float gain = gainLinear.load();
+  buffer->applyGain(0, numSamples, gain); // Simplified gain on input
 
-  // Apply gain and compute peak
-  float peak = 0.0f;
-  for (int ch = 0; ch < numInputChannels; ++ch) {
-    auto *channelData = buffer->getWritePointer(ch, startSample);
-    for (int i = 0; i < numSamples; ++i) {
-      channelData[i] *= gain;
-      float absSample = std::abs(channelData[i]);
-      if (absSample > peak)
-        peak = absSample;
+  // Calculate peak for level meter (monitor input)
+  float inputPeak = buffer->getMagnitude(0, numSamples);
+  peakLevel.store(inputPeak);
+
+  // 2. Prepare workspace for mixing (using a temporary copy of input)
+  juce::AudioBuffer<float> inputCopy;
+  inputCopy.makeCopyOf(*buffer);
+
+  // Clear output buffer to start mixing
+  bufferToFill.clearActiveBufferRegion();
+
+  // Add Riffs if playing
+  if (isPlaying.load()) {
+    riffEngine.processNextBlock(*buffer, currentBpm.load());
+  }
+
+  // Add Input to output (Monitor)
+  if (monitorOn.load()) {
+    for (int ch = 0; ch < buffer->getNumChannels(); ++ch) {
+      buffer->addFrom(ch, 0, inputCopy, ch, 0, numSamples);
     }
   }
 
-  // Store peak for UI (atomic, lock-free)
-  peakLevel.store(peak);
+  // 3. Define a shared FX processing lambda
+  auto applyGlobalFX = [&](juce::AudioBuffer<float> &targetBuffer) {
+    if (fxXYPad.isMouseButtonDown()) {
+      // --- Delay FX ---
+      for (int ch = 0; ch < targetBuffer.getNumChannels(); ++ch) {
+        float *channelData = targetBuffer.getWritePointer(ch);
+        float *delayData = delayBuffer.getWritePointer(ch);
+        int delaySize = delayBuffer.getNumSamples();
 
-  // Push post-gain audio into retrospective ring buffer (no allocation, no
-  // lock) Build a temporary channel pointer array on the stack — no heap use.
-  const float *chanPtrs[2] = {nullptr, nullptr};
-  for (int ch = 0; ch < std::min(numInputChannels, 2); ++ch)
-    chanPtrs[ch] = buffer->getReadPointer(ch, startSample);
-  retroBuffer.pushBlock(chanPtrs, std::min(numInputChannels, 2), numSamples);
+        float dTime = delayTimeSec.load();
+        float dFeedback = delayFeedback.load();
+        int delayInSamples = static_cast<int>(currentSampleRate * dTime);
 
-  // If monitor is OFF, clear the input from the buffer before mixing riffs
-  if (!monitorOn.load()) {
-    bufferToFill.clearActiveBufferRegion();
-  }
+        for (int i = 0; i < numSamples; ++i) {
+          int readPos =
+              (delayWritePos - delayInSamples + i + delaySize) % delaySize;
+          float delaySample = delayData[readPos];
 
-  // Sum riff playback into the output
-  riffEngine.processNextBlock(*buffer);
+          // 100% wet when active
+          float currentSample = channelData[i];
+          channelData[i] = delaySample;
 
-  // --- FX: Delay ---
-  if (fxEnabled.load() && delayBuffer.getNumSamples() > 0) {
-    const float dt = delayTimeSec.load();
-    const float fb = delayFeedback.load();
-    const int delaySamples = static_cast<int>(dt * currentSampleRate);
-    const int delaySize = delayBuffer.getNumSamples();
+          delayData[(delayWritePos + i) % delaySize] =
+              currentSample + (delaySample * dFeedback);
+        }
+      }
 
-    for (int i = 0; i < numSamples; ++i) {
-      const int localWritePos = (delayWritePos + i) % delaySize;
-      const int readPos =
-          (localWritePos - delaySamples + delaySize) % delaySize;
+      // --- Reverb FX ---
+      reverbParams.roomSize = reverbRoomSize.load();
+      reverbParams.wetLevel = 1.0f; // 100% wet when active
+      reverbParams.dryLevel = 0.0f;
+      reverb.setParameters(reverbParams);
 
-      for (int ch = 0; ch < std::min(numInputChannels, 2); ++ch) {
-        auto *channelData = buffer->getWritePointer(ch, startSample);
-        auto *delayData = delayBuffer.getWritePointer(ch);
-
-        const float delayedSample = delayData[readPos];
-        const float inputSample = channelData[i];
-
-        // Mix: 40% wet component
-        channelData[i] += (delayedSample * 0.4f);
-        // Update delay line with feedback
-        delayData[localWritePos] = (inputSample + delayedSample * fb);
+      if (targetBuffer.getNumChannels() >= 2) {
+        reverb.processStereo(targetBuffer.getWritePointer(0),
+                             targetBuffer.getWritePointer(1), numSamples);
+      } else {
+        reverb.processMono(targetBuffer.getWritePointer(0), numSamples);
       }
     }
-    delayWritePos = (delayWritePos + numSamples) % delaySize;
+  };
+
+  // 4. Final Processing & Looper Feed
+  // We want 'looperMix' to capture everything: Input + Riffs + FX
+  // regardless of monitoring status.
+  juce::AudioBuffer<float> looperMix;
+  looperMix.makeCopyOf(inputCopy); // Always has input + gain
+  if (isPlaying.load()) {
+    riffEngine.processNextBlock(looperMix, currentBpm.load());
   }
 
-  // --- FX: Reverb ---
-  if (fxEnabled.load()) {
-    reverbParams.roomSize = reverbRoomSize.load();
-    reverbParams.wetLevel = reverbWetLevel.load();
-    reverbParams.dryLevel =
-        1.0f - (reverbWetLevel.load() * 0.5f); // Subtle dry dip
-    reverbParams.damping = 0.5f;
-    reverbParams.width = 1.0f;
-    reverb.setParameters(reverbParams);
+  // Apply FX to both (speaker buffer and looper buffer)
+  applyGlobalFX(*buffer);   // Already has Riffs + (Input if monitorOn)
+  applyGlobalFX(looperMix); // Has Input + Riffs
 
-    if (numInputChannels >= 2) {
-      reverb.processStereo(buffer->getWritePointer(0, startSample),
-                           buffer->getWritePointer(1, startSample), numSamples);
-    } else {
-      reverb.processMono(buffer->getWritePointer(0, startSample), numSamples);
-    }
+  // Update delay write position once after all processing
+  if (fxXYPad.isMouseButtonDown()) {
+    delayWritePos = (delayWritePos + numSamples) % delayBuffer.getNumSamples();
   }
+
+  // Push looperMix (always has input) to retrospective buffer
+  retroBuffer.pushBlock(looperMix);
 }
 
 void MainComponent::releaseResources() {
@@ -374,9 +390,14 @@ void MainComponent::resized() {
 
   // Header Area (Top 40px)
   auto headerArea = area.removeFromTop(40);
+
+  // Level meter in the middle
   levelMeter.setHorizontal(true);
   levelMeter.setBounds(headerArea.withSizeKeepingCentre(
-      std::min(headerArea.getWidth(), 300), 12));
+      std::min(headerArea.getWidth() - 100, 300), 12));
+
+  // Play/Pause button on the right
+  playPauseButton.setBounds(headerArea.removeFromRight(80).reduced(2, 5));
 
   area.removeFromTop(10); // spacing
 

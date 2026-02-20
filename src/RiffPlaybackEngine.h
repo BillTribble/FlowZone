@@ -13,13 +13,14 @@ public:
   ~RiffPlaybackEngine() = default;
 
   void prepare(double sampleRate, int samplesPerBlock);
-  void processNextBlock(juce::AudioBuffer<float> &outputBuffer);
+  void processNextBlock(juce::AudioBuffer<float> &outputBuffer,
+                        double targetBpm);
 
   /**
    * Starts playback of a riff.
    */
   void playRiff(const juce::Uuid &id, const juce::AudioBuffer<float> &audio,
-                bool loop = false);
+                double sourceBpm, bool loop = false);
 
   bool isRiffPlaying(const juce::Uuid &id) const;
 
@@ -27,7 +28,8 @@ private:
   struct PlayingRiff {
     juce::Uuid riffId;
     juce::AudioBuffer<float> audio;
-    int currentPosition{0};
+    double currentPosition{0.0};
+    double sourceBpm{120.0};
     bool looping{false};
     bool finished{false};
   };

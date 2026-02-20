@@ -10,7 +10,7 @@
 struct Riff {
   juce::Uuid id;
   juce::String name;
-  juce::AudioBuffer<float> audio;
+  std::vector<juce::AudioBuffer<float>> layerBuffers;
   double bpm{120.0};
   int bars{1};
   juce::Time captureTime;
@@ -18,16 +18,17 @@ struct Riff {
 
   Riff() : id(juce::Uuid()), captureTime(juce::Time::getCurrentTime()) {}
 
-  // Move constructor/assignment for efficiency with AudioBuffer
+  // Move constructor/assignment
   Riff(Riff &&other) noexcept
       : id(other.id), name(std::move(other.name)),
-        audio(std::move(other.audio)), bpm(other.bpm), bars(other.bars),
-        captureTime(other.captureTime), layers(other.layers) {}
+        layerBuffers(std::move(other.layerBuffers)), bpm(other.bpm),
+        bars(other.bars), captureTime(other.captureTime), layers(other.layers) {
+  }
 
   Riff &operator=(Riff &&other) noexcept {
     id = other.id;
     name = std::move(other.name);
-    audio = std::move(other.audio);
+    layerBuffers = std::move(other.layerBuffers);
     bpm = other.bpm;
     bars = other.bars;
     captureTime = other.captureTime;
@@ -35,8 +36,6 @@ struct Riff {
     return *this;
   }
 
-  // Prevent accidental copies of large audio buffers if possible,
-  // but we might need deep copy for the initial capture.
   Riff(const Riff &) = default;
   Riff &operator=(const Riff &) = default;
 
@@ -45,18 +44,27 @@ struct Riff {
     if (layers >= 8)
       return;
 
-    const int numSamples = audio.getNumSamples();
-    if (numSamples == 0) {
-      audio.makeCopyOf(newAudio);
-    } else {
-      const int samplesToCopy = std::min(numSamples, newAudio.getNumSamples());
-      for (int ch = 0; ch < audio.getNumChannels(); ++ch) {
-        if (ch < newAudio.getNumChannels()) {
-          audio.addFrom(ch, 0, newAudio, ch, 0, samplesToCopy);
+    juce::AudioBuffer<float> layerCopy;
+    layerCopy.makeCopyOf(newAudio);
+    layerBuffers.push_back(std::move(layerCopy));
+    layers = static_cast<int>(layerBuffers.size());
+  }
+
+  /** Gets a summed version of all layers for playback. */
+  void getCompositeAudio(juce::AudioBuffer<float> &output) const {
+    if (layerBuffers.empty()) {
+      output.setSize(0, 0);
+      return;
+    }
+
+    output.makeCopyOf(layerBuffers[0]);
+    for (size_t i = 1; i < layerBuffers.size(); ++i) {
+      for (int ch = 0; ch < output.getNumChannels(); ++ch) {
+        if (ch < layerBuffers[i].getNumChannels()) {
+          output.addFrom(ch, 0, layerBuffers[i], ch, 0, output.getNumSamples());
         }
       }
     }
-    layers++;
   }
 };
 

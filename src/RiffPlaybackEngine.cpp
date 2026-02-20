@@ -7,7 +7,7 @@ void RiffPlaybackEngine::prepare(double sampleRate, int /*samplesPerBlock*/) {
 }
 
 void RiffPlaybackEngine::processNextBlock(
-    juce::AudioBuffer<float> &outputBuffer) {
+    juce::AudioBuffer<float> &outputBuffer, double targetBpm) {
   const juce::ScopedLock sl(lock);
 
   const int numSamples = outputBuffer.getNumSamples();
@@ -18,29 +18,33 @@ void RiffPlaybackEngine::processNextBlock(
 
     const int riffSamples = riff->audio.getNumSamples();
     const int riffChannels = riff->audio.getNumChannels();
+    const double speedRatio = targetBpm / riff->sourceBpm;
 
-    int samplesToProcess = numSamples;
-    int outOffset = 0;
+    for (int i = 0; i < numSamples; ++i) {
+      const int posInt = static_cast<int>(riff->currentPosition);
+      const int nextPosInt = (posInt + 1);
+      const float fraction = static_cast<float>(riff->currentPosition - posInt);
 
-    while (samplesToProcess > 0) {
-      const int remainingInRiff = riffSamples - riff->currentPosition;
-      const int toProcessNow = std::min(samplesToProcess, remainingInRiff);
+      for (int ch = 0; ch < outChannels; ++ch) {
+        if (ch < riffChannels) {
+          float s1 = riff->audio.getSample(ch, posInt);
+          float s2 =
+              (nextPosInt < riffSamples)
+                  ? riff->audio.getSample(ch, nextPosInt)
+                  : (riff->looping ? riff->audio.getSample(ch, 0) : 0.0f);
 
-      if (toProcessNow > 0) {
-        for (int ch = 0; ch < outChannels; ++ch) {
-          if (ch < riffChannels) {
-            outputBuffer.addFrom(ch, outOffset, riff->audio, ch,
-                                 riff->currentPosition, toProcessNow);
-          }
+          // Linear interpolation
+          float interpolatedSample = s1 + fraction * (s2 - s1);
+          outputBuffer.addSample(ch, i, interpolatedSample);
         }
-        riff->currentPosition += toProcessNow;
-        outOffset += toProcessNow;
-        samplesToProcess -= toProcessNow;
       }
 
-      if (riff->currentPosition >= riffSamples) {
+      riff->currentPosition += speedRatio;
+
+      if (riff->currentPosition >= static_cast<double>(riffSamples)) {
         if (riff->looping) {
-          riff->currentPosition = 0;
+          riff->currentPosition = std::fmod(riff->currentPosition,
+                                            static_cast<double>(riffSamples));
         } else {
           riff->finished = true;
           break;
@@ -58,17 +62,18 @@ void RiffPlaybackEngine::processNextBlock(
 
 void RiffPlaybackEngine::playRiff(const juce::Uuid &id,
                                   const juce::AudioBuffer<float> &audio,
-                                  bool loop) {
+                                  double bpm, bool loop) {
   auto playing = std::make_unique<PlayingRiff>();
   playing->riffId = id;
-  // Deep copy the audio to avoid lifetime issues in this prototype
+  // Deep copy the audio
   playing->audio.makeCopyOf(audio);
-  playing->currentPosition = 0;
+  playing->currentPosition = 0.0;
+  playing->sourceBpm = bpm;
   playing->looping = loop;
   playing->finished = false;
 
   const juce::ScopedLock sl(lock);
-  playingRiffs.clear(); // Exclusive playback: stop any currently playing riffs
+  playingRiffs.clear(); // Exclusive playback
   playingRiffs.push_back(std::move(playing));
 }
 

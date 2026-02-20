@@ -23,6 +23,11 @@ public:
   void pushBlock(const float *const *channelData, int numChannels,
                  int numSamples) noexcept;
 
+  void pushBlock(const juce::AudioBuffer<float> &buffer) noexcept {
+    pushBlock(buffer.getArrayOfReadPointers(), buffer.getNumChannels(),
+              buffer.getNumSamples());
+  }
+
   //==========================================================================
   /// Called from the message/timer thread. Returns a vector of numOutputPoints
   /// peak-absolute values downsampled from the most recent numRecentSamples

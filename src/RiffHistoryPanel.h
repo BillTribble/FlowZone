@@ -25,7 +25,7 @@ private:
   struct RiffItem {
     const Riff *riff;
     juce::Rectangle<float> bounds;
-    std::vector<float> thumbnail;
+    std::vector<std::vector<float>> layerThumbnails;
   };
 
   /** Internal component that actually draws the riffs and is scrolled by the

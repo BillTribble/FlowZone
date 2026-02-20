@@ -52,20 +52,14 @@ void MiddleMenuPanel::setupModeControls(
 
 void MiddleMenuPanel::setupFxControls(juce::Component &xyPad,
                                       juce::Slider &reverbSizeSlider,
-                                      juce::Slider &reverbMixSlider,
-                                      juce::Label &reverbSizeLabel,
-                                      juce::Label &reverbMixLabel) {
+                                      juce::Label &reverbSizeLabel) {
   pXYPad = &xyPad;
   pReverbSizeSlider = &reverbSizeSlider;
-  pReverbMixSlider = &reverbMixSlider;
   pReverbSizeLabel = &reverbSizeLabel;
-  pReverbMixLabel = &reverbMixLabel;
 
   fxContainer.addAndMakeVisible(xyPad);
   fxContainer.addAndMakeVisible(reverbSizeSlider);
-  fxContainer.addAndMakeVisible(reverbMixSlider);
   fxContainer.addAndMakeVisible(reverbSizeLabel);
-  fxContainer.addAndMakeVisible(reverbMixLabel);
 
   updateVisibility();
 }
@@ -106,54 +100,56 @@ void MiddleMenuPanel::resized() {
   modeTabButton.setBounds(tabsArea.removeFromLeft(tabW).reduced(2, 5));
   fxTabButton.setBounds(tabsArea.reduced(2, 5));
 
-  auto contentArea = area.reduced(10);
-  modeContainer.setBounds(contentArea);
-  fxContainer.setBounds(contentArea);
+  modeContainer.setBounds(area);
+  fxContainer.setBounds(area);
 
-  // Layout mode controls if they are set up
+  // Layout MODE controls
   if (pGainSlider && pGainLabel && pGainValueLabel && pBpmSlider && pBpmLabel &&
       pBpmValueLabel && pMonitorButton) {
-    auto modeArea = modeContainer.getLocalBounds();
-    int colW = modeArea.getWidth() / 3;
+    auto modeArea = modeContainer.getLocalBounds().reduced(10);
 
-    // Gain section in left col
-    auto gainArea = modeArea.removeFromLeft(colW).reduced(10);
-    pGainLabel->setBounds(gainArea.removeFromTop(20));
-    pGainValueLabel->setBounds(gainArea.removeFromBottom(20));
+    // Three columns: Gain, BPM, Monitor
+    int colW = modeArea.getWidth() / 3;
+    auto gainArea = modeArea.removeFromLeft(colW).reduced(5);
+    auto bpmArea = modeArea.removeFromLeft(colW).reduced(5);
+    auto monitorArea = modeArea.reduced(5);
+
+    // Labels right next to dials (Horizontal layout for dial + label)
+    // We'll put label at the top but smaller and shifted if possible,
+    // but "right next to" usually means side-by-side or very tight.
+    // Let's try side-by-side in each column.
+
+    // Gain Column
+    auto gainLabelArea = gainArea.removeFromTop(20);
+    pGainLabel->setBounds(
+        gainLabelArea.removeFromLeft(gainLabelArea.getWidth() / 2));
+    pGainValueLabel->setBounds(gainLabelArea);
     pGainSlider->setBounds(gainArea);
 
-    // BPM section in middle col
-    auto bpmArea = modeArea.removeFromLeft(colW).reduced(10);
-    pBpmLabel->setBounds(bpmArea.removeFromTop(20));
-    pBpmValueLabel->setBounds(bpmArea.removeFromBottom(20));
+    // BPM Column
+    auto bpmLabelArea = bpmArea.removeFromTop(20);
+    pBpmLabel->setBounds(
+        bpmLabelArea.removeFromLeft(bpmLabelArea.getWidth() / 2));
+    pBpmValueLabel->setBounds(bpmLabelArea);
     pBpmSlider->setBounds(bpmArea);
 
-    // Monitor button in right col
-    auto rightArea = modeArea.reduced(20);
-    pMonitorButton->setBounds(
-        rightArea.withSizeKeepingCentre(rightArea.getWidth(), 40));
+    // Monitor Column
+    pMonitorButton->setBounds(monitorArea.withSize(monitorArea.getWidth(), 40)
+                                  .withCentre(monitorArea.getCentre()));
   }
 
   // Layout FX controls
-  if (pXYPad && pReverbSizeSlider && pReverbMixSlider && pReverbSizeLabel &&
-      pReverbMixLabel) {
+  if (pXYPad && pReverbSizeSlider && pReverbSizeLabel) {
     auto fxArea = fxContainer.getLocalBounds().reduced(10);
 
-    // Reserved bottom area for Reverb sliders (80px)
-    auto reverbArea = fxArea.removeFromBottom(80);
-    auto xyArea = fxArea.reduced(5); // Pad is in the remaining top area
+    // Reserved bottom area for Reverb slider (60px)
+    auto reverbArea = fxArea.removeFromBottom(60);
+    auto xyArea = fxArea.reduced(5);
 
     pXYPad->setBounds(xyArea);
 
-    // Layout Reverb sliders in 2 columns
-    int sliderColW = reverbArea.getWidth() / 2;
-    auto leftSliderArea = reverbArea.removeFromLeft(sliderColW).reduced(5);
-    auto rightSliderArea = reverbArea.reduced(5);
-
-    pReverbSizeLabel->setBounds(leftSliderArea.removeFromTop(20));
-    pReverbSizeSlider->setBounds(leftSliderArea);
-
-    pReverbMixLabel->setBounds(rightSliderArea.removeFromTop(20));
-    pReverbMixSlider->setBounds(rightSliderArea);
+    auto reverbLabelArea = reverbArea.removeFromLeft(50);
+    pReverbSizeLabel->setBounds(reverbLabelArea);
+    pReverbSizeSlider->setBounds(reverbArea.reduced(5));
   }
 }

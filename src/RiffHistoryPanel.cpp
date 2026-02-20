@@ -74,19 +74,27 @@ void RiffHistoryPanel::ContentComponent::updateItems() {
 
   const float h = static_cast<float>(getHeight());
 
-  // Layout from left to right (oldest to newest)
-  // This makes scrolling naturally reveal history as you go left
-  float currentX = margin;
+  // Layout from right to left (newest on right)
+  // We calculate X based on the total required width
+  float currentX = requiredW - margin - itemW;
 
-  for (size_t i = 0; i < history.size(); ++i) {
-    const auto &riff = history[i];
+  for (int i = numRiffs - 1; i >= 0; --i) {
+    const auto &riff = history[static_cast<size_t>(i)];
     RiffItem item;
     item.riff = &riff;
     item.bounds = juce::Rectangle<float>(currentX, 10.0f, itemW, h - 20.0f);
-    item.thumbnail = generateThumbnail(riff.audio, static_cast<int>(itemW));
 
+    for (const auto &layer : riff.layerBuffers) {
+      item.layerThumbnails.push_back(
+          generateThumbnail(layer, static_cast<int>(itemW)));
+    }
+
+    // Insert at front so they stay ordered oldest-to-newest in the vector
+    // for easier hit testing, but we've placed them right-to-left.
+    // Wait, if I iterate backwards and push_back, the vector has newest first.
+    // Let's just push_back and keep them in vector order.
     items.push_back(std::move(item));
-    currentX += (itemW + spacing);
+    currentX -= (itemW + spacing);
   }
 
   repaint();
@@ -121,43 +129,43 @@ void RiffHistoryPanel::ContentComponent::paint(juce::Graphics &g) {
       g.drawRoundedRectangle(item.bounds, 6.0f, 1.0f);
     }
 
-    // --- Draw Layers (Zebra Shading) ---
-    if (item.riff->layers > 1) {
-      const float totalH = item.bounds.getHeight();
-      const float layerH = totalH / static_cast<float>(item.riff->layers);
+    // --- Draw Layers (Layer Cake Zebra Shading) ---
+    const float totalH = item.bounds.getHeight();
+    const float slotH = totalH / 8.0f; // Fixed 8 potential slots
 
-      juce::Graphics::ScopedSaveState signalSave(g);
-      g.reduceClipRegion(item.bounds.toNearestInt());
+    for (int i = 0; i < static_cast<int>(item.layerThumbnails.size()); ++i) {
+      // Build up from bottom
+      auto slotBounds = item.bounds.withHeight(slotH).withY(
+          item.bounds.getBottom() - static_cast<float>(i + 1) * slotH);
 
-      for (int i = 0; i < item.riff->layers; ++i) {
-        auto layerBounds = item.bounds.withHeight(layerH).withY(
-            item.bounds.getY() + static_cast<float>(i) * layerH);
-
-        if (i % 2 == 1) {
-          g.setColour(juce::Colours::white.withAlpha(0.05f));
-          g.fillRect(layerBounds);
-        }
-
-        if (i > 0) {
-          g.setColour(juce::Colours::white.withAlpha(0.1f));
-          g.fillRect(layerBounds.getX(), layerBounds.getY(),
-                     layerBounds.getWidth(), 1.0f);
-        }
+      // Zebra Pattern: 30% brightness difference
+      // Base is 0xFF16162B (approx 10% brightness)
+      // Highlight is 0xFF353555
+      if (i % 2 == 1) {
+        g.setColour(juce::Colour(0xFF353555));
+      } else {
+        g.setColour(juce::Colour(0xFF16162B));
       }
-    }
+      g.fillRoundedRectangle(slotBounds, 2.0f);
 
-    // Mini-waveform
-    const float midY = item.bounds.getCentreY();
-    const float scaleY = item.bounds.getHeight() * 0.35f;
+      // Draw per-layer waveform
+      g.setColour(isPlaying ? juce::Colours::cyan
+                            : juce::Colour(0xFF00CC66).withAlpha(0.6f));
 
-    g.setColour(isPlaying ? juce::Colours::cyan
-                          : juce::Colour(0xFF00CC66).withAlpha(0.6f));
+      const auto &thumbnail = item.layerThumbnails[i];
+      const float midY = slotBounds.getCentreY();
+      const float scaleY = slotH * 0.45f;
 
-    for (int pt = 0; pt < static_cast<int>(item.thumbnail.size()); ++pt) {
-      float x = item.bounds.getX() + static_cast<float>(pt);
-      float peak =
-          std::clamp(item.thumbnail[static_cast<size_t>(pt)], 0.0f, 1.0f);
-      g.drawLine(x, midY - peak * scaleY, x, midY + peak * scaleY, 1.0f);
+      for (int pt = 0; pt < static_cast<int>(thumbnail.size()); ++pt) {
+        float x = slotBounds.getX() + static_cast<float>(pt);
+        float peak = std::clamp(thumbnail[static_cast<size_t>(pt)], 0.0f, 1.0f);
+        g.drawLine(x, midY - peak * scaleY, x, midY + peak * scaleY, 1.0f);
+      }
+
+      // Separator line
+      g.setColour(juce::Colours::white.withAlpha(0.1f));
+      g.drawHorizontalLine(static_cast<int>(slotBounds.getY()),
+                           slotBounds.getX(), slotBounds.getRight());
     }
 
     // Label
