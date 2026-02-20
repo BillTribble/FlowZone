@@ -83,6 +83,7 @@ private:
   // ---
   juce::AudioBuffer<float> inputCopyBuffer;
   juce::AudioBuffer<float> looperMixBuffer;
+  juce::AudioBuffer<float> riffOutputBuffer;
   juce::LinearSmoothedValue<float> fxLevelSelector{0.0f}; // 0 = Dry, 1 = FX
 
   // --- Settings ---

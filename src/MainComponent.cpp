@@ -286,6 +286,7 @@ void MainComponent::prepareToPlay(int samplesPerBlockExpected,
   // Prepare scratch buffers
   inputCopyBuffer.setSize(2, samplesPerBlockExpected);
   looperMixBuffer.setSize(2, samplesPerBlockExpected);
+  riffOutputBuffer.setSize(2, samplesPerBlockExpected);
 
   // FX Crossfade (3ms)
   fxLevelSelector.reset(sampleRate, 0.003); // 3ms duration
@@ -309,7 +310,7 @@ void MainComponent::getNextAudioBlock(
   auto *buffer = bufferToFill.buffer;
   const int numSamples = bufferToFill.numSamples;
 
-  // 1. Process Input Gain (Done in-place on input buffer)
+  // 1. Process Input Gain
   float gain = gainLinear.load();
   buffer->applyGain(0, numSamples, gain);
 
@@ -321,22 +322,35 @@ void MainComponent::getNextAudioBlock(
   // Calculate peak for level meter
   peakLevel.store(buffer->getMagnitude(0, numSamples));
 
-  // 3. Clear speaker output to start mixing
-  bufferToFill.clearActiveBufferRegion();
-
-  // Prepare looper feed (Starts with mic input)
+  // 3. Prepare workspace buffers
+  bufferToFill.clearActiveBufferRegion(); // Final output starts empty
   looperMixBuffer.copyFrom(0, 0, inputCopyBuffer, 0, 0, numSamples);
-  if (looperMixBuffer.getNumChannels() > 1)
+  if (looperMixBuffer.getWritePointer(1) != nullptr &&
+      inputCopyBuffer.getNumChannels() > 1)
     looperMixBuffer.copyFrom(1, 0, inputCopyBuffer, 1, 0, numSamples);
 
-  // 4. Add Riffs to both paths
+  riffOutputBuffer.clear();
+
+  // 4. Process Riffs ONCE into riffOutputBuffer
   if (isPlaying.load()) {
-    riffEngine.processNextBlock(*buffer, currentBpm.load()); // Into speakers
-    riffEngine.processNextBlock(looperMixBuffer,
-                                currentBpm.load()); // Into looper
+    riffEngine.processNextBlock(riffOutputBuffer, currentBpm.load());
   }
 
-  // 5. Monitor toggle (Speaker path only)
+  // Add Riffs to speaker output
+  for (int ch = 0; ch < buffer->getNumChannels(); ++ch) {
+    if (ch < riffOutputBuffer.getNumChannels()) {
+      buffer->addFrom(ch, 0, riffOutputBuffer, ch, 0, numSamples);
+    }
+  }
+
+  // Add Riffs to looper mix
+  for (int ch = 0; ch < looperMixBuffer.getNumChannels(); ++ch) {
+    if (ch < riffOutputBuffer.getNumChannels()) {
+      looperMixBuffer.addFrom(ch, 0, riffOutputBuffer, ch, 0, numSamples);
+    }
+  }
+
+  // 5. Monitor toggle (Speaker path only: add mic input back)
   if (monitorOn.load()) {
     for (int ch = 0; ch < buffer->getNumChannels(); ++ch) {
       buffer->addFrom(ch, 0, inputCopyBuffer, ch, 0, numSamples);
@@ -347,7 +361,7 @@ void MainComponent::getNextAudioBlock(
   const bool active = fxXYPad.isMouseButtonDown();
   fxLevelSelector.setValue(active ? 1.0f : 0.0f);
 
-  // Apply Delay (Shared internal logic for both buffers)
+  // Apply Delay Logic
   for (int ch = 0; ch < buffer->getNumChannels(); ++ch) {
     float *outData = buffer->getWritePointer(ch);
     float *loopData = looperMixBuffer.getWritePointer(ch);
@@ -361,24 +375,25 @@ void MainComponent::getNextAudioBlock(
       const int readPos = (delayWritePos - dSamples + i + dSize) % dSize;
       const float dSample = dData[readPos];
 
-      // Smoothed mix level (Dry=0, Wet=1)
+      // Smoothed mix level
       const float currentMix = fxLevelSelector.getNextValue();
 
-      // What we hear (Monitor/Riffs Mix)
-      const float dryOut = outData[i];
-      outData[i] = (dryOut * (1.0f - currentMix)) + (dSample * currentMix);
-
-      // What looper captures (ALWAYS has input, with FX crossfade)
+      // Capture current dry signals BEFORE mixing FX (for feeding delay line)
       const float dryLoop = loopData[i];
+
+      // Mixing for Speakers
+      outData[i] = (outData[i] * (1.0f - currentMix)) + (dSample * currentMix);
+
+      // Mixing for Looper
       loopData[i] = (dryLoop * (1.0f - currentMix)) + (dSample * currentMix);
 
-      // Update delay line (Always feed the raw mic/riff mix into it)
+      // Feed delay line from looper path (always has input + riffs)
       dData[(delayWritePos + i) % dSize] = dryLoop + (dSample * dFeedback);
     }
   }
   delayWritePos = (delayWritePos + numSamples) % delayBuffer.getNumSamples();
 
-  // Reverb (Using current mix level for dry/wet)
+  // Reverb
   const float revMix = fxLevelSelector.getCurrentValue();
   reverbParams.roomSize = reverbRoomSize.load();
   reverbParams.wetLevel = revMix;

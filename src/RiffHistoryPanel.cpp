@@ -28,6 +28,8 @@ void RiffHistoryPanel::paint(juce::Graphics &g) {
       content.updateItems();
 
       // Auto-scroll to the right (newest)
+      // Use juce::MessageManager to defer this slightly to ensure component
+      // resized? Actually setViewPosition should work here.
       viewport.setViewPosition(
           std::max(0, content.getWidth() - viewport.getWidth()), 0);
     }
@@ -135,12 +137,13 @@ void RiffHistoryPanel::ContentComponent::paint(juce::Graphics &g) {
           item.bounds.getBottom() - static_cast<float>(i + 1) * slotH);
 
       // Zebra Pattern: 30% brightness difference
-      // Base is 0xFF16162B (approx 10% brightness)
-      // Highlight is 0xFF353555
+      // Background is 0xFF16162B
+      // Layer 1 (i=0): 0xFF22223F
+      // Layer 2 (i=1): 0xFF353555
       if (i % 2 == 1) {
         g.setColour(juce::Colour(0xFF353555));
       } else {
-        g.setColour(juce::Colour(0xFF16162B));
+        g.setColour(juce::Colour(0xFF22223F));
       }
       g.fillRoundedRectangle(slotBounds, 2.0f);
 
