@@ -154,6 +154,14 @@ MainComponent::MainComponent() {
     monitorOn.store(isOn);
     monitorButton.setButtonText(isOn ? "MONITOR: ON" : "MONITOR: OFF");
   };
+
+  // --- Middle Menu ---
+  addAndMakeVisible(middleMenuPanel);
+  middleMenuPanel.setupModeControls(gainSlider, gainLabel, gainValueLabel,
+                                    bpmSlider, bpmLabel, bpmValueLabel,
+                                    monitorButton);
+  middleMenuPanel.setupFxControls(fxXYPad, reverbSizeSlider, reverbMixSlider,
+                                  reverbSizeLabel, reverbMixLabel);
   // No need to addAndMakeVisible(monitorButton) here as setupModeControls does
   // it
 
