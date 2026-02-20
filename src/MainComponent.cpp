@@ -154,14 +154,37 @@ MainComponent::MainComponent() {
     monitorButton.setButtonText(isOn ? "MONITOR: ON" : "MONITOR: OFF");
   };
 
+  // --- Settings Button ---
+  settingsButton.setColour(juce::TextButton::buttonColourId,
+                           juce::Colour(0xFF2A2A4A));
+  settingsButton.onClick = [this]() {
+    if (deviceSelector == nullptr) {
+      deviceSelector = std::make_unique<juce::AudioDeviceSelectorComponent>(
+          deviceManager, 0, 2, 0, 2, true, true, true, false);
+      deviceSelector->setSize(400, 600);
+      juce::DialogWindow::LaunchOptions options;
+      options.content.setNonOwned(deviceSelector.get());
+      options.dialogTitle = "Audio/MIDI Settings";
+      options.componentToCentreAround = this;
+      options.dialogBackgroundColour = juce::Colour(0xFF16162B);
+      options.escapeKeyTriggersCloseButton = true;
+      options.useNativeTitleBar = true;
+      options.resizable = false;
+      options.launchAsync();
+    } else {
+      // Just re-launch if already exists (or figure out how to handle multiple
+      // clicks) For now, let's just make it a modal or similar
+    }
+  };
+
   // --- Middle Menu ---
   addAndMakeVisible(middleMenuPanel);
   middleMenuPanel.setupModeControls(gainSlider, gainLabel, gainValueLabel,
                                     bpmSlider, bpmLabel, bpmValueLabel,
                                     monitorButton);
   middleMenuPanel.setupFxControls(fxXYPad, reverbSizeSlider, reverbSizeLabel);
-  // No need to addAndMakeVisible(monitorButton) here as setupModeControls does
-  // it
+  // Add settings button to mode controls indirectly or just add it here
+  addAndMakeVisible(settingsButton);
 
   // --- Waveform Panel ---
   addAndMakeVisible(waveformPanel);
@@ -259,6 +282,20 @@ void MainComponent::prepareToPlay(int samplesPerBlockExpected,
   delayWritePos = 0;
 
   reverb.setSampleRate(sampleRate);
+
+  // Prepare scratch buffers
+  inputCopyBuffer.setSize(2, samplesPerBlockExpected);
+  looperMixBuffer.setSize(2, samplesPerBlockExpected);
+
+  // FX Crossfade (3ms)
+  fxLevelSelector.reset(sampleRate, 0.003); // 3ms duration
+
+  // Set default buffer size to 32 if allowed
+  auto setup = deviceManager.getAudioDeviceSetup();
+  if (setup.bufferSize != 32) {
+    setup.bufferSize = 32;
+    deviceManager.setAudioDeviceSetup(setup, true);
+  }
 }
 
 void MainComponent::getNextAudioBlock(
@@ -270,98 +307,96 @@ void MainComponent::getNextAudioBlock(
   }
 
   auto *buffer = bufferToFill.buffer;
-  int numSamples = bufferToFill.numSamples;
-  int numInputChannels = buffer->getNumChannels();
+  const int numSamples = bufferToFill.numSamples;
 
-  // 1. Process Input Gain
+  // 1. Process Input Gain (Done in-place on input buffer)
   float gain = gainLinear.load();
-  buffer->applyGain(0, numSamples, gain); // Simplified gain on input
+  buffer->applyGain(0, numSamples, gain);
 
-  // Calculate peak for level meter (monitor input)
-  float inputPeak = buffer->getMagnitude(0, numSamples);
-  peakLevel.store(inputPeak);
+  // 2. Snapshot current block to pre-allocated scratch buffer
+  inputCopyBuffer.copyFrom(0, 0, *buffer, 0, 0, numSamples);
+  if (buffer->getNumChannels() > 1)
+    inputCopyBuffer.copyFrom(1, 0, *buffer, 1, 0, numSamples);
 
-  // 2. Prepare workspace for mixing (using a temporary copy of input)
-  juce::AudioBuffer<float> inputCopy;
-  inputCopy.makeCopyOf(*buffer);
+  // Calculate peak for level meter
+  peakLevel.store(buffer->getMagnitude(0, numSamples));
 
-  // Clear output buffer to start mixing
+  // 3. Clear speaker output to start mixing
   bufferToFill.clearActiveBufferRegion();
 
-  // Add Riffs if playing
+  // Prepare looper feed (Starts with mic input)
+  looperMixBuffer.copyFrom(0, 0, inputCopyBuffer, 0, 0, numSamples);
+  if (looperMixBuffer.getNumChannels() > 1)
+    looperMixBuffer.copyFrom(1, 0, inputCopyBuffer, 1, 0, numSamples);
+
+  // 4. Add Riffs to both paths
   if (isPlaying.load()) {
-    riffEngine.processNextBlock(*buffer, currentBpm.load());
+    riffEngine.processNextBlock(*buffer, currentBpm.load()); // Into speakers
+    riffEngine.processNextBlock(looperMixBuffer,
+                                currentBpm.load()); // Into looper
   }
 
-  // Add Input to output (Monitor)
+  // 5. Monitor toggle (Speaker path only)
   if (monitorOn.load()) {
     for (int ch = 0; ch < buffer->getNumChannels(); ++ch) {
-      buffer->addFrom(ch, 0, inputCopy, ch, 0, numSamples);
+      buffer->addFrom(ch, 0, inputCopyBuffer, ch, 0, numSamples);
     }
   }
 
-  // 3. Define a shared FX processing lambda
-  auto applyGlobalFX = [&](juce::AudioBuffer<float> &targetBuffer) {
-    if (fxXYPad.isMouseButtonDown()) {
-      // --- Delay FX ---
-      for (int ch = 0; ch < targetBuffer.getNumChannels(); ++ch) {
-        float *channelData = targetBuffer.getWritePointer(ch);
-        float *delayData = delayBuffer.getWritePointer(ch);
-        int delaySize = delayBuffer.getNumSamples();
+  // 6. FX Processing with 3ms Smooth Crossfade
+  const bool active = fxXYPad.isMouseButtonDown();
+  fxLevelSelector.setValue(active ? 1.0f : 0.0f);
 
-        float dTime = delayTimeSec.load();
-        float dFeedback = delayFeedback.load();
-        int delayInSamples = static_cast<int>(currentSampleRate * dTime);
+  // Apply Delay (Shared internal logic for both buffers)
+  for (int ch = 0; ch < buffer->getNumChannels(); ++ch) {
+    float *outData = buffer->getWritePointer(ch);
+    float *loopData = looperMixBuffer.getWritePointer(ch);
+    float *dData = delayBuffer.getWritePointer(ch);
+    const int dSize = delayBuffer.getNumSamples();
+    const float dTime = delayTimeSec.load();
+    const float dFeedback = delayFeedback.load();
+    const int dSamples = static_cast<int>(currentSampleRate * dTime);
 
-        for (int i = 0; i < numSamples; ++i) {
-          int readPos =
-              (delayWritePos - delayInSamples + i + delaySize) % delaySize;
-          float delaySample = delayData[readPos];
+    for (int i = 0; i < numSamples; ++i) {
+      const int readPos = (delayWritePos - dSamples + i + dSize) % dSize;
+      const float dSample = dData[readPos];
 
-          // 100% wet when active
-          float currentSample = channelData[i];
-          channelData[i] = delaySample;
+      // Smoothed mix level (Dry=0, Wet=1)
+      const float currentMix = fxLevelSelector.getNextValue();
 
-          delayData[(delayWritePos + i) % delaySize] =
-              currentSample + (delaySample * dFeedback);
-        }
-      }
+      // What we hear (Monitor/Riffs Mix)
+      const float dryOut = outData[i];
+      outData[i] = (dryOut * (1.0f - currentMix)) + (dSample * currentMix);
 
-      // --- Reverb FX ---
-      reverbParams.roomSize = reverbRoomSize.load();
-      reverbParams.wetLevel = 1.0f; // 100% wet when active
-      reverbParams.dryLevel = 0.0f;
-      reverb.setParameters(reverbParams);
+      // What looper captures (ALWAYS has input, with FX crossfade)
+      const float dryLoop = loopData[i];
+      loopData[i] = (dryLoop * (1.0f - currentMix)) + (dSample * currentMix);
 
-      if (targetBuffer.getNumChannels() >= 2) {
-        reverb.processStereo(targetBuffer.getWritePointer(0),
-                             targetBuffer.getWritePointer(1), numSamples);
-      } else {
-        reverb.processMono(targetBuffer.getWritePointer(0), numSamples);
-      }
+      // Update delay line (Always feed the raw mic/riff mix into it)
+      dData[(delayWritePos + i) % dSize] = dryLoop + (dSample * dFeedback);
     }
-  };
+  }
+  delayWritePos = (delayWritePos + numSamples) % delayBuffer.getNumSamples();
 
-  // 4. Final Processing & Looper Feed
-  // We want 'looperMix' to capture everything: Input + Riffs + FX
-  // regardless of monitoring status.
-  juce::AudioBuffer<float> looperMix;
-  looperMix.makeCopyOf(inputCopy); // Always has input + gain
-  if (isPlaying.load()) {
-    riffEngine.processNextBlock(looperMix, currentBpm.load());
+  // Reverb (Using current mix level for dry/wet)
+  const float revMix = fxLevelSelector.getCurrentValue();
+  reverbParams.roomSize = reverbRoomSize.load();
+  reverbParams.wetLevel = revMix;
+  reverbParams.dryLevel = 1.0f - revMix;
+  reverb.setParameters(reverbParams);
+
+  if (buffer->getNumChannels() >= 2) {
+    reverb.processStereo(buffer->getWritePointer(0), buffer->getWritePointer(1),
+                         numSamples);
+    reverb.processStereo(looperMixBuffer.getWritePointer(0),
+                         looperMixBuffer.getWritePointer(1), numSamples);
+  } else {
+    reverb.processMono(buffer->getWritePointer(0), numSamples);
+    reverb.processMono(looperMixBuffer.getWritePointer(0), numSamples);
   }
 
-  // Apply FX to both (speaker buffer and looper buffer)
-  applyGlobalFX(*buffer);   // Already has Riffs + (Input if monitorOn)
-  applyGlobalFX(looperMix); // Has Input + Riffs
-
-  // Update delay write position once after all processing
-  if (fxXYPad.isMouseButtonDown()) {
-    delayWritePos = (delayWritePos + numSamples) % delayBuffer.getNumSamples();
-  }
-
-  // Push looperMix (always has input) to retrospective buffer
-  retroBuffer.pushBlock(looperMix);
+  // 7. Push to retrospective buffer
+  retroBuffer.pushBlock(looperMixBuffer);
 }
 
 void MainComponent::releaseResources() {
@@ -411,6 +446,9 @@ void MainComponent::resized() {
   auto bottomArea = getLocalBounds().removeFromBottom(200);
   waveformPanel.setBounds(bottomArea.removeFromTop(120));
   riffHistoryPanel.setBounds(bottomArea);
+
+  // Settings button position (top right, above meter maybe? or just next to it)
+  settingsButton.setBounds(10, 10, 80, 25);
 }
 
 //==============================================================================

@@ -78,6 +78,17 @@ private:
   std::atomic<float> delayTimeSec{0.5f};
   std::atomic<float> delayFeedback{0.5f};
   std::atomic<bool> fxActive{false}; // active when XY pad is clicked
+
+  // --- Scratch Buffers (Pre-allocated to avoid allocations in audio thread)
+  // ---
+  juce::AudioBuffer<float> inputCopyBuffer;
+  juce::AudioBuffer<float> looperMixBuffer;
+  juce::LinearSmoothedValue<float> fxLevelSelector{0.0f}; // 0 = Dry, 1 = FX
+
+  // --- Settings ---
+  juce::TextButton settingsButton{"SETTINGS"};
+  std::unique_ptr<juce::AudioDeviceSelectorComponent> deviceSelector;
+
   double lastCaptureTime{0.0};
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)

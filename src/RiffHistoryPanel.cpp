@@ -75,8 +75,8 @@ void RiffHistoryPanel::ContentComponent::updateItems() {
   const float h = static_cast<float>(getHeight());
 
   // Layout from right to left (newest on right)
-  // We calculate X based on the total required width
-  float currentX = requiredW - margin - itemW;
+  // Pin newest to the FAR RIGHT edge of the component (not just requiredW)
+  float currentX = (float)getWidth() - margin - itemW;
 
   for (int i = numRiffs - 1; i >= 0; --i) {
     const auto &riff = history[static_cast<size_t>(i)];
@@ -89,10 +89,6 @@ void RiffHistoryPanel::ContentComponent::updateItems() {
           generateThumbnail(layer, static_cast<int>(itemW)));
     }
 
-    // Insert at front so they stay ordered oldest-to-newest in the vector
-    // for easier hit testing, but we've placed them right-to-left.
-    // Wait, if I iterate backwards and push_back, the vector has newest first.
-    // Let's just push_back and keep them in vector order.
     items.push_back(std::move(item));
     currentX -= (itemW + spacing);
   }
