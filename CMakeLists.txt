@@ -27,6 +27,7 @@ target_sources(FlowZone PRIVATE
     src/RiffHistoryPanel.cpp
     src/RiffPlaybackEngine.cpp
     src/MiddleMenuPanel.cpp
+    src/XYPad.cpp
 )
 
 target_compile_definitions(FlowZone PRIVATE

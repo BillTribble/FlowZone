@@ -15,10 +15,13 @@ public:
   enum class Tab { Mode, FX };
   void setActiveTab(Tab tab);
 
+  std::function<void(Tab)> onTabChanged;
+
   // Wire up controls from MainComponent
   void setupModeControls(juce::Slider &gainSlider, juce::Label &gainLabel,
                          juce::Label &gainValueLabel,
                          juce::TextButton &monitorButton);
+  void setupFxControls(juce::Component &xyPad);
 
   juce::Component &getModeContainer() { return modeContainer; }
   juce::Component &getFxContainer() { return fxContainer; }
@@ -37,6 +40,7 @@ private:
   juce::Label *pGainLabel{nullptr};
   juce::Label *pGainValueLabel{nullptr};
   juce::TextButton *pMonitorButton{nullptr};
+  juce::Component *pXYPad{nullptr};
 
   void updateVisibility();
 

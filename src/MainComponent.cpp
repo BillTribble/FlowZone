@@ -51,6 +51,19 @@ MainComponent::MainComponent() {
   addAndMakeVisible(middleMenuPanel);
   middleMenuPanel.setupModeControls(gainSlider, gainLabel, gainValueLabel,
                                     monitorButton);
+  middleMenuPanel.setupFxControls(fxXYPad);
+
+  // --- FX Parameters from XY Pad ---
+  fxXYPad.onXYChange = [this](float x, float y) {
+    // X -> Delay Time (100ms to 800ms)
+    delayTimeSec = 0.1f + (x * 0.7f);
+    // Y -> Feedback (0 to 0.9)
+    delayFeedback = y * 0.9f;
+  };
+
+  middleMenuPanel.onTabChanged = [this](MiddleMenuPanel::Tab tab) {
+    fxEnabled = (tab == MiddleMenuPanel::Tab::FX);
+  };
 
   // --- Monitor Button ---
   monitorButton.setClickingTogglesState(true);
@@ -144,6 +157,11 @@ void MainComponent::prepareToPlay(int samplesPerBlockExpected,
   retroBuffer.prepare(sampleRate, 60); // 60 seconds storage
   riffEngine.prepare(sampleRate, samplesPerBlockExpected);
   waveformPanel.setSampleRate(sampleRate);
+
+  // FX: Allocate 2 seconds for delay
+  delayBuffer.setSize(2, static_cast<int>(sampleRate * 2.0));
+  delayBuffer.clear();
+  delayWritePos = 0;
 }
 
 void MainComponent::getNextAudioBlock(
@@ -191,8 +209,34 @@ void MainComponent::getNextAudioBlock(
 
   // Sum riff playback into the output
   riffEngine.processNextBlock(*buffer);
-  // If monitor is ON, the input data (post-gain) is already in the buffer
-  // and will be sent to the output as-is.
+
+  // --- FX: Delay ---
+  if (fxEnabled.load() && delayBuffer.getNumSamples() > 0) {
+    const float dt = delayTimeSec.load();
+    const float fb = delayFeedback.load();
+    const int delaySamples = static_cast<int>(dt * currentSampleRate);
+    const int delaySize = delayBuffer.getNumSamples();
+
+    for (int i = 0; i < numSamples; ++i) {
+      const int localWritePos = (delayWritePos + i) % delaySize;
+      const int readPos =
+          (localWritePos - delaySamples + delaySize) % delaySize;
+
+      for (int ch = 0; ch < std::min(numInputChannels, 2); ++ch) {
+        auto *channelData = buffer->getWritePointer(ch, startSample);
+        auto *delayData = delayBuffer.getWritePointer(ch);
+
+        const float delayedSample = delayData[readPos];
+        const float inputSample = channelData[i];
+
+        // Mix: 40% wet component
+        channelData[i] += (delayedSample * 0.4f);
+        // Update delay line with feedback
+        delayData[localWritePos] = (inputSample + delayedSample * fb);
+      }
+    }
+    delayWritePos = (delayWritePos + numSamples) % delaySize;
+  }
 }
 
 void MainComponent::releaseResources() {

@@ -42,6 +42,11 @@ void MiddleMenuPanel::setupModeControls(juce::Slider &gainSlider,
   modeContainer.addAndMakeVisible(monitorButton);
 }
 
+void MiddleMenuPanel::setupFxControls(juce::Component &xyPad) {
+  pXYPad = &xyPad;
+  fxContainer.addAndMakeVisible(xyPad);
+}
+
 void MiddleMenuPanel::setActiveTab(Tab tab) {
   if (activeTab == tab)
     return;
@@ -100,5 +105,11 @@ void MiddleMenuPanel::resized() {
     auto rightCol = modeArea.reduced(20);
     pMonitorButton->setBounds(
         rightCol.withSizeKeepingCentre(rightCol.getWidth(), 40));
+  }
+
+  // Layout FX controls
+  if (pXYPad) {
+    auto fxArea = fxContainer.getLocalBounds().reduced(10);
+    pXYPad->setBounds(fxArea);
   }
 }

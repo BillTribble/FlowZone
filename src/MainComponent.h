@@ -6,6 +6,7 @@
 #include "RiffHistoryPanel.h"
 #include "RiffPlaybackEngine.h"
 #include "WaveformPanel.h"
+#include "XYPad.h"
 #include <juce_audio_utils/juce_audio_utils.h>
 
 //==============================================================================
@@ -50,6 +51,14 @@ private:
   std::atomic<bool> monitorOn{false};  // route mic to output?
   RiffHistory riffHistory;
   RiffPlaybackEngine riffEngine;
+
+  // --- Delay FX ---
+  XYPad fxXYPad;
+  juce::AudioBuffer<float> delayBuffer;
+  int delayWritePos{0};
+  std::atomic<float> delayTimeSec{0.5f};
+  std::atomic<float> delayFeedback{0.5f};
+  std::atomic<bool> fxEnabled{false};
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };
