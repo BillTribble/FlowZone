@@ -14,7 +14,7 @@ public:
 
   void prepare(double sampleRate, int samplesPerBlock);
   void processNextBlock(juce::AudioBuffer<float> &outputBuffer,
-                        double targetBpm);
+                        double targetBpm, int numSamplesToProcess);
 
   /**
    * Starts playback of a riff.

@@ -7,10 +7,10 @@ void RiffPlaybackEngine::prepare(double sampleRate, int /*samplesPerBlock*/) {
 }
 
 void RiffPlaybackEngine::processNextBlock(
-    juce::AudioBuffer<float> &outputBuffer, double targetBpm) {
+    juce::AudioBuffer<float> &outputBuffer, double targetBpm,
+    int numSamplesToProcess) {
   const juce::ScopedLock sl(lock);
 
-  const int numSamples = outputBuffer.getNumSamples();
   const int outChannels = outputBuffer.getNumChannels();
 
   for (auto it = playingRiffs.begin(); it != playingRiffs.end();) {
@@ -20,7 +20,7 @@ void RiffPlaybackEngine::processNextBlock(
     const int riffChannels = riff->audio.getNumChannels();
     const double speedRatio = targetBpm / riff->sourceBpm;
 
-    for (int i = 0; i < numSamples; ++i) {
+    for (int i = 0; i < numSamplesToProcess; ++i) {
       const int posInt = static_cast<int>(riff->currentPosition);
       const int nextPosInt = (posInt + 1);
       const float fraction = static_cast<float>(riff->currentPosition - posInt);

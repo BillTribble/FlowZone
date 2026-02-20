@@ -84,7 +84,8 @@ void RiffHistoryPanel::ContentComponent::updateItems() {
     const auto &riff = history[static_cast<size_t>(i)];
     RiffItem item;
     item.riff = &riff;
-    item.bounds = juce::Rectangle<float>(currentX, 10.0f, itemW, h - 20.0f);
+    // Remove vertical padding to maximize slot height
+    item.bounds = juce::Rectangle<float>(currentX, 0.0f, itemW, h);
 
     for (const auto &layer : riff.layerBuffers) {
       item.layerThumbnails.push_back(
@@ -166,14 +167,6 @@ void RiffHistoryPanel::ContentComponent::paint(juce::Graphics &g) {
       g.drawHorizontalLine(static_cast<int>(slotBounds.getY()),
                            slotBounds.getX(), slotBounds.getRight());
     }
-
-    // Label
-    g.setColour(juce::Colours::white.withAlpha(0.7f));
-    g.setFont(juce::FontOptions(10.0f));
-    juce::String label =
-        item.riff->name + " (L" + juce::String(item.riff->layers) + ")";
-    g.drawFittedText(label, item.bounds.reduced(6.0f, 4.0f).toNearestInt(),
-                     juce::Justification::bottomLeft, 1);
   }
 
   if (items.empty() && owner.riffHistory) {

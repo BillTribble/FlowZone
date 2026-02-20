@@ -333,7 +333,8 @@ void MainComponent::getNextAudioBlock(
 
   // 4. Process Riffs ONCE into riffOutputBuffer
   if (isPlaying.load()) {
-    riffEngine.processNextBlock(riffOutputBuffer, currentBpm.load());
+    riffEngine.processNextBlock(riffOutputBuffer, currentBpm.load(),
+                                numSamples);
   }
 
   // Add Riffs to speaker output
