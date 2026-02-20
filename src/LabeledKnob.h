@@ -32,9 +32,21 @@ public:
 
   void resized() override {
     auto area = getLocalBounds();
-    titleLabel.setBounds(area.removeFromTop(15));
-    valueLabel.setBounds(area.removeFromBottom(18));
-    slider.setBounds(area.reduced(2));
+    const int h = area.getHeight();
+    const int w = area.getWidth();
+
+    // Calculate content height: Title (15) + Padding (2) + Dial + Filling (2) +
+    // Value (18) We want the dial to be at most w, but also fit in the
+    // remaining height.
+    int dialSize = std::min(w, h - 40);
+    int totalContentH = dialSize + 40;
+
+    auto contentArea = area.withSizeKeepingCentre(w, totalContentH);
+    titleLabel.setBounds(contentArea.removeFromTop(15));
+    contentArea.removeFromTop(2);
+    valueLabel.setBounds(contentArea.removeFromBottom(18));
+    contentArea.removeFromBottom(2);
+    slider.setBounds(contentArea);
   }
 
   juce::Slider &getSlider() { return slider; }

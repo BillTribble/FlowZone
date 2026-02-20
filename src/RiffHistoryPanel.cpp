@@ -115,11 +115,11 @@ void RiffHistoryPanel::ContentComponent::updateItems() {
     // Check if we already have this riff tracked
     auto existingIt =
         std::find_if(items.begin(), items.end(), [&](const RiffItem &item) {
-          return item.riff->id == riff.id;
+          return item.riffId == riff.id;
         });
 
     RiffItem newItem;
-    newItem.riff = &riff;
+    newItem.riffId = riff.id;
     newItem.targetBounds = juce::Rectangle<float>(currentX, 0.0f, itemW, h);
 
     if (existingIt != items.end()) {
@@ -159,9 +159,23 @@ void RiffHistoryPanel::ContentComponent::paint(juce::Graphics &g) {
     return;
 
   for (const auto &item : items) {
-    const bool isSelected = (item.riff->id == owner.selectedRiffId);
+    // Find actual riff data safely
+    const Riff *riffPointer = nullptr;
+    if (owner.riffHistory) {
+      for (const auto &r : owner.riffHistory->getHistory()) {
+        if (r.id == item.riffId) {
+          riffPointer = &r;
+          break;
+        }
+      }
+    }
+
+    if (riffPointer == nullptr)
+      continue;
+
+    const bool isSelected = (item.riffId == owner.selectedRiffId);
     const bool isPlaying =
-        owner.isRiffPlaying ? owner.isRiffPlaying(item.riff->id) : false;
+        owner.isRiffPlaying ? owner.isRiffPlaying(item.riffId) : false;
 
     // Draw background for riff box
     g.setColour(juce::Colour(0xFF16162B));
@@ -233,9 +247,19 @@ void RiffHistoryPanel::ContentComponent::paint(juce::Graphics &g) {
 void RiffHistoryPanel::ContentComponent::mouseDown(const juce::MouseEvent &e) {
   for (const auto &item : items) {
     if (item.currentBounds.contains(e.position.toFloat())) {
-      owner.selectedRiffId = item.riff->id;
-      if (owner.onRiffSelected)
-        owner.onRiffSelected(*item.riff);
+      owner.selectedRiffId = item.riffId;
+
+      // Look up riff data for callback
+      if (owner.riffHistory) {
+        for (const auto &r : owner.riffHistory->getHistory()) {
+          if (r.id == item.riffId) {
+            if (owner.onRiffSelected)
+              owner.onRiffSelected(r);
+            break;
+          }
+        }
+      }
+
       owner.repaint();
       return;
     }

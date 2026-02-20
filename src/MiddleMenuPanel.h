@@ -1,4 +1,5 @@
 #include "LabeledKnob.h"
+#include "XYPad.h"
 #include <juce_gui_basics/juce_gui_basics.h>
 
 /**
@@ -18,10 +19,12 @@ public:
   std::function<void(Tab)> onTabChanged;
 
   // Wire up controls from MainComponent
-  void setupModeControls(LabeledKnob &gainKnob, LabeledKnob &bpmKnob,
-                         juce::TextButton &monitorButton);
-  void setupFxControls(juce::Component &xyPad, juce::Slider &reverbSizeSlider,
+  void setupModeControls(LabeledKnob &gain, juce::TextButton &monitor);
+  void setupFxControls(XYPad &xy, juce::Slider &reverbSize,
                        juce::Label &reverbSizeLabel);
+
+  // New Mic Reverb controls for Mode tab
+  void setupMicReverb(juce::Slider &roomSize, juce::Slider &wetLevel);
   void setupMixerControls();
 
   juce::Component &getModeContainer() { return modeContainer; }
@@ -41,8 +44,13 @@ private:
 
   // Pointers to controls owned by MainComponent
   LabeledKnob *pGainKnob{nullptr};
-  LabeledKnob *pBpmKnob{nullptr};
   juce::TextButton *pMonitorButton{nullptr};
+
+  // Mic Reverb Pointers
+  juce::Slider *pMicReverbRoomSize{nullptr};
+  juce::Slider *pMicReverbWetLevel{nullptr};
+  juce::Label micReverbRoomSizeLabel;
+  juce::Label micReverbWetLevelLabel;
   juce::Component *pXYPad{nullptr};
   juce::Slider *pReverbSizeSlider{nullptr};
   juce::Label *pReverbSizeLabel{nullptr};

@@ -24,7 +24,7 @@ public:
 
 private:
   struct RiffItem {
-    const Riff *riff;
+    juce::Uuid riffId;
     juce::Rectangle<float> currentBounds; // Animated position
     juce::Rectangle<float> targetBounds;  // Where it SHOULD be
     std::vector<std::vector<float>> layerThumbnails;

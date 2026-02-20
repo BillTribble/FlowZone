@@ -1,4 +1,5 @@
 #include "MainComponent.h"
+#include <juce_core/juce_core.h>
 
 //==============================================================================
 MainComponent::MainComponent() {
@@ -19,16 +20,8 @@ MainComponent::MainComponent() {
   };
   addAndMakeVisible(gainKnob);
 
-  // --- BPM Knob ---
-  auto &bpmSlider = bpmKnob.getSlider();
-  bpmSlider.setRange(40.0, 240.0, 1.0);
-  bpmSlider.setValue(120.0);
-  bpmSlider.onValueChange = [this, &bpmSlider]() {
-    double val = bpmSlider.getValue();
-    currentBpm.store(val);
-    waveformPanel.setBPM(val);
-  };
-  addAndMakeVisible(bpmKnob);
+  // --- BPM Display (Header) ---
+  addAndMakeVisible(bpmDisplay);
 
   // --- Reverb Controls ---
   reverbSizeSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
@@ -116,12 +109,37 @@ MainComponent::MainComponent() {
     }
   };
 
+  // --- Mic Reverb UI (Mode Tab) ---
+  micReverbSizeSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
+  micReverbSizeSlider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+  micReverbSizeSlider.setRange(0.0, 1.0, 0.01);
+  micReverbSizeSlider.setValue(0.5);
+  micReverbSizeSlider.onValueChange = [this]() {
+    micReverbRoomSize.store((float)micReverbSizeSlider.getValue());
+  };
+
+  micReverbMixSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
+  micReverbMixSlider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+  micReverbMixSlider.setRange(0.0, 1.0, 0.01);
+  micReverbMixSlider.setValue(0.0); // Default dry
+  micReverbMixSlider.onValueChange = [this]() {
+    micReverbWetLevel.store((float)micReverbMixSlider.getValue());
+  };
+
   // --- Middle Menu Panel (Mode & FX Tabs) ---
   addAndMakeVisible(middleMenuPanel);
-  middleMenuPanel.setupModeControls(gainKnob, bpmKnob, monitorButton);
+  middleMenuPanel.setupModeControls(gainKnob,
+                                    monitorButton); // BPM removed from mode
+  middleMenuPanel.setupMicReverb(micReverbSizeSlider, micReverbMixSlider);
   middleMenuPanel.setupFxControls(fxXYPad, reverbSizeSlider, reverbSizeLabel);
-  // Add settings button to mode controls indirectly or just add it here
   addAndMakeVisible(settingsButton);
+
+  // --- File Logger for Troubleshooting ---
+  auto logFile = juce::File::getSpecialLocation(juce::File::userHomeDirectory)
+                     .getChildFile("FlowZone_Log.txt");
+  juce::Logger::setCurrentLogger(
+      new juce::FileLogger(logFile, "FlowZone Log started"));
+  juce::Logger::writeToLog("Logging to: " + logFile.getFullPathName());
 
   // --- Waveform Panel ---
   addAndMakeVisible(waveformPanel);
@@ -227,6 +245,7 @@ void MainComponent::prepareToPlay(int samplesPerBlockExpected,
   delayWritePos = 0;
 
   reverb.setSampleRate(sampleRate);
+  micReverb.setSampleRate(sampleRate);
 
   // Prepare scratch buffers
   inputCopyBuffer.setSize(2, samplesPerBlockExpected);
@@ -260,6 +279,19 @@ void MainComponent::getNextAudioBlock(
   // Calculate peak for level meter
   peakLevel.store(buffer->getMagnitude(0, numSamples));
 
+  // --- Mic Reverb (Vocal Polish) ---
+  micReverbParams.roomSize = micReverbRoomSize.load();
+  micReverbParams.wetLevel = micReverbWetLevel.load();
+  micReverbParams.dryLevel = 1.0f - micReverbWetLevel.load();
+  micReverb.setParameters(micReverbParams);
+
+  if (buffer->getNumChannels() >= 2) {
+    micReverb.processStereo(buffer->getWritePointer(0),
+                            buffer->getWritePointer(1), numSamples);
+  } else {
+    micReverb.processMono(buffer->getWritePointer(0), numSamples);
+  }
+
   // 3. Prepare workspace buffers
   bufferToFill.clearActiveBufferRegion(); // Final output starts empty
   looperMixBuffer.copyFrom(0, 0, inputCopyBuffer, 0, 0, numSamples);
@@ -282,10 +314,13 @@ void MainComponent::getNextAudioBlock(
     }
   }
 
-  // Add Riffs to looper mix
-  for (int ch = 0; ch < looperMixBuffer.getNumChannels(); ++ch) {
-    if (ch < riffOutputBuffer.getNumChannels()) {
-      looperMixBuffer.addFrom(ch, 0, riffOutputBuffer, ch, 0, numSamples);
+  // Add Riffs to looper mix (ONLY IF FX IS ACTIVE)
+  const bool active = fxXYPad.isMouseButtonDown();
+  if (active) {
+    for (int ch = 0; ch < looperMixBuffer.getNumChannels(); ++ch) {
+      if (ch < riffOutputBuffer.getNumChannels()) {
+        looperMixBuffer.addFrom(ch, 0, riffOutputBuffer, ch, 0, numSamples);
+      }
     }
   }
 
@@ -297,7 +332,6 @@ void MainComponent::getNextAudioBlock(
   }
 
   // 6. FX Processing with 3ms Smooth Crossfade
-  const bool active = fxXYPad.isMouseButtonDown();
   fxLevelSelector.setValue(active ? 1.0f : 0.0f);
 
   // Apply Delay Logic
@@ -388,6 +422,9 @@ void MainComponent::resized() {
   // Play/Pause button on the right
   playPauseButton.setBounds(headerArea.removeFromRight(80).reduced(2, 5));
 
+  // BPM Header Display
+  bpmDisplay.setBounds(headerArea.removeFromRight(100));
+
   area.removeFromTop(10); // spacing
 
   // Main content area - takes up the middle section above the bottom panels
@@ -427,4 +464,11 @@ void MainComponent::timerCallback() {
       waveformPanel.setSectionData(i, sectionData);
     }
   }
+}
+
+void MainComponent::updateBpm(double newBpm) {
+  newBpm = std::clamp(newBpm, 40.0, 240.0);
+  currentBpm.store(newBpm);
+  waveformPanel.setBPM(newBpm);
+  bpmDisplay.repaint();
 }

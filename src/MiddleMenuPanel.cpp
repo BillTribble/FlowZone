@@ -32,20 +32,38 @@ MiddleMenuPanel::MiddleMenuPanel() {
 }
 
 void MiddleMenuPanel::setupModeControls(LabeledKnob &gainKnob,
-                                        LabeledKnob &bpmKnob,
                                         juce::TextButton &monitorButton) {
   pGainKnob = &gainKnob;
-  pBpmKnob = &bpmKnob;
   pMonitorButton = &monitorButton;
 
   modeContainer.addAndMakeVisible(gainKnob);
-  modeContainer.addAndMakeVisible(bpmKnob);
   modeContainer.addAndMakeVisible(monitorButton);
 
   updateVisibility();
 }
 
-void MiddleMenuPanel::setupFxControls(juce::Component &xyPad,
+void MiddleMenuPanel::setupMicReverb(juce::Slider &roomSize,
+                                     juce::Slider &wetLevel) {
+  pMicReverbRoomSize = &roomSize;
+  pMicReverbWetLevel = &wetLevel;
+
+  modeContainer.addAndMakeVisible(roomSize);
+  modeContainer.addAndMakeVisible(wetLevel);
+
+  micReverbRoomSizeLabel.setText("REV SIZE", juce::dontSendNotification);
+  micReverbRoomSizeLabel.setJustificationType(juce::Justification::centred);
+  micReverbRoomSizeLabel.setFont(juce::Font(12.0f, juce::Font::bold));
+  modeContainer.addAndMakeVisible(micReverbRoomSizeLabel);
+
+  micReverbWetLevelLabel.setText("REV MIX", juce::dontSendNotification);
+  micReverbWetLevelLabel.setJustificationType(juce::Justification::centred);
+  micReverbWetLevelLabel.setFont(juce::Font(12.0f, juce::Font::bold));
+  modeContainer.addAndMakeVisible(micReverbWetLevelLabel);
+
+  updateVisibility();
+}
+
+void MiddleMenuPanel::setupFxControls(XYPad &xyPad,
                                       juce::Slider &reverbSizeSlider,
                                       juce::Label &reverbSizeLabel) {
   pXYPad = &xyPad;
@@ -133,13 +151,22 @@ void MiddleMenuPanel::resized() {
   autoQuantizeToggle.setBounds(toggleRow.reduced(5));
 
   // Layout MODE controls
-  if (pGainKnob && pBpmKnob && pMonitorButton) {
+  if (pGainKnob && pMonitorButton) {
     auto modeArea = modeContainer.getLocalBounds().reduced(10);
 
-    // Three columns: Gain, BPM, Monitor
+    // Three columns: Gain, Mic Reverb, Monitor
     int colW = modeArea.getWidth() / 3;
     pGainKnob->setBounds(modeArea.removeFromLeft(colW).reduced(2));
-    pBpmKnob->setBounds(modeArea.removeFromLeft(colW).reduced(2));
+
+    auto reverbCol = modeArea.removeFromLeft(colW).reduced(5);
+    micReverbRoomSizeLabel.setBounds(reverbCol.removeFromTop(20));
+    if (pMicReverbRoomSize)
+      pMicReverbRoomSize->setBounds(reverbCol.removeFromTop(50));
+    reverbCol.removeFromTop(10); // spacing
+    micReverbWetLevelLabel.setBounds(reverbCol.removeFromTop(20));
+    if (pMicReverbWetLevel)
+      pMicReverbWetLevel->setBounds(reverbCol.removeFromTop(50));
+
     pMonitorButton->setBounds(modeArea.reduced(2, 20));
   }
 

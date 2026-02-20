@@ -11,6 +11,7 @@ struct Riff {
   juce::Uuid id;
   juce::String name;
   std::vector<juce::AudioBuffer<float>> layerBuffers;
+  std::vector<float> layerGains;
   double bpm{120.0};
   int bars{1};
   juce::Time captureTime;
@@ -24,7 +25,8 @@ struct Riff {
   // Move constructor/assignment
   Riff(Riff &&other) noexcept
       : id(other.id), name(std::move(other.name)),
-        layerBuffers(std::move(other.layerBuffers)), bpm(other.bpm),
+        layerBuffers(std::move(other.layerBuffers)),
+        layerGains(std::move(other.layerGains)), bpm(other.bpm),
         bars(other.bars), captureTime(other.captureTime), layers(other.layers),
         layerBars(std::move(other.layerBars)),
         sourceSampleRate(other.sourceSampleRate),
@@ -34,6 +36,7 @@ struct Riff {
     id = other.id;
     name = std::move(other.name);
     layerBuffers = std::move(other.layerBuffers);
+    layerGains = std::move(other.layerGains);
     bpm = other.bpm;
     bars = other.bars;
     captureTime = other.captureTime;
@@ -59,7 +62,9 @@ struct Riff {
     getCompositeAudio(composite);
 
     layerBuffers.clear();
+    layerGains.clear();
     layerBuffers.push_back(std::move(composite));
+    layerGains.push_back(1.0f); // Summed result treated as normalized
     layers = 1;
   }
 
@@ -74,6 +79,7 @@ struct Riff {
     juce::AudioBuffer<float> layerCopy;
     layerCopy.makeCopyOf(newAudio);
     layerBuffers.push_back(std::move(layerCopy));
+    layerGains.push_back(0.8f); // 0.8 gain for new layers to provide headroom
     layerBars.push_back(barsToMerge);
     layers = static_cast<int>(layerBuffers.size());
   }
@@ -99,6 +105,7 @@ struct Riff {
 
     for (size_t i = 0; i < layerBuffers.size(); ++i) {
       const auto &buf = layerBuffers[i];
+      const float gain = (i < layerGains.size()) ? layerGains[i] : 1.0f;
       int layerSamples = buf.getNumSamples();
 
       if (layerSamples == 0)
@@ -110,7 +117,8 @@ struct Riff {
         int samplesToCopy = std::min(layerSamples, maxSamples - samplesCopied);
         for (int ch = 0; ch < output.getNumChannels(); ++ch) {
           if (ch < buf.getNumChannels()) {
-            output.addFrom(ch, samplesCopied, buf, ch, 0, samplesToCopy);
+            output.addFromWithRamp(ch, samplesCopied, buf.getReadPointer(ch),
+                                   samplesToCopy, gain, gain);
           }
         }
         samplesCopied += samplesToCopy;

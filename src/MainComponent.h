@@ -41,13 +41,36 @@ private:
   WaveformPanel waveformPanel;
   RiffHistoryPanel riffHistoryPanel;
   MiddleMenuPanel middleMenuPanel;
-  LabeledKnob bpmKnob{"BPM"};
+
+  // BPM Header Display (Custom component for drag-to-edit)
+  struct BpmDisplay : public juce::Component {
+    MainComponent &owner;
+    BpmDisplay(MainComponent &o) : owner(o) {
+      setMouseCursor(juce::MouseCursor::UpDownResizeCursor);
+    }
+    void paint(juce::Graphics &g) override {
+      g.setColour(juce::Colours::white);
+      g.setFont(juce::FontOptions(20.0f, juce::Font::bold));
+      g.drawText(juce::String(owner.currentBpm.load(), 1) + " BPM",
+                 getLocalBounds(), juce::Justification::centred, false);
+    }
+    void mouseDrag(const juce::MouseEvent &e) override {
+      float delta = -e.getDistanceFromDragStartY() * 0.2f;
+      owner.updateBpm(owner.currentBpm.load() + delta);
+    }
+  } bpmDisplay{*this};
 
   // Reverb Controls
   juce::Slider reverbSizeSlider;
   juce::Slider reverbMixSlider;
   juce::Label reverbSizeLabel;
   juce::Label reverbMixLabel;
+
+  // New Mic Reverb UI (for the Mode tab)
+  juce::Slider micReverbSizeSlider;
+  juce::Slider micReverbMixSlider;
+  juce::Label micReverbSizeLabel;
+  juce::Label micReverbMixLabel;
 
   // Audio pipeline
   RetrospectiveBuffer retroBuffer;
@@ -58,6 +81,8 @@ private:
   std::atomic<float> peakLevel{0.0f};  // peak level from audio callback
   std::atomic<bool> monitorOn{false};  // route mic to output?
   std::atomic<bool> isPlaying{true};   // play riffs?
+
+  void updateBpm(double newBpm);
   RiffHistory riffHistory;
   RiffPlaybackEngine riffEngine;
   std::atomic<double> currentBpm{120.0};
@@ -67,6 +92,12 @@ private:
   juce::Reverb::Parameters reverbParams;
   std::atomic<float> reverbRoomSize{0.5f};
   std::atomic<float> reverbWetLevel{0.3f};
+
+  // --- Mic Reverb (Separate from Master FX) ---
+  juce::Reverb micReverb;
+  juce::Reverb::Parameters micReverbParams;
+  std::atomic<float> micReverbRoomSize{0.5f};
+  std::atomic<float> micReverbWetLevel{0.0f}; // Default off
 
   // --- Delay FX ---
   XYPad fxXYPad;
