@@ -123,8 +123,35 @@ void RiffHistoryPanel::paint(juce::Graphics &g) {
       g.drawRoundedRectangle(item.bounds, 6.0f, 1.0f);
     }
 
-    // Mini-waveform - use a temporary clip if needed for bleed, but drawing
-    // inside bounds is safer
+    // --- Draw Layers (Zebra Shading) ---
+    if (item.riff->layers > 1) {
+      const float totalH = item.bounds.getHeight();
+      const float layerH = totalH / static_cast<float>(item.riff->layers);
+
+      // Clip to item bounds to keep rounding clean
+      juce::Graphics::ScopedSaveState signalSave(g);
+      g.reduceClipRegion(item.bounds.toNearestInt());
+
+      for (int i = 0; i < item.riff->layers; ++i) {
+        auto layerBounds = item.bounds.withHeight(layerH).withY(
+            item.bounds.getY() + static_cast<float>(i) * layerH);
+
+        // Alternating fill for zebra effect
+        if (i % 2 == 1) {
+          g.setColour(juce::Colours::white.withAlpha(0.05f));
+          g.fillRect(layerBounds);
+        }
+
+        // Horizontal divider line between layers
+        if (i > 0) {
+          g.setColour(juce::Colours::white.withAlpha(0.1f));
+          g.fillRect(layerBounds.getX(), layerBounds.getY(),
+                     layerBounds.getWidth(), 1.0f);
+        }
+      }
+    }
+
+    // Mini-waveform - draw over the whole stack
     const float midY = item.bounds.getCentreY();
     const float scaleY = item.bounds.getHeight() * 0.35f;
 
