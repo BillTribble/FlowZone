@@ -15,15 +15,19 @@ MiddleMenuPanel::MiddleMenuPanel() {
 
   setupTabButton(modeTabButton, "MODE");
   setupTabButton(fxTabButton, "FX");
+  setupTabButton(mixerTabButton, "MIXER");
 
   modeTabButton.setToggleState(true, juce::dontSendNotification);
 
   modeTabButton.onClick = [this]() { setActiveTab(Tab::Mode); };
   fxTabButton.onClick = [this]() { setActiveTab(Tab::FX); };
+  mixerTabButton.onClick = [this]() { setActiveTab(Tab::Mixer); };
 
   addAndMakeVisible(modeContainer);
   addAndMakeVisible(fxContainer);
+  addAndMakeVisible(mixerContainer);
 
+  setupMixerControls();
   updateVisibility();
 }
 
@@ -64,6 +68,28 @@ void MiddleMenuPanel::setupFxControls(juce::Component &xyPad,
   updateVisibility();
 }
 
+void MiddleMenuPanel::setupMixerControls() {
+  auto setupToggle = [this](juce::TextButton &b) {
+    b.setClickingTogglesState(true);
+    b.setColour(juce::TextButton::buttonColourId, juce::Colour(0xFF1A1A2E));
+    b.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xFF00CC66));
+    b.setColour(juce::TextButton::textColourOffId,
+                juce::Colours::white.withAlpha(0.6f));
+    b.setColour(juce::TextButton::textColourOnId, juce::Colours::black);
+    mixerContainer.addAndMakeVisible(b);
+  };
+
+  setupToggle(snapToggle);
+  setupToggle(autoQuantizeToggle);
+
+  mixerPlaceholderLabel.setText("LOOPER BEHAVIOR", juce::dontSendNotification);
+  mixerPlaceholderLabel.setJustificationType(juce::Justification::centred);
+  mixerPlaceholderLabel.setColour(juce::Label::textColourId,
+                                  juce::Colours::white.withAlpha(0.5f));
+  mixerPlaceholderLabel.setFont(juce::Font(14.0f, juce::Font::bold));
+  mixerContainer.addAndMakeVisible(mixerPlaceholderLabel);
+}
+
 void MiddleMenuPanel::setActiveTab(Tab tab) {
   if (activeTab == tab)
     return;
@@ -74,6 +100,7 @@ void MiddleMenuPanel::setActiveTab(Tab tab) {
 void MiddleMenuPanel::updateVisibility() {
   modeContainer.setVisible(activeTab == Tab::Mode);
   fxContainer.setVisible(activeTab == Tab::FX);
+  mixerContainer.setVisible(activeTab == Tab::Mixer);
 }
 
 void MiddleMenuPanel::paint(juce::Graphics &g) {
@@ -96,12 +123,23 @@ void MiddleMenuPanel::resized() {
   auto area = getLocalBounds();
   auto tabsArea = area.removeFromTop(40);
 
-  int tabW = tabsArea.getWidth() / 2;
+  int tabW = tabsArea.getWidth() / 3;
   modeTabButton.setBounds(tabsArea.removeFromLeft(tabW).reduced(2, 5));
-  fxTabButton.setBounds(tabsArea.reduced(2, 5));
+  fxTabButton.setBounds(tabsArea.removeFromLeft(tabW).reduced(2, 5));
+  mixerTabButton.setBounds(tabsArea.reduced(2, 5));
 
   modeContainer.setBounds(area);
   fxContainer.setBounds(area);
+  mixerContainer.setBounds(area);
+
+  // Layout MIXER controls
+  auto mixerArea = mixerContainer.getLocalBounds().reduced(20);
+  mixerPlaceholderLabel.setBounds(mixerArea.removeFromTop(30));
+
+  auto toggleRow = mixerArea.removeFromTop(40);
+  snapToggle.setBounds(
+      toggleRow.removeFromLeft(mixerArea.getWidth() / 2).reduced(5));
+  autoQuantizeToggle.setBounds(toggleRow.reduced(5));
 
   // Layout MODE controls
   if (pGainSlider && pGainLabel && pGainValueLabel && pBpmSlider && pBpmLabel &&

@@ -68,11 +68,24 @@ void RiffPlaybackEngine::playRiff(const juce::Uuid &id,
                                   bool loop) {
   const juce::ScopedLock sl(lock);
 
+  double inheritedPosition = 0.0;
+  if (!playingRiffs.empty()) {
+    inheritedPosition = playingRiffs.front()->currentPosition;
+  }
+
   auto playingRiff = std::make_unique<PlayingRiff>();
   playingRiff->riffId = id;
   // Deep copy the audio
   playingRiff->audio.makeCopyOf(audio);
-  playingRiff->currentPosition = 0.0;
+
+  // Inherit position and wrap if necessary
+  if (audio.getNumSamples() > 0) {
+    playingRiff->currentPosition =
+        std::fmod(inheritedPosition, (double)audio.getNumSamples());
+  } else {
+    playingRiff->currentPosition = 0.0;
+  }
+
   playingRiff->sourceBpm = sourceBpm;
   playingRiff->sourceSampleRate = sourceSampleRate;
   playingRiff->looping = loop;

@@ -194,8 +194,12 @@ MainComponent::MainComponent() {
   addAndMakeVisible(riffHistoryPanel);
   riffHistoryPanel.setHistory(&riffHistory);
   riffHistoryPanel.onRiffSelected = [this](const Riff &riff) {
+    if (riffEngine.getCurrentlyPlayingRiffId() == riff.id)
+      return; // Already playing exactly this, ignore tap
+
     juce::Logger::writeToLog("Riff selected from history: " + riff.name);
     juce::AudioBuffer<float> composite;
+    riff.getCompositeAudio(composite);
     riffEngine.playRiff(riff.id, composite, currentBpm.load(),
                         riff.sourceSampleRate, true);
   };
@@ -216,56 +220,41 @@ MainComponent::MainComponent() {
     const auto now = juce::Time::getMillisecondCounterHiRes() / 1000.0;
     lastCaptureTime = now;
 
-    // Layering logic: Target the currently playing riff.
-    Riff *riffToLayerOn = nullptr;
+    // Immutable Stacking Logic: Every capture creates a NEW box in history.
+    // If a riff is playing, we clone its state (layers) and add the new one.
+    Riff newRiff;
     auto playingId = riffEngine.getCurrentlyPlayingRiffId();
 
-    for (auto &r : riffHistory.getHistoryRW()) {
+    for (const auto &r : riffHistory.getHistory()) {
       if (r.id == playingId && !playingId.isNull()) {
-        if (r.layers < 8) {
-          riffToLayerOn = &r;
-          break;
-        }
+        newRiff = r; // Deep copy previous state
+        break;
       }
     }
 
-    if (riffToLayerOn != nullptr) {
-      juce::AudioBuffer<float> layerAudio;
-      retroBuffer.getAudioRegion(layerAudio, numFrames);
-      riffToLayerOn->merge(layerAudio, bars);
-      riffHistory.signalUpdate();
+    newRiff.id = juce::Uuid(); // New identity for the new snapshot
+    newRiff.bpm = bpm;
+    newRiff.bars = bars;
+    newRiff.sourceSampleRate = currentSampleRate;
+    newRiff.name = "Riff " + juce::String(riffHistory.size() + 1);
+    newRiff.captureTime = juce::Time::getCurrentTime();
+    newRiff.source = "Microphone";
 
-      juce::AudioBuffer<float> composite;
-      riffToLayerOn->getCompositeAudio(composite);
-      riffEngine.playRiff(riffToLayerOn->id, composite, bpm,
-                          riffToLayerOn->sourceSampleRate, true);
-      riffHistoryPanel.repaint();
-      juce::Logger::writeToLog(
-          "Merged into riff: " + riffToLayerOn->name +
-          ". Layers: " + juce::String(riffToLayerOn->layers));
-    } else {
-      Riff newRiff;
-      newRiff.bpm = bpm;
-      newRiff.bars = bars;
-      newRiff.sourceSampleRate = currentSampleRate;
-      newRiff.name = "Riff " + juce::String(riffHistory.size() + 1);
-      newRiff.layers = 1;
+    // Capture the audio from the buffer
+    juce::AudioBuffer<float> capturedAudio;
+    retroBuffer.getAudioRegion(capturedAudio, numFrames);
+    newRiff.merge(capturedAudio, bars);
 
-      // Capture the audio from the buffer
-      juce::AudioBuffer<float> capturedAudio;
-      retroBuffer.getAudioRegion(capturedAudio, numFrames);
-      newRiff.merge(capturedAudio, bars);
+    juce::Logger::writeToLog("Created History Snapshot: " + newRiff.name +
+                             " (Layers: " + juce::String(newRiff.layers) + ")");
 
-      juce::Logger::writeToLog("Captured New Riff: " + newRiff.name + " (" +
-                               juce::String(numFrames) + " samples)");
+    // Add to history
+    const auto &ref = riffHistory.addRiff(std::move(newRiff));
+    juce::AudioBuffer<float> composite;
+    ref.getCompositeAudio(composite);
+    riffEngine.playRiff(ref.id, composite, bpm, ref.sourceSampleRate, true);
 
-      // Add to history
-      const auto &ref = riffHistory.addRiff(std::move(newRiff));
-      juce::AudioBuffer<float> composite;
-      ref.getCompositeAudio(composite);
-      riffEngine.playRiff(ref.id, composite, bpm, ref.sourceSampleRate, true);
-      riffHistoryPanel.repaint();
-    }
+    riffHistoryPanel.repaint();
   };
 
   // --- Audio Setup ---

@@ -17,6 +17,7 @@ struct Riff {
   int layers{1};
   std::vector<int> layerBars;
   double sourceSampleRate{44100.0};
+  juce::String source{"Microphone"};
 
   Riff() : id(juce::Uuid()), captureTime(juce::Time::getCurrentTime()) {}
 
@@ -26,7 +27,8 @@ struct Riff {
         layerBuffers(std::move(other.layerBuffers)), bpm(other.bpm),
         bars(other.bars), captureTime(other.captureTime), layers(other.layers),
         layerBars(std::move(other.layerBars)),
-        sourceSampleRate(other.sourceSampleRate) {}
+        sourceSampleRate(other.sourceSampleRate),
+        source(std::move(other.source)) {}
 
   Riff &operator=(Riff &&other) noexcept {
     id = other.id;
@@ -38,6 +40,7 @@ struct Riff {
     layers = other.layers;
     layerBars = std::move(other.layerBars);
     sourceSampleRate = other.sourceSampleRate;
+    source = std::move(other.source);
     return *this;
   }
 
@@ -107,10 +110,6 @@ class RiffHistory {
 public:
   const Riff &addRiff(Riff &&riff) {
     history.push_back(std::move(riff));
-    // Limit history size to 100 as per instructions
-    if (history.size() > 100) {
-      history.erase(history.begin());
-    }
     updateCounter++;
     return history.back();
   }
