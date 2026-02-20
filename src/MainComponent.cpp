@@ -44,14 +44,88 @@ MainComponent::MainComponent() {
   gainValueLabel.setJustificationType(juce::Justification::centred);
   addAndMakeVisible(gainValueLabel);
 
-  // --- Level Meter ---
-  addAndMakeVisible(levelMeter);
+  // --- BPM Slider ---
+  bpmSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
+  bpmSlider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+  bpmSlider.setRange(60.0, 200.0, 1.0);
+  bpmSlider.setValue(120.0);
+  bpmSlider.setColour(juce::Slider::rotarySliderFillColourId,
+                      juce::Colour(0xFF00AAFF)); // Blue for BPM
+  bpmSlider.setColour(juce::Slider::rotarySliderOutlineColourId,
+                      juce::Colour(0xFF2A2A4A));
+  bpmSlider.setColour(juce::Slider::thumbColourId, juce::Colours::white);
+  bpmSlider.onValueChange = [this]() {
+    double bpm = bpmSlider.getValue();
+    currentBpm.store(bpm);
+    bpmValueLabel.setText(juce::String(static_cast<int>(bpm)) + " BPM",
+                          juce::dontSendNotification);
+    waveformPanel.setBPM(bpm);
+  };
+  addAndMakeVisible(bpmSlider);
 
-  // --- Middle Menu ---
-  addAndMakeVisible(middleMenuPanel);
-  middleMenuPanel.setupModeControls(gainSlider, gainLabel, gainValueLabel,
-                                    monitorButton);
-  middleMenuPanel.setupFxControls(fxXYPad);
+  bpmLabel.setText("BPM", juce::dontSendNotification);
+  bpmLabel.setFont(juce::FontOptions(14.0f, juce::Font::bold));
+  bpmLabel.setColour(juce::Label::textColourId,
+                     juce::Colours::white.withAlpha(0.6f));
+  bpmLabel.setJustificationType(juce::Justification::centred);
+  addAndMakeVisible(bpmLabel);
+
+  bpmValueLabel.setText("120 BPM", juce::dontSendNotification);
+  bpmValueLabel.setFont(juce::FontOptions(16.0f));
+  bpmValueLabel.setColour(juce::Label::textColourId, juce::Colours::white);
+  bpmValueLabel.setJustificationType(juce::Justification::centred);
+  addAndMakeVisible(bpmValueLabel);
+
+  // --- FX Parameters from XY Pad ---
+  fxXYPad.onXYChange = [this](float x, float y) {
+    // X -> Delay Time (100ms to 800ms)
+    delayTimeSec = 0.1f + (x * 0.7f);
+    // Y -> Feedback (0 to 0.9)
+    delayFeedback = y * 0.9f;
+  };
+
+  // --- Reverb Controls ---
+  reverbSizeSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
+  reverbSizeSlider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+  reverbSizeSlider.setRange(0.0, 1.0, 0.01);
+  reverbSizeSlider.setValue(0.5);
+  reverbSizeSlider.setColour(juce::Slider::rotarySliderFillColourId,
+                             juce::Colour(0xFFCC66FF)); // Purple for Reverb
+  reverbSizeSlider.setColour(juce::Slider::rotarySliderOutlineColourId,
+                             juce::Colour(0xFF2A2A4A));
+  reverbSizeSlider.setColour(juce::Slider::thumbColourId, juce::Colours::white);
+  reverbSizeSlider.onValueChange = [this]() {
+    reverbRoomSize.store((float)reverbSizeSlider.getValue());
+  };
+  addAndMakeVisible(reverbSizeSlider);
+
+  reverbSizeLabel.setText("SIZE", juce::dontSendNotification);
+  reverbSizeLabel.setFont(juce::FontOptions(14.0f, juce::Font::bold));
+  reverbSizeLabel.setColour(juce::Label::textColourId,
+                            juce::Colours::white.withAlpha(0.6f));
+  reverbSizeLabel.setJustificationType(juce::Justification::centred);
+  addAndMakeVisible(reverbSizeLabel);
+
+  reverbMixSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
+  reverbMixSlider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+  reverbMixSlider.setRange(0.0, 1.0, 0.01);
+  reverbMixSlider.setValue(0.3);
+  reverbMixSlider.setColour(juce::Slider::rotarySliderFillColourId,
+                            juce::Colour(0xFFCC66FF));
+  reverbMixSlider.setColour(juce::Slider::rotarySliderOutlineColourId,
+                            juce::Colour(0xFF2A2A4A));
+  reverbMixSlider.setColour(juce::Slider::thumbColourId, juce::Colours::white);
+  reverbMixSlider.onValueChange = [this]() {
+    reverbWetLevel.store((float)reverbMixSlider.getValue());
+  };
+  addAndMakeVisible(reverbMixSlider);
+
+  reverbMixLabel.setText("MIX", juce::dontSendNotification);
+  reverbMixLabel.setFont(juce::FontOptions(14.0f, juce::Font::bold));
+  reverbMixLabel.setColour(juce::Label::textColourId,
+                           juce::Colours::white.withAlpha(0.6f));
+  reverbMixLabel.setJustificationType(juce::Justification::centred);
+  addAndMakeVisible(reverbMixLabel);
 
   // --- FX Parameters from XY Pad ---
   fxXYPad.onXYChange = [this](float x, float y) {
@@ -104,7 +178,7 @@ MainComponent::MainComponent() {
     if (currentSampleRate <= 0.0)
       return;
 
-    const double bpm = 120.0;
+    const double bpm = currentBpm.load();
     const double framesPerBar = currentSampleRate * (60.0 / bpm) * 4.0;
     const int numFrames = static_cast<int>(framesPerBar * bars);
 
@@ -169,6 +243,8 @@ void MainComponent::prepareToPlay(int samplesPerBlockExpected,
   delayBuffer.setSize(2, static_cast<int>(sampleRate * 2.0));
   delayBuffer.clear();
   delayWritePos = 0;
+
+  reverb.setSampleRate(sampleRate);
 }
 
 void MainComponent::getNextAudioBlock(
@@ -244,6 +320,24 @@ void MainComponent::getNextAudioBlock(
     }
     delayWritePos = (delayWritePos + numSamples) % delaySize;
   }
+
+  // --- FX: Reverb ---
+  if (fxEnabled.load()) {
+    reverbParams.roomSize = reverbRoomSize.load();
+    reverbParams.wetLevel = reverbWetLevel.load();
+    reverbParams.dryLevel =
+        1.0f - (reverbWetLevel.load() * 0.5f); // Subtle dry dip
+    reverbParams.damping = 0.5f;
+    reverbParams.width = 1.0f;
+    reverb.setParameters(reverbParams);
+
+    if (numInputChannels >= 2) {
+      reverb.processStereo(buffer->getWritePointer(0, startSample),
+                           buffer->getWritePointer(1, startSample), numSamples);
+    } else {
+      reverb.processMono(buffer->getWritePointer(0, startSample), numSamples);
+    }
+  }
 }
 
 void MainComponent::releaseResources() {
@@ -297,11 +391,13 @@ void MainComponent::timerCallback() {
 
   // Feed waveform panel sections: 8, 4, 2, 1 bars at current BPM
   if (currentSampleRate > 0.0) {
+    const double bpm = currentBpm.load();
     const int panelW = std::max(waveformPanel.getWidth(), 1);
-    const int sectionW = std::max(panelW / 4, 1);
+    const int framesPerBar =
+        static_cast<int>(currentSampleRate * (60.0 / bpm) * 4.0);
 
     // BPM calculation (default 120)
-    const double framesPerBar = currentSampleRate * (60.0 / 120.0) * 4.0;
+    const int sectionW = std::max(panelW / 4, 1);
 
     const int bars[] = {8, 4, 2, 1};
     for (int i = 0; i < 4; ++i) {

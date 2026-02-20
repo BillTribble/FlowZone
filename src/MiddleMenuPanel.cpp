@@ -27,24 +27,47 @@ MiddleMenuPanel::MiddleMenuPanel() {
   updateVisibility();
 }
 
-void MiddleMenuPanel::setupModeControls(juce::Slider &gainSlider,
-                                        juce::Label &gainLabel,
-                                        juce::Label &gainValueLabel,
-                                        juce::TextButton &monitorButton) {
+void MiddleMenuPanel::setupModeControls(
+    juce::Slider &gainSlider, juce::Label &gainLabel,
+    juce::Label &gainValueLabel, juce::Slider &bpmSlider, juce::Label &bpmLabel,
+    juce::Label &bpmValueLabel, juce::TextButton &monitorButton) {
   pGainSlider = &gainSlider;
   pGainLabel = &gainLabel;
   pGainValueLabel = &gainValueLabel;
+  pBpmSlider = &bpmSlider;
+  pBpmLabel = &bpmLabel;
+  pBpmValueLabel = &bpmValueLabel;
   pMonitorButton = &monitorButton;
 
   modeContainer.addAndMakeVisible(gainSlider);
   modeContainer.addAndMakeVisible(gainLabel);
   modeContainer.addAndMakeVisible(gainValueLabel);
+  modeContainer.addAndMakeVisible(bpmSlider);
+  modeContainer.addAndMakeVisible(bpmLabel);
+  modeContainer.addAndMakeVisible(bpmValueLabel);
   modeContainer.addAndMakeVisible(monitorButton);
+
+  updateVisibility();
 }
 
-void MiddleMenuPanel::setupFxControls(juce::Component &xyPad) {
+void MiddleMenuPanel::setupFxControls(juce::Component &xyPad,
+                                      juce::Slider &reverbSizeSlider,
+                                      juce::Slider &reverbMixSlider,
+                                      juce::Label &reverbSizeLabel,
+                                      juce::Label &reverbMixLabel) {
   pXYPad = &xyPad;
+  pReverbSizeSlider = &reverbSizeSlider;
+  pReverbMixSlider = &reverbMixSlider;
+  pReverbSizeLabel = &reverbSizeLabel;
+  pReverbMixLabel = &reverbMixLabel;
+
   fxContainer.addAndMakeVisible(xyPad);
+  fxContainer.addAndMakeVisible(reverbSizeSlider);
+  fxContainer.addAndMakeVisible(reverbMixSlider);
+  fxContainer.addAndMakeVisible(reverbSizeLabel);
+  fxContainer.addAndMakeVisible(reverbMixLabel);
+
+  updateVisibility();
 }
 
 void MiddleMenuPanel::setActiveTab(Tab tab) {
@@ -88,25 +111,49 @@ void MiddleMenuPanel::resized() {
   fxContainer.setBounds(contentArea);
 
   // Layout mode controls if they are set up
-  if (pGainSlider && pGainLabel && pGainValueLabel && pMonitorButton) {
+  if (pGainSlider && pGainLabel && pGainValueLabel && pBpmSlider && pBpmLabel &&
+      pBpmValueLabel && pMonitorButton) {
     auto modeArea = modeContainer.getLocalBounds();
-    auto leftCol = modeArea.removeFromLeft(modeArea.getWidth() / 2);
+    int colW = modeArea.getWidth() / 3;
 
     // Gain section in left col
-    auto gainArea = leftCol.reduced(10);
+    auto gainArea = modeArea.removeFromLeft(colW).reduced(10);
     pGainLabel->setBounds(gainArea.removeFromTop(20));
     pGainValueLabel->setBounds(gainArea.removeFromBottom(20));
     pGainSlider->setBounds(gainArea);
 
+    // BPM section in middle col
+    auto bpmArea = modeArea.removeFromLeft(colW).reduced(10);
+    pBpmLabel->setBounds(bpmArea.removeFromTop(20));
+    pBpmValueLabel->setBounds(bpmArea.removeFromBottom(20));
+    pBpmSlider->setBounds(bpmArea);
+
     // Monitor button in right col
-    auto rightCol = modeArea.reduced(20);
+    auto rightArea = modeArea.reduced(20);
     pMonitorButton->setBounds(
-        rightCol.withSizeKeepingCentre(rightCol.getWidth(), 40));
+        rightArea.withSizeKeepingCentre(rightArea.getWidth(), 40));
   }
 
   // Layout FX controls
-  if (pXYPad) {
+  if (pXYPad && pReverbSizeSlider && pReverbMixSlider && pReverbSizeLabel &&
+      pReverbMixLabel) {
     auto fxArea = fxContainer.getLocalBounds().reduced(10);
-    pXYPad->setBounds(fxArea);
+
+    // Reserved bottom area for Reverb sliders (80px)
+    auto reverbArea = fxArea.removeFromBottom(80);
+    auto xyArea = fxArea.reduced(5); // Pad is in the remaining top area
+
+    pXYPad->setBounds(xyArea);
+
+    // Layout Reverb sliders in 2 columns
+    int sliderColW = reverbArea.getWidth() / 2;
+    auto leftSliderArea = reverbArea.removeFromLeft(sliderColW).reduced(5);
+    auto rightSliderArea = reverbArea.reduced(5);
+
+    pReverbSizeLabel->setBounds(leftSliderArea.removeFromTop(20));
+    pReverbSizeSlider->setBounds(leftSliderArea);
+
+    pReverbMixLabel->setBounds(rightSliderArea.removeFromTop(20));
+    pReverbMixSlider->setBounds(rightSliderArea);
   }
 }

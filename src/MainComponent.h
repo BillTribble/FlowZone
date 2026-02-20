@@ -40,6 +40,15 @@ private:
   WaveformPanel waveformPanel;
   RiffHistoryPanel riffHistoryPanel;
   MiddleMenuPanel middleMenuPanel;
+  juce::Slider bpmSlider;
+  juce::Label bpmLabel;
+  juce::Label bpmValueLabel;
+
+  // Reverb Controls
+  juce::Slider reverbSizeSlider;
+  juce::Slider reverbMixSlider;
+  juce::Label reverbSizeLabel;
+  juce::Label reverbMixLabel;
 
   // Audio pipeline
   RetrospectiveBuffer retroBuffer;
@@ -51,6 +60,13 @@ private:
   std::atomic<bool> monitorOn{false};  // route mic to output?
   RiffHistory riffHistory;
   RiffPlaybackEngine riffEngine;
+  std::atomic<double> currentBpm{120.0};
+
+  // FX state
+  juce::Reverb reverb;
+  juce::Reverb::Parameters reverbParams;
+  std::atomic<float> reverbRoomSize{0.5f};
+  std::atomic<float> reverbWetLevel{0.3f};
 
   // --- Delay FX ---
   XYPad fxXYPad;

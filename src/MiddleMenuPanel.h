@@ -19,9 +19,13 @@ public:
 
   // Wire up controls from MainComponent
   void setupModeControls(juce::Slider &gainSlider, juce::Label &gainLabel,
-                         juce::Label &gainValueLabel,
+                         juce::Label &gainValueLabel, juce::Slider &bpmSlider,
+                         juce::Label &bpmLabel, juce::Label &bpmValueLabel,
                          juce::TextButton &monitorButton);
-  void setupFxControls(juce::Component &xyPad);
+  void setupFxControls(juce::Component &xyPad, juce::Slider &reverbSizeSlider,
+                       juce::Slider &reverbMixSlider,
+                       juce::Label &reverbSizeLabel,
+                       juce::Label &reverbMixLabel);
 
   juce::Component &getModeContainer() { return modeContainer; }
   juce::Component &getFxContainer() { return fxContainer; }
@@ -40,7 +44,14 @@ private:
   juce::Label *pGainLabel{nullptr};
   juce::Label *pGainValueLabel{nullptr};
   juce::TextButton *pMonitorButton{nullptr};
+  juce::Slider *pBpmSlider{nullptr};
+  juce::Label *pBpmLabel{nullptr};
+  juce::Label *pBpmValueLabel{nullptr};
   juce::Component *pXYPad{nullptr};
+  juce::Slider *pReverbSizeSlider{nullptr};
+  juce::Slider *pReverbMixSlider{nullptr};
+  juce::Label *pReverbSizeLabel{nullptr};
+  juce::Label *pReverbMixLabel{nullptr};
 
   void updateVisibility();
 
