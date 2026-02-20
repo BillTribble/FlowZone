@@ -47,6 +47,11 @@ MainComponent::MainComponent() {
   // --- Level Meter ---
   addAndMakeVisible(levelMeter);
 
+  // --- Middle Menu ---
+  addAndMakeVisible(middleMenuPanel);
+  middleMenuPanel.setupModeControls(gainSlider, gainLabel, gainValueLabel,
+                                    monitorButton);
+
   // --- Monitor Button ---
   monitorButton.setClickingTogglesState(true);
   monitorButton.setColour(juce::TextButton::buttonColourId,
@@ -62,7 +67,8 @@ MainComponent::MainComponent() {
     monitorOn.store(isOn);
     monitorButton.setButtonText(isOn ? "MONITOR: ON" : "MONITOR: OFF");
   };
-  addAndMakeVisible(monitorButton);
+  // No need to addAndMakeVisible(monitorButton) here as setupModeControls does
+  // it
 
   // --- Waveform Panel ---
   addAndMakeVisible(waveformPanel);
@@ -217,39 +223,18 @@ void MainComponent::resized() {
   titleLabel.setBounds(area.removeFromTop(40));
   area.removeFromTop(20); // spacing
 
-  // Main content area
-  auto contentArea = area;
+  // Main content area - takes up the middle section above the bottom panels
+  auto contentArea = area.removeFromTop(area.getHeight() - 200);
 
-  // Gain knob section (left side, 60% width)
-  auto leftCol = contentArea.removeFromLeft(contentArea.getWidth() * 6 / 10);
+  // Left part: Middle Menu (85% of width)
+  auto leftPart = contentArea.removeFromLeft(contentArea.getWidth() * 0.85f);
+  middleMenuPanel.setBounds(leftPart.reduced(10, 0));
 
-  // Level meter (right side, 40% width)
-  auto rightCol = contentArea;
-
-  // --- Left column: gain knob ---
-  auto gainArea = leftCol.reduced(10);
-  gainLabel.setBounds(gainArea.removeFromTop(20));
-  gainArea.removeFromTop(5);
-
-  int knobSize = std::min(gainArea.getWidth(), 200);
-  auto knobBounds = gainArea.removeFromTop(knobSize).withSizeKeepingCentre(
-      knobSize, knobSize);
-  gainSlider.setBounds(knobBounds);
-
-  gainArea.removeFromTop(5);
-  gainValueLabel.setBounds(gainArea.removeFromTop(25));
-
-  // Monitor button below the knob
-  gainArea.removeFromTop(30);
-  auto buttonBounds = gainArea.removeFromTop(50).reduced(10, 0);
-  monitorButton.setBounds(buttonBounds);
-
-  // --- Right column: level meter ---
-  auto meterArea = rightCol.reduced(10);
-  int meterWidth = std::min(meterArea.getWidth(), 50);
-  auto meterBounds =
-      meterArea.withSizeKeepingCentre(meterWidth, meterArea.getHeight() - 20);
-  levelMeter.setBounds(meterBounds);
+  // Right part: Level Meter
+  auto meterArea = contentArea.reduced(5);
+  int meterWidth = std::min(meterArea.getWidth(), 30);
+  levelMeter.setBounds(
+      meterArea.withSizeKeepingCentre(meterWidth, meterArea.getHeight() - 20));
 
   // --- Waveform Panel at the bottom, full width, 120px ---
   auto bottomArea = getLocalBounds().removeFromBottom(200);

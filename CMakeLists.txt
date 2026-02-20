@@ -26,6 +26,7 @@ target_sources(FlowZone PRIVATE
     src/Riff.h
     src/RiffHistoryPanel.cpp
     src/RiffPlaybackEngine.cpp
+    src/MiddleMenuPanel.cpp
 )
 
 target_compile_definitions(FlowZone PRIVATE

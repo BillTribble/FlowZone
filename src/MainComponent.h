@@ -1,5 +1,6 @@
 #pragma once
 #include "LevelMeter.h"
+#include "MiddleMenuPanel.h"
 #include "RetrospectiveBuffer.h"
 #include "Riff.h"
 #include "RiffHistoryPanel.h"
@@ -37,6 +38,7 @@ private:
   juce::Label titleLabel;
   WaveformPanel waveformPanel;
   RiffHistoryPanel riffHistoryPanel;
+  MiddleMenuPanel middleMenuPanel;
 
   // Audio pipeline
   RetrospectiveBuffer retroBuffer;
