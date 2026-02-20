@@ -20,7 +20,7 @@ public:
    * Starts playback of a riff.
    */
   void playRiff(const juce::Uuid &id, const juce::AudioBuffer<float> &audio,
-                double sourceBpm, bool loop = false);
+                double sourceBpm, double sourceSampleRate, bool loop = false);
 
   bool isRiffPlaying(const juce::Uuid &id) const;
 
@@ -30,6 +30,7 @@ private:
     juce::AudioBuffer<float> audio;
     double currentPosition{0.0};
     double sourceBpm{120.0};
+    double sourceSampleRate{44100.0};
     bool looping{false};
     bool finished{false};
   };

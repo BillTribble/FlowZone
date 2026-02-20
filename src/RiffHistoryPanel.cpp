@@ -178,7 +178,7 @@ void RiffHistoryPanel::ContentComponent::paint(juce::Graphics &g) {
 
 void RiffHistoryPanel::ContentComponent::mouseDown(const juce::MouseEvent &e) {
   for (const auto &item : items) {
-    if (item.bounds.contains(e.position)) {
+    if (item.bounds.contains(e.position.toFloat())) {
       owner.selectedRiffId = item.riff->id;
       if (owner.onRiffSelected)
         owner.onRiffSelected(*item.riff);
@@ -186,32 +186,43 @@ void RiffHistoryPanel::ContentComponent::mouseDown(const juce::MouseEvent &e) {
       return;
     }
   }
+
+  // Clicked empty space
+  owner.selectedRiffId = juce::Uuid();
+  owner.repaint();
 }
 
 std::vector<float> RiffHistoryPanel::ContentComponent::generateThumbnail(
     const juce::AudioBuffer<float> &audio, int numPoints) {
-  std::vector<float> result(static_cast<size_t>(numPoints), 0.0f);
-  const int numSamples = audio.getNumSamples();
-  if (numSamples <= 0 || numPoints <= 0)
-    return result;
+  std::vector<float> points(static_cast<size_t>(numPoints), 0.0f);
+  if (audio.getNumSamples() == 0 || numPoints == 0)
+    return points;
 
-  const double samplesPerPoint =
-      static_cast<double>(numSamples) / static_cast<double>(numPoints);
-  const int numChannels = audio.getNumChannels();
+  const int numSamples = audio.getNumSamples();
+  const int samplesPerPoint = std::max(1, numSamples / numPoints);
+  float maxFound = 0.0f;
 
   for (int i = 0; i < numPoints; ++i) {
-    int start = static_cast<int>(i * samplesPerPoint);
-    int end = std::min(static_cast<int>((i + 1) * samplesPerPoint), numSamples);
-
+    int start = i * samplesPerPoint;
+    int end = std::min(start + samplesPerPoint, numSamples);
     float peak = 0.0f;
-    for (int s = start; s < end; ++s) {
-      for (int ch = 0; ch < numChannels; ++ch) {
-        float absS = std::abs(audio.getSample(ch, s));
-        if (absS > peak)
-          peak = absS;
+
+    for (int ch = 0; ch < audio.getNumChannels(); ++ch) {
+      const float *data = audio.getReadPointer(ch);
+      for (int s = start; s < end; ++s) {
+        peak = std::max(peak, std::abs(data[s]));
       }
     }
-    result[static_cast<size_t>(i)] = peak;
+    points[static_cast<size_t>(i)] = peak;
+    maxFound = std::max(maxFound, peak);
   }
-  return result;
+
+  // Normalization to make waveforms fill the slot (tiny height fix)
+  if (maxFound > 0.001f) {
+    for (auto &p : points) {
+      p /= maxFound;
+    }
+  }
+
+  return points;
 }

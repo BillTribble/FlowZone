@@ -15,27 +15,29 @@ void RiffPlaybackEngine::processNextBlock(
 
   for (auto it = playingRiffs.begin(); it != playingRiffs.end();) {
     auto &riff = *it;
-
     const int riffSamples = riff->audio.getNumSamples();
     const int riffChannels = riff->audio.getNumChannels();
-    const double speedRatio = targetBpm / riff->sourceBpm;
+    // Correct speed for both BPM and Sample Rate differences
+    const double speedRatio = (targetBpm / riff->sourceBpm) *
+                              (riff->sourceSampleRate / currentSampleRate);
 
     for (int i = 0; i < numSamplesToProcess; ++i) {
       const int posInt = static_cast<int>(riff->currentPosition);
       const int nextPosInt = (posInt + 1);
       const float fraction = static_cast<float>(riff->currentPosition - posInt);
 
-      for (int ch = 0; ch < outChannels; ++ch) {
-        if (ch < riffChannels) {
-          float s1 = riff->audio.getSample(ch, posInt);
-          float s2 =
-              (nextPosInt < riffSamples)
-                  ? riff->audio.getSample(ch, nextPosInt)
-                  : (riff->looping ? riff->audio.getSample(ch, 0) : 0.0f);
+      for (int outCh = 0; outCh < outChannels; ++outCh) {
+        // If riff is mono, add to all output channels. If stereo, match 1:1.
+        int inCh = (riffChannels == 1) ? 0 : outCh;
+        if (inCh < riffChannels) {
+          const auto *riffData = riff->audio.getReadPointer(inCh);
+          float s0 = riffData[posInt];
+          float s1 = (nextPosInt < riffSamples)
+                         ? riffData[nextPosInt]
+                         : (riff->looping ? riffData[0] : 0.0f);
+          float interp = s0 + (s1 - s0) * fraction;
 
-          // Linear interpolation
-          float interpolatedSample = s1 + fraction * (s2 - s1);
-          outputBuffer.addSample(ch, i, interpolatedSample);
+          outputBuffer.addFrom(outCh, i, &interp, 1);
         }
       }
 
@@ -62,19 +64,22 @@ void RiffPlaybackEngine::processNextBlock(
 
 void RiffPlaybackEngine::playRiff(const juce::Uuid &id,
                                   const juce::AudioBuffer<float> &audio,
-                                  double bpm, bool loop) {
-  auto playing = std::make_unique<PlayingRiff>();
-  playing->riffId = id;
-  // Deep copy the audio
-  playing->audio.makeCopyOf(audio);
-  playing->currentPosition = 0.0;
-  playing->sourceBpm = bpm;
-  playing->looping = loop;
-  playing->finished = false;
-
+                                  double sourceBpm, double sourceSampleRate,
+                                  bool loop) {
   const juce::ScopedLock sl(lock);
+
+  auto playingRiff = std::make_unique<PlayingRiff>();
+  playingRiff->riffId = id;
+  // Deep copy the audio
+  playingRiff->audio.makeCopyOf(audio);
+  playingRiff->currentPosition = 0.0;
+  playingRiff->sourceBpm = sourceBpm;
+  playingRiff->sourceSampleRate = sourceSampleRate;
+  playingRiff->looping = loop;
+  playingRiff->finished = false;
+
   playingRiffs.clear(); // Exclusive playback
-  playingRiffs.push_back(std::move(playing));
+  playingRiffs.push_back(std::move(playingRiff));
 }
 
 bool RiffPlaybackEngine::isRiffPlaying(const juce::Uuid &id) const {

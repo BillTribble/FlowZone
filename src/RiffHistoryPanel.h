@@ -20,6 +20,7 @@ public:
 
   std::function<void(const Riff &)> onRiffSelected;
   std::function<bool(const juce::Uuid &)> isRiffPlaying;
+  juce::Uuid getSelectedRiffId() const { return selectedRiffId; }
 
 private:
   struct RiffItem {

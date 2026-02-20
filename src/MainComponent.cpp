@@ -196,8 +196,8 @@ MainComponent::MainComponent() {
   riffHistoryPanel.onRiffSelected = [this](const Riff &riff) {
     juce::Logger::writeToLog("Riff selected from history: " + riff.name);
     juce::AudioBuffer<float> composite;
-    riff.getCompositeAudio(composite);
-    riffEngine.playRiff(riff.id, composite, currentBpm.load(), true);
+    riffEngine.playRiff(riff.id, composite, currentBpm.load(),
+                        riff.sourceSampleRate, true);
   };
   riffHistoryPanel.isRiffPlaying = [this](const juce::Uuid &id) {
     return riffEngine.isRiffPlaying(id);
@@ -214,28 +214,45 @@ MainComponent::MainComponent() {
     const int numFrames = static_cast<int>(framesPerBar * bars);
 
     const auto now = juce::Time::getMillisecondCounterHiRes() / 1000.0;
-    const double timeSinceLastCapture = now - lastCaptureTime;
     lastCaptureTime = now;
 
-    Riff *lastRiff = riffHistory.getLastRiff();
-    // Only merge if it's the same bar length AND captured recently
-    if (lastRiff != nullptr && lastRiff->bars == bars && lastRiff->layers < 8 &&
-        timeSinceLastCapture < 5.0) {
+    // Layering logic:
+    // 1. If a riff is selected (for dubbing) and its length matches 'bars', use
+    // it.
+    // 2. Otherwise, if the last riff in history matches 'bars', use it.
+    // 3. Otherwise, create a new riff.
+    Riff *riffToLayerOn = nullptr;
+    auto selectedId = riffHistoryPanel.getSelectedRiffId();
+
+    for (auto &r : riffHistory.getHistoryRW()) {
+      if (r.id == selectedId ||
+          (selectedId.isNull() && &r == riffHistory.getLastRiff())) {
+        if (r.bars == bars && r.layers < 8) {
+          riffToLayerOn = &r;
+          break;
+        }
+      }
+    }
+
+    if (riffToLayerOn != nullptr) {
       juce::AudioBuffer<float> layerAudio;
       retroBuffer.getAudioRegion(layerAudio, numFrames);
-      lastRiff->merge(layerAudio);
+      riffToLayerOn->merge(layerAudio);
       riffHistory.signalUpdate();
 
       juce::AudioBuffer<float> composite;
-      lastRiff->getCompositeAudio(composite);
-      riffEngine.playRiff(lastRiff->id, composite, bpm, true);
+      riffToLayerOn->getCompositeAudio(composite);
+      riffEngine.playRiff(riffToLayerOn->id, composite, bpm,
+                          riffToLayerOn->sourceSampleRate, true);
       riffHistoryPanel.repaint();
-      juce::Logger::writeToLog("Merged into existing riff. Layers: " +
-                               juce::String(lastRiff->layers));
+      juce::Logger::writeToLog(
+          "Merged into riff: " + riffToLayerOn->name +
+          ". Layers: " + juce::String(riffToLayerOn->layers));
     } else {
       Riff newRiff;
       newRiff.bpm = bpm;
       newRiff.bars = bars;
+      newRiff.sourceSampleRate = currentSampleRate;
       newRiff.name = "Riff " + juce::String(riffHistory.size() + 1);
       newRiff.layers = 1;
 
@@ -251,7 +268,7 @@ MainComponent::MainComponent() {
       const auto &ref = riffHistory.addRiff(std::move(newRiff));
       juce::AudioBuffer<float> composite;
       ref.getCompositeAudio(composite);
-      riffEngine.playRiff(ref.id, composite, bpm, true);
+      riffEngine.playRiff(ref.id, composite, bpm, ref.sourceSampleRate, true);
       riffHistoryPanel.repaint();
     }
   };
@@ -290,13 +307,6 @@ void MainComponent::prepareToPlay(int samplesPerBlockExpected,
 
   // FX Crossfade (3ms)
   fxLevelSelector.reset(sampleRate, 0.003); // 3ms duration
-
-  // Set default buffer size to 32 if allowed
-  auto setup = deviceManager.getAudioDeviceSetup();
-  if (setup.bufferSize != 32) {
-    setup.bufferSize = 32;
-    deviceManager.setAudioDeviceSetup(setup, true);
-  }
 }
 
 void MainComponent::getNextAudioBlock(

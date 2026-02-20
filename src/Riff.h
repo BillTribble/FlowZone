@@ -15,6 +15,7 @@ struct Riff {
   int bars{1};
   juce::Time captureTime;
   int layers{1};
+  double sourceSampleRate{44100.0};
 
   Riff() : id(juce::Uuid()), captureTime(juce::Time::getCurrentTime()) {}
 
@@ -22,8 +23,8 @@ struct Riff {
   Riff(Riff &&other) noexcept
       : id(other.id), name(std::move(other.name)),
         layerBuffers(std::move(other.layerBuffers)), bpm(other.bpm),
-        bars(other.bars), captureTime(other.captureTime), layers(other.layers) {
-  }
+        bars(other.bars), captureTime(other.captureTime), layers(other.layers),
+        sourceSampleRate(other.sourceSampleRate) {}
 
   Riff &operator=(Riff &&other) noexcept {
     id = other.id;
@@ -33,6 +34,7 @@ struct Riff {
     bars = other.bars;
     captureTime = other.captureTime;
     layers = other.layers;
+    sourceSampleRate = other.sourceSampleRate;
     return *this;
   }
 
@@ -88,6 +90,7 @@ public:
   void signalUpdate() { updateCounter++; }
 
   const std::vector<Riff> &getHistory() const { return history; }
+  std::vector<Riff> &getHistoryRW() { return history; }
   size_t size() const { return history.size(); }
   int getUpdateCounter() const { return updateCounter; }
 
