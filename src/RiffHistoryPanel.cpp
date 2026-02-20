@@ -50,9 +50,36 @@ void RiffHistoryPanel::resized() {
 
 // --- ContentComponent Implementation ---
 
+void RiffHistoryPanel::ContentComponent::timerCallback() {
+  bool anyAnimating = false;
+  const float lerpFactor = 0.25f;
+
+  for (auto &item : items) {
+    auto current = item.currentBounds;
+    auto target = item.targetBounds;
+
+    if (std::abs(current.getX() - target.getX()) > 0.5f ||
+        std::abs(current.getY() - target.getY()) > 0.5f) {
+      item.currentBounds = juce::Rectangle<float>(
+          current.getX() + (target.getX() - current.getX()) * lerpFactor,
+          current.getY() + (target.getY() - current.getY()) * lerpFactor,
+          target.getWidth(), target.getHeight());
+      anyAnimating = true;
+    } else {
+      item.currentBounds = target;
+    }
+  }
+
+  if (anyAnimating) {
+    repaint();
+  } else {
+    stopTimer();
+  }
+}
+
 void RiffHistoryPanel::ContentComponent::updateItems() {
-  items.clear();
   if (owner.riffHistory == nullptr) {
+    items.clear();
     setSize(owner.viewport.getWidth(), owner.viewport.getHeight());
     return;
   }
@@ -76,26 +103,53 @@ void RiffHistoryPanel::ContentComponent::updateItems() {
 
   const float h = static_cast<float>(getHeight());
 
+  // Copy existing items to a map for lookup (to preserve thumbnails/position)
+  std::vector<RiffItem> nextItems;
+
   // Layout from right to left (newest on right)
-  // Pin newest to the FAR RIGHT edge of the component (not just requiredW)
   float currentX = (float)getWidth() - margin - itemW;
 
   for (int i = numRiffs - 1; i >= 0; --i) {
     const auto &riff = history[static_cast<size_t>(i)];
-    RiffItem item;
-    item.riff = &riff;
-    // Remove vertical padding to maximize slot height
-    item.bounds = juce::Rectangle<float>(currentX, 0.0f, itemW, h);
 
-    for (const auto &layer : riff.layerBuffers) {
-      item.layerThumbnails.push_back(
-          generateThumbnail(layer, static_cast<int>(itemW)));
+    // Check if we already have this riff tracked
+    auto existingIt =
+        std::find_if(items.begin(), items.end(), [&](const RiffItem &item) {
+          return item.riff->id == riff.id;
+        });
+
+    RiffItem newItem;
+    newItem.riff = &riff;
+    newItem.targetBounds = juce::Rectangle<float>(currentX, 0.0f, itemW, h);
+
+    if (existingIt != items.end()) {
+      // Keep thumbnails and current animated position
+      newItem.layerThumbnails = std::move(existingIt->layerThumbnails);
+      newItem.currentBounds = existingIt->currentBounds;
+
+      // Update thumbnails if layer count changed
+      if (newItem.layerThumbnails.size() < riff.layerBuffers.size()) {
+        for (size_t l = newItem.layerThumbnails.size();
+             l < riff.layerBuffers.size(); ++l) {
+          newItem.layerThumbnails.push_back(
+              generateThumbnail(riff.layerBuffers[l], static_cast<int>(itemW)));
+        }
+      }
+    } else {
+      // Brand new riff: Slide in from bottom
+      newItem.currentBounds = newItem.targetBounds.withY(h);
+      for (const auto &layer : riff.layerBuffers) {
+        newItem.layerThumbnails.push_back(
+            generateThumbnail(layer, static_cast<int>(itemW)));
+      }
     }
 
-    items.push_back(std::move(item));
+    nextItems.push_back(std::move(newItem));
     currentX -= (itemW + spacing);
   }
 
+  items = std::move(nextItems);
+  startTimerHz(60);
   repaint();
 }
 
@@ -111,31 +165,31 @@ void RiffHistoryPanel::ContentComponent::paint(juce::Graphics &g) {
 
     // Draw background for riff box
     g.setColour(juce::Colour(0xFF16162B));
-    g.fillRoundedRectangle(item.bounds, 6.0f);
+    g.fillRoundedRectangle(item.currentBounds, 6.0f);
 
     if (isPlaying) {
       g.setColour(juce::Colours::cyan.withAlpha(0.15f));
-      g.fillRoundedRectangle(item.bounds, 6.0f);
+      g.fillRoundedRectangle(item.currentBounds, 6.0f);
       g.setColour(juce::Colours::cyan);
-      g.drawRoundedRectangle(item.bounds, 6.0f, 2.0f);
+      g.drawRoundedRectangle(item.currentBounds, 6.0f, 2.0f);
     } else if (isSelected) {
       g.setColour(juce::Colours::white.withAlpha(0.1f));
-      g.fillRoundedRectangle(item.bounds, 6.0f);
+      g.fillRoundedRectangle(item.currentBounds, 6.0f);
       g.setColour(juce::Colour(0xFF00CC66));
-      g.drawRoundedRectangle(item.bounds, 6.0f, 2.0f);
+      g.drawRoundedRectangle(item.currentBounds, 6.0f, 2.0f);
     } else {
       g.setColour(juce::Colours::white.withAlpha(0.1f));
-      g.drawRoundedRectangle(item.bounds, 6.0f, 1.0f);
+      g.drawRoundedRectangle(item.currentBounds, 6.0f, 1.0f);
     }
 
     // --- Draw Layers (Layer Cake Zebra Shading) ---
-    const float totalH = item.bounds.getHeight();
+    const float totalH = item.currentBounds.getHeight();
     const float slotH = totalH / 8.0f; // Fixed 8 potential slots
 
     for (int i = 0; i < static_cast<int>(item.layerThumbnails.size()); ++i) {
       // Build up from bottom
-      auto slotBounds = item.bounds.withHeight(slotH).withY(
-          item.bounds.getBottom() - static_cast<float>(i + 1) * slotH);
+      auto slotBounds = item.currentBounds.withHeight(slotH).withY(
+          item.currentBounds.getBottom() - static_cast<float>(i + 1) * slotH);
 
       // Zebra Pattern: 30% brightness difference
       // Background is 0xFF16162B
@@ -178,7 +232,7 @@ void RiffHistoryPanel::ContentComponent::paint(juce::Graphics &g) {
 
 void RiffHistoryPanel::ContentComponent::mouseDown(const juce::MouseEvent &e) {
   for (const auto &item : items) {
-    if (item.bounds.contains(e.position.toFloat())) {
+    if (item.currentBounds.contains(e.position.toFloat())) {
       owner.selectedRiffId = item.riff->id;
       if (owner.onRiffSelected)
         owner.onRiffSelected(*item.riff);

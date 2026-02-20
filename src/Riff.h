@@ -15,6 +15,7 @@ struct Riff {
   int bars{1};
   juce::Time captureTime;
   int layers{1};
+  std::vector<int> layerBars;
   double sourceSampleRate{44100.0};
 
   Riff() : id(juce::Uuid()), captureTime(juce::Time::getCurrentTime()) {}
@@ -24,6 +25,7 @@ struct Riff {
       : id(other.id), name(std::move(other.name)),
         layerBuffers(std::move(other.layerBuffers)), bpm(other.bpm),
         bars(other.bars), captureTime(other.captureTime), layers(other.layers),
+        layerBars(std::move(other.layerBars)),
         sourceSampleRate(other.sourceSampleRate) {}
 
   Riff &operator=(Riff &&other) noexcept {
@@ -34,6 +36,7 @@ struct Riff {
     bars = other.bars;
     captureTime = other.captureTime;
     layers = other.layers;
+    layerBars = std::move(other.layerBars);
     sourceSampleRate = other.sourceSampleRate;
     return *this;
   }
@@ -42,13 +45,17 @@ struct Riff {
   Riff &operator=(const Riff &) = default;
 
   /** Merges new audio into this riff (layering). */
-  void merge(const juce::AudioBuffer<float> &newAudio) {
+  void merge(const juce::AudioBuffer<float> &newAudio, int newBars) {
     if (layers >= 8)
       return;
+
+    if (newBars > bars)
+      bars = newBars;
 
     juce::AudioBuffer<float> layerCopy;
     layerCopy.makeCopyOf(newAudio);
     layerBuffers.push_back(std::move(layerCopy));
+    layerBars.push_back(newBars);
     layers = static_cast<int>(layerBuffers.size());
   }
 
@@ -59,12 +66,35 @@ struct Riff {
       return;
     }
 
-    output.makeCopyOf(layerBuffers[0]);
-    for (size_t i = 1; i < layerBuffers.size(); ++i) {
-      for (int ch = 0; ch < output.getNumChannels(); ++ch) {
-        if (ch < layerBuffers[i].getNumChannels()) {
-          output.addFrom(ch, 0, layerBuffers[i], ch, 0, output.getNumSamples());
+    // Determine the max length in samples based on the current 'bars'
+    int maxSamples = 0;
+    for (const auto &buf : layerBuffers) {
+      if (buf.getNumSamples() > maxSamples)
+        maxSamples = buf.getNumSamples();
+    }
+
+    // Ensure output is large enough for the master length
+    // (Note: bars might have been updated by merge)
+    output.setSize(2, maxSamples);
+    output.clear();
+
+    for (size_t i = 0; i < layerBuffers.size(); ++i) {
+      const auto &buf = layerBuffers[i];
+      int layerSamples = buf.getNumSamples();
+
+      if (layerSamples == 0)
+        continue;
+
+      // Loop shorter layers to fill the master duration
+      int samplesCopied = 0;
+      while (samplesCopied < maxSamples) {
+        int samplesToCopy = std::min(layerSamples, maxSamples - samplesCopied);
+        for (int ch = 0; ch < output.getNumChannels(); ++ch) {
+          if (ch < buf.getNumChannels()) {
+            output.addFrom(ch, samplesCopied, buf, ch, 0, samplesToCopy);
+          }
         }
+        samplesCopied += samplesToCopy;
       }
     }
   }

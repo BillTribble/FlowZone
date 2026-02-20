@@ -23,6 +23,7 @@ public:
                 double sourceBpm, double sourceSampleRate, bool loop = false);
 
   bool isRiffPlaying(const juce::Uuid &id) const;
+  juce::Uuid getCurrentlyPlayingRiffId() const;
 
 private:
   struct PlayingRiff {

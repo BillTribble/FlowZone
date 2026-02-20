@@ -216,18 +216,13 @@ MainComponent::MainComponent() {
     const auto now = juce::Time::getMillisecondCounterHiRes() / 1000.0;
     lastCaptureTime = now;
 
-    // Layering logic:
-    // 1. If a riff is selected (for dubbing) and its length matches 'bars', use
-    // it.
-    // 2. Otherwise, if the last riff in history matches 'bars', use it.
-    // 3. Otherwise, create a new riff.
+    // Layering logic: Target the currently playing riff.
     Riff *riffToLayerOn = nullptr;
-    auto selectedId = riffHistoryPanel.getSelectedRiffId();
+    auto playingId = riffEngine.getCurrentlyPlayingRiffId();
 
     for (auto &r : riffHistory.getHistoryRW()) {
-      if (r.id == selectedId ||
-          (selectedId.isNull() && &r == riffHistory.getLastRiff())) {
-        if (r.bars == bars && r.layers < 8) {
+      if (r.id == playingId && !playingId.isNull()) {
+        if (r.layers < 8) {
           riffToLayerOn = &r;
           break;
         }
@@ -237,7 +232,7 @@ MainComponent::MainComponent() {
     if (riffToLayerOn != nullptr) {
       juce::AudioBuffer<float> layerAudio;
       retroBuffer.getAudioRegion(layerAudio, numFrames);
-      riffToLayerOn->merge(layerAudio);
+      riffToLayerOn->merge(layerAudio, bars);
       riffHistory.signalUpdate();
 
       juce::AudioBuffer<float> composite;
@@ -259,7 +254,7 @@ MainComponent::MainComponent() {
       // Capture the audio from the buffer
       juce::AudioBuffer<float> capturedAudio;
       retroBuffer.getAudioRegion(capturedAudio, numFrames);
-      newRiff.merge(capturedAudio);
+      newRiff.merge(capturedAudio, bars);
 
       juce::Logger::writeToLog("Captured New Riff: " + newRiff.name + " (" +
                                juce::String(numFrames) + " samples)");

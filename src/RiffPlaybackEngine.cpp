@@ -90,3 +90,9 @@ bool RiffPlaybackEngine::isRiffPlaying(const juce::Uuid &id) const {
   }
   return false;
 }
+juce::Uuid RiffPlaybackEngine::getCurrentlyPlayingRiffId() const {
+  const juce::ScopedLock sl(lock);
+  if (!playingRiffs.empty())
+    return playingRiffs.front()->riffId;
+  return juce::Uuid();
+}

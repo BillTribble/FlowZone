@@ -25,18 +25,22 @@ public:
 private:
   struct RiffItem {
     const Riff *riff;
-    juce::Rectangle<float> bounds;
+    juce::Rectangle<float> currentBounds; // Animated position
+    juce::Rectangle<float> targetBounds;  // Where it SHOULD be
     std::vector<std::vector<float>> layerThumbnails;
   };
 
   /** Internal component that actually draws the riffs and is scrolled by the
    * viewport. */
-  class ContentComponent : public juce::Component {
+  class ContentComponent : public juce::Component, private juce::Timer {
   public:
     ContentComponent(RiffHistoryPanel &p) : owner(p) {}
     void paint(juce::Graphics &g) override;
     void mouseDown(const juce::MouseEvent &e) override;
     void updateItems();
+
+  private:
+    void timerCallback() override;
 
     std::vector<RiffItem> items;
 
