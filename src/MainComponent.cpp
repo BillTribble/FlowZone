@@ -96,6 +96,7 @@ MainComponent::MainComponent() {
       lastRiff->merge(layerAudio);
       riffHistory.signalUpdate();
       riffEngine.playRiff(lastRiff->id, lastRiff->audio, true);
+      riffHistoryPanel.repaint();
       juce::Logger::writeToLog("Merged into existing riff. Layers: " +
                                juce::String(lastRiff->layers));
     } else {
@@ -114,6 +115,7 @@ MainComponent::MainComponent() {
       // Add to history
       const auto &ref = riffHistory.addRiff(std::move(newRiff));
       riffEngine.playRiff(ref.id, ref.audio, true);
+      riffHistoryPanel.repaint();
     }
   };
 

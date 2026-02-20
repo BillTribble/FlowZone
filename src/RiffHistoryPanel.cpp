@@ -73,33 +73,38 @@ RiffHistoryPanel::generateThumbnail(const juce::AudioBuffer<float> &audio,
 }
 
 void RiffHistoryPanel::paint(juce::Graphics &g) {
+  const auto bounds = getLocalBounds();
+
+  if (bounds.isEmpty())
+    return;
+
   // Update items here if history size or state changed
-  if (riffHistory && lastUpdateCounter != riffHistory->getUpdateCounter()) {
-    lastUpdateCounter = riffHistory->getUpdateCounter();
-    updateItems();
+  if (riffHistory) {
+    const int currentCount = static_cast<int>(riffHistory->getHistory().size());
+    const int currentUpdate = riffHistory->getUpdateCounter();
+
+    if (currentUpdate != lastUpdateCounter || currentCount != lastRiffCount) {
+      lastUpdateCounter = currentUpdate;
+      lastRiffCount = currentCount;
+      updateItems();
+    }
   }
 
-  const auto bounds = getLocalBounds().toFloat();
-  const float h = bounds.getHeight();
+  const auto boundsF = bounds.toFloat();
 
   // Background
   g.setColour(juce::Colour(0xFF0A0A1A));
-  g.fillRect(bounds);
+  g.fillRect(boundsF);
 
   // Separator
   g.setColour(juce::Colours::white.withAlpha(0.05f));
-  g.drawLine(0, 0, bounds.getWidth(), 0, 1.0f);
+  g.drawLine(0.0f, 0.0f, boundsF.getWidth(), 0.0f, 1.0f);
 
-  for (size_t i = 0; i < items.size(); ++i) {
-    const auto &item = items[i];
+  for (const auto &item : items) {
     const bool isSelected = (item.riff->id == selectedRiffId);
     const bool isPlaying = isRiffPlaying ? isRiffPlaying(item.riff->id) : false;
 
-    // Save state to clip everything to the box
-    g.saveState();
-    g.reduceClipRegion(item.bounds.toNearestInt());
-
-    // Box background
+    // Draw background for riff box
     g.setColour(juce::Colour(0xFF16162B));
     g.fillRoundedRectangle(item.bounds, 6.0f);
 
@@ -107,23 +112,26 @@ void RiffHistoryPanel::paint(juce::Graphics &g) {
       g.setColour(juce::Colours::cyan.withAlpha(0.15f));
       g.fillRoundedRectangle(item.bounds, 6.0f);
       g.setColour(juce::Colours::cyan);
-      g.drawRoundedRectangle(item.bounds.reduced(1.0f), 6.0f, 2.0f);
+      g.drawRoundedRectangle(item.bounds, 6.0f, 2.0f);
     } else if (isSelected) {
       g.setColour(juce::Colours::white.withAlpha(0.1f));
       g.fillRoundedRectangle(item.bounds, 6.0f);
       g.setColour(juce::Colour(0xFF00CC66));
-      g.drawRoundedRectangle(item.bounds.reduced(1.0f), 6.0f, 2.0f);
+      g.drawRoundedRectangle(item.bounds, 6.0f, 2.0f);
     } else {
       g.setColour(juce::Colours::white.withAlpha(0.1f));
-      g.drawRoundedRectangle(item.bounds.reduced(0.5f), 6.0f, 1.0f);
+      g.drawRoundedRectangle(item.bounds, 6.0f, 1.0f);
     }
 
-    // Mini-waveform
+    // Mini-waveform - use a temporary clip if needed for bleed, but drawing
+    // inside bounds is safer
     const float midY = item.bounds.getCentreY();
     const float scaleY = item.bounds.getHeight() * 0.35f;
 
     g.setColour(isPlaying ? juce::Colours::cyan
                           : juce::Colour(0xFF00CC66).withAlpha(0.6f));
+
+    // Draw waveform - avoid drawing outside item.bounds
     for (int pt = 0; pt < static_cast<int>(item.thumbnail.size()); ++pt) {
       float x = item.bounds.getX() + static_cast<float>(pt);
       float peak =
@@ -136,10 +144,10 @@ void RiffHistoryPanel::paint(juce::Graphics &g) {
     g.setFont(juce::FontOptions(10.0f));
     juce::String label =
         item.riff->name + " (L" + juce::String(item.riff->layers) + ")";
-    g.drawFittedText(label, item.bounds.reduced(6, 4).toNearestInt(),
-                     juce::Justification::bottomLeft, 1);
 
-    g.restoreState();
+    // Draw text inside the bounds with some padding
+    g.drawFittedText(label, item.bounds.reduced(6.0f, 4.0f).toNearestInt(),
+                     juce::Justification::bottomLeft, 1);
   }
 
   if (items.empty() && riffHistory) {

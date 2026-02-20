@@ -37,6 +37,7 @@ private:
   std::vector<RiffItem> items;
   juce::Uuid selectedRiffId;
   int lastUpdateCounter{-1};
+  int lastRiffCount{0};
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(RiffHistoryPanel)
 };
