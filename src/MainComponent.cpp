@@ -3,11 +3,11 @@
 //==============================================================================
 MainComponent::MainComponent() {
   // --- Title ---
-  titleLabel.setText("FlowZone", juce::dontSendNotification);
-  titleLabel.setFont(juce::FontOptions(28.0f, juce::Font::bold));
-  titleLabel.setColour(juce::Label::textColourId, juce::Colours::white);
-  titleLabel.setJustificationType(juce::Justification::centred);
-  addAndMakeVisible(titleLabel);
+  // titleLabel.setText("FlowZone", juce::dontSendNotification);
+  // titleLabel.setFont(juce::FontOptions(28.0f, juce::Font::bold));
+  // titleLabel.setColour(juce::Label::textColourId, juce::Colours::white);
+  // titleLabel.setJustificationType(juce::Justification::centred);
+  // addAndMakeVisible(titleLabel);
 
   // --- Gain Slider (rotary knob) ---
   gainSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
@@ -219,22 +219,19 @@ void MainComponent::paint(juce::Graphics &g) {
 void MainComponent::resized() {
   auto area = getLocalBounds().reduced(20);
 
-  // Title at top
-  titleLabel.setBounds(area.removeFromTop(40));
-  area.removeFromTop(20); // spacing
+  // Header Area (Top 40px)
+  auto headerArea = area.removeFromTop(40);
+  levelMeter.setHorizontal(true);
+  levelMeter.setBounds(headerArea.withSizeKeepingCentre(
+      std::min(headerArea.getWidth(), 300), 12));
+
+  area.removeFromTop(10); // spacing
 
   // Main content area - takes up the middle section above the bottom panels
   auto contentArea = area.removeFromTop(area.getHeight() - 200);
 
-  // Left part: Middle Menu (85% of width)
-  auto leftPart = contentArea.removeFromLeft(contentArea.getWidth() * 0.85f);
-  middleMenuPanel.setBounds(leftPart.reduced(10, 0));
-
-  // Right part: Level Meter
-  auto meterArea = contentArea.reduced(5);
-  int meterWidth = std::min(meterArea.getWidth(), 30);
-  levelMeter.setBounds(
-      meterArea.withSizeKeepingCentre(meterWidth, meterArea.getHeight() - 20));
+  // Middle Menu fills the content area
+  middleMenuPanel.setBounds(contentArea.reduced(5, 0));
 
   // --- Waveform Panel at the bottom, full width, 120px ---
   auto bottomArea = getLocalBounds().removeFromBottom(200);

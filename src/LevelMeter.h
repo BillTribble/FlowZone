@@ -4,21 +4,25 @@
 //==============================================================================
 /// A vertical level meter with smooth ballistics and peak hold.
 /// Call setLevel() from the message thread (via Timer) with the current peak.
-class LevelMeter : public juce::Component
-{
+class LevelMeter : public juce::Component {
 public:
-    LevelMeter();
+  LevelMeter();
 
-    void setLevel (float newLevel);
-    void paint (juce::Graphics& g) override;
+  void setLevel(float newLevel);
+  void setHorizontal(bool shouldBeHorizontal) {
+    isHorizontal = shouldBeHorizontal;
+    repaint();
+  }
+  void paint(juce::Graphics &g) override;
 
 private:
-    float currentLevel = 0.0f;
-    float peakHoldLevel = 0.0f;
-    float peakDecayRate = 0.01f;     // per-frame decay for the display level
-    float peakHoldDecayRate = 0.005f; // per-frame decay for peak hold marker
+  float currentLevel = 0.0f;
+  float peakHoldLevel = 0.0f;
+  float peakDecayRate = 0.01f;      // per-frame decay for the display level
+  float peakHoldDecayRate = 0.005f; // per-frame decay for peak hold marker
+  bool isHorizontal = true;
 
-    juce::Colour getColourForLevel (float level) const;
+  juce::Colour getColourForLevel(float level) const;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LevelMeter)
+  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LevelMeter)
 };
