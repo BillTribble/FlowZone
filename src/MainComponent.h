@@ -94,6 +94,7 @@ private:
 
   RiffHistory riffHistory;
   RiffPlaybackEngine riffEngine;
+  std::atomic<double> playbackPosition{0.0};
   std::atomic<double> currentBpm{120.0};
   MiddleMenuPanel::Tab activeTab{MiddleMenuPanel::Tab::Mode};
 

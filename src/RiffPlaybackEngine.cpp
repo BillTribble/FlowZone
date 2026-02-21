@@ -10,7 +10,7 @@ void RiffPlaybackEngine::processNextBlock(juce::AudioBuffer<float> &dryBuffer,
                                           juce::AudioBuffer<float> &wetBuffer,
                                           double targetBpm,
                                           int numSamplesToProcess,
-                                          uint8_t layerMask) {
+                                          double masterPpq, uint8_t layerMask) {
   const juce::ScopedLock sl(lock);
 
   const int dryChannels = dryBuffer.getNumChannels();
@@ -26,13 +26,31 @@ void RiffPlaybackEngine::processNextBlock(juce::AudioBuffer<float> &dryBuffer,
     }
 
     const int riffSamples = riff->layers[0].getNumSamples();
-    const double speedRatio = (targetBpm / riff->sourceBpm) *
-                              (riff->sourceSampleRate / currentSampleRate);
+    const double riffBeats = riff->totalBars * 4.0;
+
+    // Beats per sample at the Riff's native SampleRate/BPM
+    const double nativeSecondsPerBeat = 60.0 / riff->sourceBpm;
+    const double nativeSamplesPerBeat =
+        nativeSecondsPerBeat * riff->sourceSampleRate;
+
+    // Current increment per hardware sample
+    const double beatsPerSecond = targetBpm / 60.0;
+    const double beatsPerSample = beatsPerSecond / currentSampleRate;
 
     for (int i = 0; i < numSamplesToProcess; ++i) {
-      const int posInt = static_cast<int>(riff->currentPosition);
-      const int nextPosInt = (posInt + 1);
-      const float fraction = static_cast<float>(riff->currentPosition - posInt);
+      // Phase-locking: Calculate exact position based on global PPQ
+      // masterPpq + (i * beatsPerSample) is the exact beat for this sample
+      const double currentPpq = masterPpq + (i * beatsPerSample);
+
+      // Wrap the PPQ to the riff's length
+      const double wrappedPpq = std::fmod(currentPpq, riffBeats);
+
+      // Position in samples (slaved to global clock)
+      const double posSamples = wrappedPpq * nativeSamplesPerBeat;
+
+      const int posInt = static_cast<int>(posSamples);
+      const int nextPosInt = (posInt + 1) % riffSamples;
+      const float fraction = static_cast<float>(posSamples - posInt);
 
       for (int layerIdx = 0; layerIdx < numLayers; ++layerIdx) {
         bool isWet = (layerMask & (1 << layerIdx));
@@ -48,25 +66,11 @@ void RiffPlaybackEngine::processNextBlock(juce::AudioBuffer<float> &dryBuffer,
           if (inCh < layerChannels) {
             const auto *layerData = layerBuf.getReadPointer(inCh);
             float s0 = layerData[posInt];
-            float s1 = (nextPosInt < riffSamples)
-                           ? layerData[nextPosInt]
-                           : (riff->looping ? layerData[0] : 0.0f);
+            float s1 = layerData[nextPosInt];
             float interp = (s0 + (s1 - s0) * fraction) * gain;
 
             targetBuffer.addFrom(outCh, i, &interp, 1);
           }
-        }
-      }
-
-      riff->currentPosition += speedRatio;
-
-      if (riff->currentPosition >= static_cast<double>(riffSamples)) {
-        if (riff->looping) {
-          riff->currentPosition = std::fmod(riff->currentPosition,
-                                            static_cast<double>(riffSamples));
-        } else {
-          riff->finished = true;
-          break;
         }
       }
     }

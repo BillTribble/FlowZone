@@ -34,13 +34,15 @@ public:
   /// audio frames.  Index 0 = oldest, last index = newest (right side of
   /// panel).
   [[nodiscard]] std::vector<float> getWaveformData(int numRecentSamples,
-                                                   int numOutputPoints) const;
+                                                   int numOutputPoints,
+                                                   int offsetSamples = 0) const;
 
   //==========================================================================
   /// Deep-copies the most recent numSamples frames from the ring buffer into
   /// dest. The destination buffer is resized to (ringBuffer channels,
   /// numSamples).
-  void getAudioRegion(juce::AudioBuffer<float> &dest, int numSamples) const;
+  void getAudioRegion(juce::AudioBuffer<float> &dest, int numSamples,
+                      int offsetSamples = 0) const;
 
   /// Total capacity of the ring buffer in frames.
   [[nodiscard]] int capacityFrames() const noexcept { return bufferCapacity; }

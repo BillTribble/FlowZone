@@ -39,8 +39,8 @@ void RetrospectiveBuffer::pushBlock(const float *const *channelData,
 
 //==============================================================================
 std::vector<float>
-RetrospectiveBuffer::getWaveformData(int numRecentSamples,
-                                     int numOutputPoints) const {
+RetrospectiveBuffer::getWaveformData(int numRecentSamples, int numOutputPoints,
+                                     int offsetSamples) const {
   std::vector<float> result(static_cast<size_t>(numOutputPoints), 0.0f);
 
   if (bufferCapacity == 0 || numRecentSamples <= 0 || numOutputPoints <= 0)
@@ -48,8 +48,9 @@ RetrospectiveBuffer::getWaveformData(int numRecentSamples,
 
   // Clamp to available capacity
   numRecentSamples = std::min(numRecentSamples, bufferCapacity);
+  offsetSamples = std::max(0, offsetSamples);
 
-  // Snapshot the write head (acquire ensures we see data written before this)
+  // Snapshot the write head
   const int wi = writeIndex.load(std::memory_order_acquire);
   const int numBufChannels = ringBuffer.getNumChannels();
 
@@ -58,16 +59,16 @@ RetrospectiveBuffer::getWaveformData(int numRecentSamples,
                                  static_cast<double>(numOutputPoints);
 
   for (int pt = 0; pt < numOutputPoints; ++pt) {
-    // Which span of the recent window does this output point cover?
     int startOffset = static_cast<int>(pt * samplesPerPoint);
     int endOffset = static_cast<int>((pt + 1) * samplesPerPoint);
     endOffset = std::min(endOffset, numRecentSamples);
 
     float peak = 0.0f;
     for (int off = startOffset; off < endOffset; ++off) {
-      // Index into the ring buffer, walking backwards from wi
+      // Index into the ring buffer, walking backwards from (wi - offsetSamples)
       int ringPos =
-          (wi - numRecentSamples + off + bufferCapacity) % bufferCapacity;
+          (wi - offsetSamples - numRecentSamples + off + bufferCapacity) %
+          bufferCapacity;
       for (int ch = 0; ch < numBufChannels; ++ch) {
         float s = std::abs(ringBuffer.getSample(ch, ringPos));
         if (s > peak)
@@ -82,7 +83,8 @@ RetrospectiveBuffer::getWaveformData(int numRecentSamples,
 
 //==============================================================================
 void RetrospectiveBuffer::getAudioRegion(juce::AudioBuffer<float> &dest,
-                                         int numSamples) const {
+                                         int numSamples,
+                                         int offsetSamples) const {
   if (bufferCapacity == 0 || numSamples <= 0) {
     dest.setSize(ringBuffer.getNumChannels(), 0);
     return;
@@ -90,6 +92,7 @@ void RetrospectiveBuffer::getAudioRegion(juce::AudioBuffer<float> &dest,
 
   // Clamp to available capacity
   numSamples = std::min(numSamples, bufferCapacity);
+  offsetSamples = std::max(0, offsetSamples);
 
   const int numBufChannels = ringBuffer.getNumChannels();
   dest.setSize(numBufChannels, numSamples, false, true, true);
@@ -98,8 +101,10 @@ void RetrospectiveBuffer::getAudioRegion(juce::AudioBuffer<float> &dest,
   const int wi = writeIndex.load(std::memory_order_acquire);
 
   for (int ch = 0; ch < numBufChannels; ++ch) {
-    // Determine the start position in the ring buffer (numSamples back from wi)
-    int startPos = (wi - numSamples + bufferCapacity) % bufferCapacity;
+    // Determine the end position (wi - offsetSamples)
+    int endPos = (wi - offsetSamples + bufferCapacity) % bufferCapacity;
+    // Determine the start position (endPos - numSamples)
+    int startPos = (endPos - numSamples + bufferCapacity) % bufferCapacity;
 
     if (startPos + numSamples <= bufferCapacity) {
       // Linear copy in one go

@@ -68,6 +68,16 @@ struct Riff {
     layers = 1;
   }
 
+  /**
+   * Clears all layers, resetting the riff to an empty state.
+   */
+  void clearAllLayers() {
+    layerBuffers.clear();
+    layerGains.clear();
+    layerBars.clear();
+    layers = 0;
+  }
+
   /** Merges new audio into this riff (layering). */
   void merge(const juce::AudioBuffer<float> &newAudio, int barsToMerge) {
     if (layers >= 8)
@@ -183,11 +193,25 @@ struct Riff {
           newLayerBarsList.push_back(bars);
           addedProcessed = true;
         }
+        // If it's in the mask and we already added the processed result,
+        // we just don't add the original layer (effectively deleting it).
       } else {
+        // Keep unselected layers as they were
         newLayers.push_back(std::move(layerBuffers[i]));
         newGains.push_back(layerGains[i]);
         newLayerBarsList.push_back(layerBars[i]);
       }
+    }
+
+    // If for some reason the mask was non-zero but nothing was added
+    // (shouldn't happen), we ensure at least one layer if processedAudio is
+    // provided.
+    if (!addedProcessed && selectionMask != 0) {
+      juce::AudioBuffer<float> copy;
+      copy.makeCopyOf(processedAudio);
+      newLayers.push_back(std::move(copy));
+      newGains.push_back(1.0f);
+      newLayerBarsList.push_back(bars);
     }
 
     layerBuffers = std::move(newLayers);

@@ -20,6 +20,8 @@ public:
   /// Index 0 = leftmost (8 bars), 3 = rightmost (1 bar).
   void setSectionData(int sectionIndex, const std::vector<float> &data);
 
+  void setPPQ(double ppq);
+
   /// Update BPM for bar-line positioning. Default 120.
   void setBPM(double bpm);
 
@@ -38,6 +40,7 @@ private:
   int highlightedSection{-1};                    // -1 if none
   double currentBPM{120.0};
   double currentSampleRate{44100.0};
+  double currentPPQ{0.0};
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(WaveformPanel)
 };

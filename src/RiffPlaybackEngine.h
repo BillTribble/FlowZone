@@ -15,7 +15,8 @@ public:
   void prepare(double sampleRate, int samplesPerBlock);
   void processNextBlock(juce::AudioBuffer<float> &dryBuffer,
                         juce::AudioBuffer<float> &wetBuffer, double targetBpm,
-                        int numSamplesToProcess, uint8_t layerMask = 0xFF);
+                        int numSamplesToProcess, double masterPpq,
+                        uint8_t layerMask = 0xFF);
 
   /**
    * Starts playback of a riff.

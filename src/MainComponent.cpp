@@ -75,6 +75,9 @@ MainComponent::MainComponent() {
 
     const double bpm = currentBpm.load();
     const double framesPerBar = currentSampleRate * (60.0 / bpm) * 4.0;
+
+    // --- WYSWYG Capture: Remove quantization offset as requested ---
+    const int offsetSamples = 0;
     const int numFrames = static_cast<int>(framesPerBar * bars);
 
     Riff newRiff;
@@ -83,10 +86,25 @@ MainComponent::MainComponent() {
     for (const auto &r : riffHistory.getHistory()) {
       if (r.id == playingId && !playingId.isNull()) {
         newRiff = r;
-        if (newRiff.layers >= 8)
-          newRiff.sumToSingleLayer();
         break;
       }
+    }
+
+    juce::AudioBuffer<float> capturedAudio;
+    retroBuffer.getAudioRegion(capturedAudio, numFrames, offsetSamples);
+
+    bool isFxTab = (activeTab == MiddleMenuPanel::Tab::FX);
+    uint8_t mask = selectedLayers.load();
+
+    if (isFxTab && mask != 0) {
+      // FX Bounce: Ensure we collapse everything into ONE new layer
+      newRiff.commitFX(capturedAudio, mask);
+      selectedLayers.store(0xFF); // Default back to all layers selected
+    } else {
+      // Normal Capture
+      if (newRiff.layers >= 8)
+        newRiff.sumToSingleLayer();
+      newRiff.merge(capturedAudio, bars);
     }
 
     newRiff.id = juce::Uuid();
@@ -95,11 +113,7 @@ MainComponent::MainComponent() {
     newRiff.sourceSampleRate = currentSampleRate;
     newRiff.name = "Riff " + juce::String(riffHistory.size() + 1);
     newRiff.captureTime = juce::Time::getCurrentTime();
-    newRiff.source = "Microphone";
-
-    juce::AudioBuffer<float> capturedAudio;
-    retroBuffer.getAudioRegion(capturedAudio, numFrames);
-    newRiff.merge(capturedAudio, bars);
+    newRiff.source = isFxTab ? "FX Bounce" : "Microphone";
 
     const auto &ref = riffHistory.addRiff(std::move(newRiff));
     riffEngine.playRiff(ref, true);
@@ -238,20 +252,43 @@ void MainComponent::getNextAudioBlock(
   const int numChannels = buffer->getNumChannels();
   const double bpm = currentBpm.load();
 
+  // --- 1. Master Clock Transport ---
+  double startPpq = 0.0;
+  if (isPlaying.load()) {
+    double beatsPerSecond = bpm / 60.0;
+    double beatsPerSample = beatsPerSecond / currentSampleRate;
+    startPpq = playbackPosition.load();
+    playbackPosition.store(startPpq + (numSamples * beatsPerSample));
+
+    double maxBeats = 32.0 * 4.0;
+    if (playbackPosition.load() >= maxBeats)
+      playbackPosition.store(playbackPosition.load() - maxBeats);
+  }
+
   float gain = gainLinear.load();
   buffer->applyGain(0, numSamples, gain);
 
+  // --- 1. Mono to Stereo Fix ---
   inputCopyBuffer.setSize(2, numSamples, false, true, true);
   if (numChannels > 0) {
+    // Always treat as L->L+R mapping for mono consistency
     inputCopyBuffer.copyFrom(0, 0, *buffer, 0, 0, numSamples);
-    inputCopyBuffer.copyFrom(1, 0, *buffer, (numChannels > 1 ? 1 : 0), 0,
-                             numSamples);
+    inputCopyBuffer.copyFrom(1, 0, *buffer, 0, 0, numSamples);
   } else {
     inputCopyBuffer.clear();
   }
 
-  if (!monitorOn.load())
-    buffer->clear();
+  // --- 4. Mic Reverb Routing (Input-Only) ---
+  micReverbParams.roomSize = micReverbRoomSize.load();
+  micReverbParams.wetLevel = micReverbWetLevel.load();
+  micReverbParams.dryLevel = 1.0f - micReverbWetLevel.load();
+  micReverb.setParameters(micReverbParams);
+
+  if (inputCopyBuffer.getNumChannels() >= 2)
+    micReverb.processStereo(inputCopyBuffer.getWritePointer(0),
+                            inputCopyBuffer.getWritePointer(1), numSamples);
+
+  buffer->clear();
 
   riffOutputBuffer.clear();
   looperMixBuffer.clear();
@@ -259,29 +296,65 @@ void MainComponent::getNextAudioBlock(
 
   if (isPlaying.load()) {
     riffEngine.processNextBlock(riffOutputBuffer, looperMixBuffer, bpm,
-                                numSamples, mask);
+                                numSamples, startPpq, mask);
   }
 
+  // --- 2. FX Mode Buffer Routing & Display Fix ---
   bool isFxTab = (activeTab == MiddleMenuPanel::Tab::FX);
   bool isPadDown = fxBottom.getXYPad().isMouseButtonDown();
 
-  if (isFxTab && isPadDown && mask != 0) {
-    juce::dsp::AudioBlock<float> block(looperMixBuffer);
-    juce::dsp::ProcessContextReplacing<float> context(block);
-    fxEngine.process(context);
-  } else if (mask != 0) {
-    for (int ch = 0; ch < riffOutputBuffer.getNumChannels(); ++ch) {
-      if (ch < looperMixBuffer.getNumChannels())
-        riffOutputBuffer.addFrom(ch, 0, looperMixBuffer, ch, 0, numSamples);
+  if (isFxTab) {
+    if (isPadDown && mask != 0) {
+      juce::dsp::AudioBlock<float> block(looperMixBuffer);
+      juce::dsp::ProcessContextReplacing<float> context(block);
+      fxEngine.process(context);
+
+      // FX Mode (Pad Down): Looper sees the WET signal
+      retroBuffer.pushBlock(looperMixBuffer);
+    } else {
+      // FX Mode (Pad Up): Looper sees the DRY Riff signal (not the mic)
+      retroBuffer.pushBlock(riffOutputBuffer);
+
+      if (mask != 0) {
+        for (int ch = 0; ch < riffOutputBuffer.getNumChannels(); ++ch) {
+          if (ch < looperMixBuffer.getNumChannels())
+            riffOutputBuffer.addFrom(ch, 0, looperMixBuffer, ch, 0, numSamples);
+        }
+        looperMixBuffer.clear();
+      }
     }
-    looperMixBuffer.clear();
+  } else {
+    // Normal Mode: Looper sees the DRY Mic signal
+    retroBuffer.pushBlock(inputCopyBuffer);
+
+    if (mask != 0) {
+      for (int ch = 0; ch < riffOutputBuffer.getNumChannels(); ++ch) {
+        if (ch < looperMixBuffer.getNumChannels())
+          riffOutputBuffer.addFrom(ch, 0, looperMixBuffer, ch, 0, numSamples);
+      }
+      looperMixBuffer.clear();
+    }
   }
 
+  // --- 5. Final Hardware Mix (Monitoring) ---
   for (int ch = 0; ch < numChannels; ++ch) {
     if (ch < riffOutputBuffer.getNumChannels())
       buffer->addFrom(ch, 0, riffOutputBuffer.getReadPointer(ch), numSamples);
-    if (ch < looperMixBuffer.getNumChannels())
-      buffer->addFrom(ch, 0, looperMixBuffer.getReadPointer(ch), numSamples);
+
+    // Monitor Input (Stereo + Reverb)
+    if (monitorOn.load()) {
+      if (isFxTab) {
+        // In FX Mode: NEVER hear the mic. Hear wet signal if pad is down.
+        if (isPadDown && ch < looperMixBuffer.getNumChannels())
+          buffer->addFrom(ch, 0, looperMixBuffer.getReadPointer(ch),
+                          numSamples);
+      } else {
+        // In Normal Mode: Hear the centered dry mic signal
+        if (ch < inputCopyBuffer.getNumChannels())
+          buffer->addFrom(ch, 0, inputCopyBuffer.getReadPointer(ch),
+                          numSamples);
+      }
+    }
 
     if (ch == 0) {
       float peak = buffer->getMagnitude(ch, 0, numSamples);
@@ -289,22 +362,6 @@ void MainComponent::getNextAudioBlock(
         peakLevel.store(peak);
     }
   }
-
-  micReverbParams.roomSize = micReverbRoomSize.load();
-  micReverbParams.wetLevel = micReverbWetLevel.load();
-  micReverbParams.dryLevel = 1.0f - micReverbWetLevel.load();
-  micReverb.setParameters(micReverbParams);
-
-  if (buffer->getNumChannels() >= 2)
-    micReverb.processStereo(buffer->getWritePointer(0),
-                            buffer->getWritePointer(1), numSamples);
-  else
-    micReverb.processMono(buffer->getWritePointer(0), numSamples);
-
-  looperMixBuffer.copyFrom(0, 0, inputCopyBuffer, 0, 0, numSamples);
-  if (numChannels > 1)
-    looperMixBuffer.copyFrom(1, 0, inputCopyBuffer, 1, 0, numSamples);
-  retroBuffer.pushBlock(looperMixBuffer);
 }
 
 void MainComponent::releaseResources() {}
