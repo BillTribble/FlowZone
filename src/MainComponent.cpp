@@ -19,7 +19,7 @@ MainComponent::MainComponent() {
     float dB = static_cast<float>(gainSlider.getValue());
     gainLinear.store(juce::Decibels::decibelsToGain(dB));
   };
-  addAndMakeVisible(gainKnob);
+  bottomPerformancePanel.addAndMakeVisible(gainKnob);
 
   // --- BPM Display (Header) ---
   addAndMakeVisible(bpmDisplay);
@@ -54,7 +54,7 @@ MainComponent::MainComponent() {
     monitorButton.setButtonText(on ? "MONITOR: ON" : "MONITOR: OFF");
     LOG_ACTION("Mic", on ? "Monitor ON" : "Monitor OFF");
   };
-  addAndMakeVisible(monitorButton);
+  bottomPerformancePanel.addAndMakeVisible(monitorButton);
 
   // --- Settings Button ---
   settingsButton.setColour(juce::TextButton::buttonColourId,
@@ -95,6 +95,9 @@ MainComponent::MainComponent() {
     micReverbWetLevel.store(val);
     LOG_ACTION("Mic", "Reverb Mix: " + juce::String(val, 2));
   };
+
+  bottomPerformancePanel.addAndMakeVisible(micReverbSizeSlider);
+  bottomPerformancePanel.addAndMakeVisible(micReverbMixSlider);
 
   // --- Initial Layout Configuration ---
   middleMenuPanel.onTabChanged = [this](MiddleMenuPanel::Tab tab) {
@@ -377,11 +380,23 @@ void MainComponent::getNextAudioBlock(
                                 numSamples, mask);
   }
 
-  // 2. Process Wet sum through FX Engine
-  if (mask != 0) {
+  // 2. Process Wet sum through FX Engine ONLY IF in FX tab and Pad is held
+  bool isFxTab = (activeTab == MiddleMenuPanel::Tab::FX);
+  bool isPadDown = activeXYPad.isMouseButtonDown();
+
+  if (isFxTab && isPadDown && mask != 0) {
     juce::dsp::AudioBlock<float> block(looperMixBuffer);
     juce::dsp::ProcessContextReplacing<float> context(block);
     fxEngine.process(context);
+  } else if (mask != 0) {
+    // If not processing FX, mix the looperMixBuffer (selected layers) into the
+    // dry sum
+    for (int ch = 0; ch < riffOutputBuffer.getNumChannels(); ++ch) {
+      if (ch < looperMixBuffer.getNumChannels()) {
+        riffOutputBuffer.addFrom(ch, 0, looperMixBuffer, ch, 0, numSamples);
+      }
+    }
+    looperMixBuffer.clear(); // Clear so it's not added twice in step 3
   }
 
   // 3. Blend result back into main output
@@ -462,8 +477,8 @@ void MainComponent::resized() {
   levelMeter.setHorizontal(true);
   levelMeter.setBounds(headerArea.reduced(20, 12));
 
-  // 2. Riff History (Fixed 50px at the very bottom)
-  auto historyArea = area.removeFromBottom(50);
+  // 2. Riff History (Fixed 85px at the very bottom)
+  auto historyArea = area.removeFromBottom(85);
   riffHistoryPanel.setBounds(historyArea);
 
   // 3. Bottom Performance Panel (Fixed 240px above history)

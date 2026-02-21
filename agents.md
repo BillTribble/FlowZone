@@ -14,6 +14,8 @@ You may NOT delete any file or directory unless I explicitly give the exact comm
 - You do not get to decide that something is "safe" to remove.
 - If you think something should be removed, stop and ask. You must receive clear written approval **before** any deletion command is even proposed.
 
+- **NO SCROLLING** in the app unless I explicitly say so. This is a fundamental UI requirement.
+
 Treat "never delete files without permission" as a hard invariant.
 
 ---

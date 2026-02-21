@@ -5,9 +5,8 @@ RiffHistoryPanel::RiffHistoryPanel() : content(*this) {
   setOpaque(true);
   addAndMakeVisible(viewport);
   viewport.setViewedComponent(&content);
-  viewport.setScrollBarsShown(
-      false, true, false,
-      false); // Horizontal only, no scrollbars shown (cleaner)
+  viewport.setScrollBarsShown(false, false, false,
+                              false); // No scrollbars per fundamental rule
 }
 
 void RiffHistoryPanel::setHistory(const RiffHistory *history) {
@@ -17,24 +16,6 @@ void RiffHistoryPanel::setHistory(const RiffHistory *history) {
 }
 
 void RiffHistoryPanel::paint(juce::Graphics &g) {
-  // Update if history changed
-  if (riffHistory) {
-    const int currentCount = static_cast<int>(riffHistory->getHistory().size());
-    const int currentUpdate = riffHistory->getUpdateCounter();
-
-    if (currentUpdate != lastUpdateCounter || currentCount != lastRiffCount) {
-      lastUpdateCounter = currentUpdate;
-      lastRiffCount = currentCount;
-      content.updateItems();
-
-      // Auto-scroll to the right (newest)
-      // Use juce::MessageManager to defer this slightly to ensure component
-      // resized? Actually setViewPosition should work here.
-      viewport.setViewPosition(
-          std::max(0, content.getWidth() - viewport.getWidth()), 0);
-    }
-  }
-
   // Background for the whole panel
   g.fillAll(juce::Colour(0xFF0A0A1A));
 
@@ -285,9 +266,11 @@ std::vector<float> RiffHistoryPanel::ContentComponent::generateThumbnail(
     int end = std::min(start + samplesPerPoint, numSamples);
     float peak = 0.0f;
 
+    // Optimized scan: skip samples if the bucket is large
+    const int step = std::max(1, samplesPerPoint / 64);
     for (int ch = 0; ch < audio.getNumChannels(); ++ch) {
       const float *data = audio.getReadPointer(ch);
-      for (int s = start; s < end; ++s) {
+      for (int s = start; s < end; s += step) {
         peak = std::max(peak, std::abs(data[s]));
       }
     }
