@@ -76,11 +76,33 @@ MainComponent::MainComponent() {
     const double bpm = currentBpm.load();
     const double framesPerBar = currentSampleRate * (60.0 / bpm) * 4.0;
 
-    // --- WYSWYG Capture: Remove quantization offset as requested ---
-    const int offsetSamples = 0;
-    const int numFrames = static_cast<int>(framesPerBar * bars);
+    // --- Master Clock Synchronized Capture ---
+    // The retrospective buffer lags slightly behind or isn't perfectly
+    // bar-aligned with the current playback position. Calculate the precise
+    // sample offset from the start of the current bar (master phase) to ensure
+    // perfectly locked playback.
+    const double masterPpq = playbackPosition.load();
+    const double beatsPerBar = 4.0;
+    const double barsToCapture = static_cast<double>(bars);
+
+    // Find how many beats into the current 'barsToCapture' cycle we are.
+    // e.g. for a 1-bar loop (4 beats), if we are at PPQ 5.5, we are 1.5 beats
+    // into the current cycle.
+    const double cycleDuration = barsToCapture * beatsPerBar;
+    const double currentBeatInCycle =
+        masterPpq - std::floor(masterPpq / cycleDuration) * cycleDuration;
+
+    // Convert those extra beats into an exact sample offset into the past.
+    // We want to grab a full loop starting exactly from the '1' of the current
+    // cycle.
+    const double framesPerBeat = currentSampleRate * (60.0 / bpm);
+    const int offsetSamples =
+        static_cast<int>(currentBeatInCycle * framesPerBeat);
+    const int numFrames =
+        static_cast<int>(barsToCapture * beatsPerBar * framesPerBeat);
 
     Riff newRiff;
+    juce::AudioBuffer<float> capturedAudio;
     auto playingId = riffEngine.getCurrentlyPlayingRiffId();
 
     for (const auto &r : riffHistory.getHistory()) {
@@ -90,7 +112,6 @@ MainComponent::MainComponent() {
       }
     }
 
-    juce::AudioBuffer<float> capturedAudio;
     retroBuffer.getAudioRegion(capturedAudio, numFrames, offsetSamples);
 
     bool isFxTab = (activeTab == MiddleMenuPanel::Tab::FX);
@@ -201,46 +222,7 @@ void MainComponent::setupFXTabLogic() {
   };
 
   pad.onRelease = [this, &pad]() {
-    LOG_ACTION("FX", "XY Pad Released - Committing FX");
-    auto playingId = riffEngine.getCurrentlyPlayingRiffId();
-    if (playingId.isNull())
-      return;
-
-    Riff *targetRiff = nullptr;
-    for (auto &r : riffHistory.getHistoryRW()) {
-      if (r.id == playingId) {
-        targetRiff = &r;
-        break;
-      }
-    }
-    if (targetRiff == nullptr)
-      return;
-
-    uint8_t mask = selectedLayers.load();
-    if (mask == 0)
-      return;
-
-    juce::AudioBuffer<float> wetSum;
-    targetRiff->getSelectedLayerComposite(wetSum, mask);
-    if (wetSum.getNumSamples() == 0)
-      return;
-
-    StandaloneFXEngine bakeEngine;
-    bakeEngine.prepare(
-        {currentSampleRate, (juce::uint32)wetSum.getNumSamples(), 2});
-
-    float x = pad.getXValue();
-    float y = pad.getYValue();
-    bakeEngine.setDelayParams(x * 2.0f, y * 0.8f);
-    bakeEngine.setReverbParams(x, y * 0.5f);
-
-    juce::dsp::AudioBlock<float> block(wetSum);
-    juce::dsp::ProcessContextReplacing<float> context(block);
-    bakeEngine.process(context);
-
-    targetRiff->commitFX(wetSum, mask);
-    riffEngine.playRiff(*targetRiff, true);
-
+    LOG_ACTION("FX", "XY Pad Released");
     selectedLayers.store(0);
   };
 }
