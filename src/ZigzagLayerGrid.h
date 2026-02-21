@@ -37,6 +37,15 @@ public:
     }
   }
 
+  void setEnabledMask(uint8_t mask) {
+    for (int i = 0; i < 8; ++i) {
+      bool enabled = (mask & (1 << i)) != 0;
+      buttons[i]->setEnabled(enabled);
+      if (!enabled)
+        buttons[i]->setToggleState(false, juce::dontSendNotification);
+    }
+  }
+
   uint8_t getSelectionMask() const {
     uint8_t mask = 0;
     for (int i = 0; i < 8; ++i) {

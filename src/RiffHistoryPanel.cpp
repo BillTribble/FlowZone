@@ -7,6 +7,7 @@ RiffHistoryPanel::RiffHistoryPanel() : content(*this) {
   viewport.setViewedComponent(&content);
   viewport.setScrollBarsShown(false, false, false,
                               false); // No scrollbars per fundamental rule
+  startTimer(33);                     // ~30fps refresh check
 }
 
 void RiffHistoryPanel::setHistory(const RiffHistory *history) {
@@ -22,6 +23,27 @@ void RiffHistoryPanel::paint(juce::Graphics &g) {
   // Separator at top
   g.setColour(juce::Colours::white.withAlpha(0.05f));
   g.drawLine(0.0f, 0.0f, (float)getWidth(), 0.0f, 1.0f);
+}
+
+void RiffHistoryPanel::timerCallback() {
+  if (riffHistory == nullptr)
+    return;
+
+  int currentCounter = riffHistory->getUpdateCounter();
+  int currentCount = static_cast<int>(riffHistory->size());
+
+  if (currentCounter != lastUpdateCounter || currentCount != lastRiffCount) {
+    lastUpdateCounter = currentCounter;
+    lastRiffCount = currentCount;
+
+    content.updateItems();
+
+    // Auto-scroll to the right to show the newest riff
+    viewport.setViewPosition(
+        std::max(0, content.getWidth() - viewport.getWidth()), 0);
+
+    repaint();
+  }
 }
 
 void RiffHistoryPanel::resized() {

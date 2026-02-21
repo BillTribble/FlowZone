@@ -13,17 +13,13 @@ public:
   void paint(juce::Graphics &g) override;
   void resized() override;
 
-  enum class Tab { Mode, Sound, FX, Mixer };
+  enum class Tab { Mode, FX, Mixer };
   void setActiveTab(Tab tab);
 
   std::function<void(Tab)> onTabChanged;
 
   // Wire up controls from MainComponent
-  void setupModeControls(LabeledKnob &gain, juce::TextButton &monitor);
-  void setupFxControls();
-
-  // New Mic Reverb controls for Mode tab
-  void setupMicReverb(juce::Slider &roomSize, juce::Slider &wetLevel);
+  void setupMicReverb();
   void setupMixerControls();
 
 private:
@@ -35,12 +31,6 @@ private:
   Tab activeTab{Tab::Mode};
 
   // Pointers to controls owned by MainComponent
-  LabeledKnob *pGainKnob{nullptr};
-  juce::TextButton *pMonitorButton{nullptr};
-
-  // Mic Reverb Pointers
-  juce::Slider *pMicReverbRoomSize{nullptr};
-  juce::Slider *pMicReverbWetLevel{nullptr};
   juce::Label micReverbRoomSizeLabel;
   juce::Label micReverbWetLevelLabel;
 

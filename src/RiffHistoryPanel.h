@@ -8,7 +8,7 @@
  * A horizontal row showing the history of captured riffs.
  * Riffs flow from right to left (newest on the right).
  */
-class RiffHistoryPanel : public juce::Component {
+class RiffHistoryPanel : public juce::Component, private juce::Timer {
 public:
   RiffHistoryPanel();
   ~RiffHistoryPanel() override = default;
@@ -23,6 +23,8 @@ public:
   juce::Uuid getSelectedRiffId() const { return selectedRiffId; }
 
 private:
+  void timerCallback() override;
+
   struct RiffItem {
     juce::Uuid riffId;
     juce::Rectangle<float> currentBounds; // Animated position

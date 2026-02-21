@@ -51,9 +51,9 @@ private:
   TopContentPanel topContentPanel;
   BottomPerformancePanel bottomPerformancePanel;
   XYPad activeXYPad;
+  juce::Label micModeIndicator;
   ZigzagLayerGrid layerGrid;
   std::unique_ptr<SelectionGrid> instrumentModeGrid;
-  std::unique_ptr<SelectionGrid> soundPresetGrid;
   std::unique_ptr<SelectionGrid> fxModeGrid;
 
   // BPM Header Display (Custom component for drag-to-edit)

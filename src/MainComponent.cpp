@@ -4,12 +4,14 @@
 //==============================================================================
 MainComponent::MainComponent() {
   LOG_STARTUP();
-  // --- Title ---
-  // titleLabel.setText("FlowZone", juce::dontSendNotification);
-  // titleLabel.setFont(juce::FontOptions(28.0f, juce::Font::bold));
-  // titleLabel.setColour(juce::Label::textColourId, juce::Colours::white);
-  // titleLabel.setJustificationType(juce::Justification::centred);
-  // addAndMakeVisible(titleLabel);
+  // --- Title & Mic Mode Indicator ---
+  micModeIndicator.setText("MIC MODE", juce::dontSendNotification);
+  micModeIndicator.setFont(juce::Font(24.0f, juce::Font::bold));
+  micModeIndicator.setJustificationType(juce::Justification::centred);
+  micModeIndicator.setColour(juce::Label::backgroundColourId,
+                             juce::Colour(0xFF00CC66));
+  micModeIndicator.setColour(juce::Label::textColourId, juce::Colours::black);
+  // (We'll position it in resized)
 
   // --- Gain Knob ---
   auto &gainSlider = gainKnob.getSlider();
@@ -42,6 +44,7 @@ MainComponent::MainComponent() {
   addAndMakeVisible(playPauseButton);
 
   // --- Monitor Button ---
+  monitorButton.setClickingTogglesState(true);
   monitorButton.setColour(juce::TextButton::buttonOnColourId,
                           juce::Colour(0xFF00CC66));
   monitorButton.setColour(juce::TextButton::textColourOffId,
@@ -183,27 +186,12 @@ MainComponent::MainComponent() {
   addAndMakeVisible(topContentPanel);
   addAndMakeVisible(bottomPerformancePanel);
   addAndMakeVisible(middleMenuPanel);
-  middleMenuPanel.setupModeControls(gainKnob, monitorButton);
-  middleMenuPanel.setupMicReverb(micReverbSizeSlider, micReverbMixSlider);
-  middleMenuPanel.setupFxControls();
+
+  middleMenuPanel.setupMicReverb();
   addAndMakeVisible(settingsButton);
 
-  instrumentModeGrid = std::make_unique<SelectionGrid>(
-      2, 4,
-      juce::StringArray{"Keys", "Drums", "Synth", "Voice", "Bass", "Guitar",
-                        "Brass", "Pad"});
-  instrumentModeGrid->onSelectionChanged = [this](int idx) {
-    LOG_ACTION("Instrument", "Mode Changed to: " + juce::String(idx));
-  };
-
-  soundPresetGrid = std::make_unique<SelectionGrid>(
-      3, 4,
-      juce::StringArray{"Natural", "Space", "Lo-Fi", "Acid", "Clean", "Crunch",
-                        "Lead", "Atmosphere", "Pulse", "Twitch", "Bells",
-                        "Drone"});
-  soundPresetGrid->onSelectionChanged = [this](int idx) {
-    LOG_ACTION("Sound", "Preset Changed to: " + juce::String(idx));
-  };
+  // instrumentModeGrid removed in V9.3
+  // soundPresetGrid removed in V9.3
 
   fxModeGrid = std::make_unique<SelectionGrid>(
       2, 4,
@@ -496,12 +484,12 @@ void MainComponent::resized() {
   // 6. Top Content Panel (Remaining middle space, ~260px)
   topContentPanel.setBounds(area);
 
-  if (instrumentModeGrid)
-    instrumentModeGrid->setBounds(topContentPanel.getLocalBounds());
-  if (soundPresetGrid)
-    soundPresetGrid->setBounds(topContentPanel.getLocalBounds());
-  if (fxModeGrid)
+  if (activeTab == MiddleMenuPanel::Tab::Mode) {
+    micModeIndicator.setBounds(
+        topContentPanel.getLocalBounds().reduced(20, 10));
+  } else if (fxModeGrid) {
     fxModeGrid->setBounds(topContentPanel.getLocalBounds());
+  }
 
   auto perfArea = bottomPerformancePanel.getLocalBounds();
   if (activeTab == MiddleMenuPanel::Tab::FX) {
@@ -528,26 +516,26 @@ void MainComponent::updateLayoutForTab(MiddleMenuPanel::Tab tab) {
 
   LOG_ACTION("UI", "Tab Switched to: " + juce::String((int)tab));
 
-  // 1. Reset Visibility
+  // 1. Reset Visibility and remove from containers to prevent ghosting
+  topContentPanel.removeAllChildren();
+  bottomPerformancePanel.removeAllChildren();
+
   gainKnob.setVisible(false);
   monitorButton.setVisible(false);
   micReverbSizeSlider.setVisible(false);
   micReverbMixSlider.setVisible(false);
   layerGrid.setVisible(false);
   activeXYPad.setVisible(false);
+  micModeIndicator.setVisible(false);
 
   if (fxModeGrid)
     fxModeGrid->setVisible(false);
-  layerGrid.setVisible(false);
-  activeXYPad.setVisible(false);
 
   // 2. Configure based on tab
   if (tab == MiddleMenuPanel::Tab::Mode) {
-    // Mode tab (Instrument)
-    if (instrumentModeGrid) {
-      topContentPanel.addAndMakeVisible(*instrumentModeGrid);
-      instrumentModeGrid->setVisible(true);
-    }
+    // Mode tab (Mic Mode Visual)
+    topContentPanel.addAndMakeVisible(micModeIndicator);
+    micModeIndicator.setVisible(true);
 
     bottomPerformancePanel.addAndMakeVisible(gainKnob);
     bottomPerformancePanel.addAndMakeVisible(monitorButton);
@@ -569,12 +557,8 @@ void MainComponent::updateLayoutForTab(MiddleMenuPanel::Tab tab) {
     bottomPerformancePanel.addAndMakeVisible(layerGrid);
     activeXYPad.setVisible(true);
     layerGrid.setVisible(true);
-  } else if (tab == MiddleMenuPanel::Tab::Sound) {
-    // Sound tab (Presets)
-    if (soundPresetGrid) {
-      topContentPanel.addAndMakeVisible(*soundPresetGrid);
-      soundPresetGrid->setVisible(true);
-    }
+  } else if (tab == MiddleMenuPanel::Tab::Mixer) {
+    // Mixer tab - Placeholder for now
   }
 
   resized();
@@ -599,6 +583,25 @@ void MainComponent::timerCallback() {
       auto sectionData = retroBuffer.getWaveformData(numFrames, sectionW);
       waveformPanel.setSectionData(i, sectionData);
     }
+  }
+
+  // Update Layer Grid enablement based on playing riff
+  if (activeTab == MiddleMenuPanel::Tab::FX) {
+    auto playingId = riffEngine.getCurrentlyPlayingRiffId();
+    uint8_t enabledMask = 0;
+
+    if (!playingId.isNull()) {
+      for (const auto &riff : riffHistory.getHistory()) {
+        if (riff.id == playingId) {
+          int count = riff.layers;
+          for (int i = 0; i < count && i < 8; ++i) {
+            enabledMask |= (1 << i);
+          }
+          break;
+        }
+      }
+    }
+    layerGrid.setEnabledMask(enabledMask);
   }
 }
 

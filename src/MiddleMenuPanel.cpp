@@ -14,14 +14,12 @@ MiddleMenuPanel::MiddleMenuPanel() {
   };
 
   setupTabButton(modeTabButton, "MODE");
-  setupTabButton(soundTabButton, "SOUND");
   setupTabButton(fxTabButton, "FX");
   setupTabButton(mixerTabButton, "MIXER");
 
   modeTabButton.setToggleState(true, juce::dontSendNotification);
 
   modeTabButton.onClick = [this]() { setActiveTab(Tab::Mode); };
-  soundTabButton.onClick = [this]() { setActiveTab(Tab::Sound); };
   fxTabButton.onClick = [this]() { setActiveTab(Tab::FX); };
   mixerTabButton.onClick = [this]() { setActiveTab(Tab::Mixer); };
 
@@ -29,39 +27,16 @@ MiddleMenuPanel::MiddleMenuPanel() {
   // updateVisibility();
 }
 
-void MiddleMenuPanel::setupModeControls(LabeledKnob &gainKnob,
-                                        juce::TextButton &monitorButton) {
-  pGainKnob = &gainKnob;
-  pMonitorButton = &monitorButton;
-
-  addAndMakeVisible(gainKnob);
-  addAndMakeVisible(monitorButton);
-
-  updateVisibility();
-}
-
-void MiddleMenuPanel::setupMicReverb(juce::Slider &roomSize,
-                                     juce::Slider &wetLevel) {
-  pMicReverbRoomSize = &roomSize;
-  pMicReverbWetLevel = &wetLevel;
-
-  addAndMakeVisible(roomSize);
-  addAndMakeVisible(wetLevel);
-
+void MiddleMenuPanel::setupMicReverb() {
   micReverbRoomSizeLabel.setText("REV SIZE", juce::dontSendNotification);
   micReverbRoomSizeLabel.setJustificationType(juce::Justification::centred);
   micReverbRoomSizeLabel.setFont(juce::Font(12.0f, juce::Font::bold));
-  addAndMakeVisible(micReverbRoomSizeLabel);
   addAndMakeVisible(micReverbRoomSizeLabel);
 
   micReverbWetLevelLabel.setText("REV MIX", juce::dontSendNotification);
   micReverbWetLevelLabel.setJustificationType(juce::Justification::centred);
   micReverbWetLevelLabel.setFont(juce::Font(12.0f, juce::Font::bold));
   addAndMakeVisible(micReverbWetLevelLabel);
-}
-
-void MiddleMenuPanel::setupFxControls() {
-  // Logic moved to Panels in V9
 }
 
 void MiddleMenuPanel::setupMixerControls() {
@@ -101,9 +76,9 @@ void MiddleMenuPanel::resized() {
   auto area = getLocalBounds();
   auto tabsArea = area.removeFromTop(40);
 
-  int tabW = tabsArea.getWidth() / 4;
+  int tabCols = 3;
+  int tabW = tabsArea.getWidth() / tabCols;
   modeTabButton.setBounds(tabsArea.removeFromLeft(tabW).reduced(2, 5));
-  soundTabButton.setBounds(tabsArea.removeFromLeft(tabW).reduced(2, 5));
   fxTabButton.setBounds(tabsArea.removeFromLeft(tabW).reduced(2, 5));
   mixerTabButton.setBounds(tabsArea.reduced(2, 5));
 }

@@ -29,15 +29,18 @@ void XYPad::paint(juce::Graphics &g) {
   float dotX = padArea.getX() + (xValue * padArea.getWidth());
   float dotY = padArea.getY() + ((1.0f - yValue) * padArea.getHeight());
 
-  // Dot shadow
-  g.setColour(juce::Colours::black.withAlpha(0.3f));
-  g.fillEllipse(dotX - 8.0f, dotY - 8.0f, 18.0f, 18.0f);
+  // Only draw indicator if mouse is held down
+  if (isMouseButtonDown()) {
+    // Dot shadow
+    g.setColour(juce::Colours::black.withAlpha(0.3f));
+    g.fillEllipse(dotX - 8.0f, dotY - 8.0f, 18.0f, 18.0f);
 
-  // The Dot
-  g.setColour(juce::Colour(0xFF00CC66));
-  g.fillEllipse(dotX - 10.0f, dotY - 10.0f, 20.0f, 20.0f);
-  g.setColour(juce::Colours::white);
-  g.drawEllipse(dotX - 10.0f, dotY - 10.0f, 20.0f, 20.0f, 2.0f);
+    // The Dot
+    g.setColour(juce::Colour(0xFF00CC66));
+    g.fillEllipse(dotX - 10.0f, dotY - 10.0f, 20.0f, 20.0f);
+    g.setColour(juce::Colours::white);
+    g.drawEllipse(dotX - 10.0f, dotY - 10.0f, 20.0f, 20.0f, 2.0f);
+  }
 }
 
 void XYPad::mouseDown(const juce::MouseEvent &e) { handleMouse(e); }
