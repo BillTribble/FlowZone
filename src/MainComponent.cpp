@@ -324,27 +324,18 @@ void MainComponent::getNextAudioBlock(
     if (ch < riffOutputBuffer.getNumChannels())
       buffer->addFrom(ch, 0, riffOutputBuffer.getReadPointer(ch), numSamples);
 
-    // B. Monitor / Input Path
-    if (monitorOn.load()) {
-      if (isFxTab) {
-        // FX Mode: Mic is suppressed. Selected layers are WET.
-        if (isPadDown && ch < looperMixBuffer.getNumChannels()) {
-          // Add wet processed signal (Selected layers through FX)
-          buffer->addFrom(ch, 0, looperMixBuffer.getReadPointer(ch),
-                          numSamples);
-        } else if (!isPadDown) {
-          // When pad is UP, we should hear the selected layers DRY.
-          // riffEngine.processNextBlock puts selected layers in looperMixBuffer
-          // (dry) when mask != 0.
-          if (ch < looperMixBuffer.getNumChannels())
-            buffer->addFrom(ch, 0, looperMixBuffer.getReadPointer(ch),
-                            numSamples);
-        }
-      } else {
-        // Normal Mode: Hear the centered dry mic signal
-        if (ch < inputCopyBuffer.getNumChannels())
-          buffer->addFrom(ch, 0, inputCopyBuffer.getReadPointer(ch),
-                          numSamples);
+    // B. Selected Layers & Mic Monitor
+    if (isFxTab) {
+      // FX Mode: Selected layers (looperMixBuffer) are always audible.
+      // Mic input is suppressed.
+      if (mask != 0 && ch < looperMixBuffer.getNumChannels()) {
+        buffer->addFrom(ch, 0, looperMixBuffer.getReadPointer(ch), numSamples);
+      }
+    } else {
+      // Normal Mode: Selected layers are already in riffOutputBuffer.
+      // We only need to add the live Mic signal if Monitor is ON.
+      if (monitorOn.load() && ch < inputCopyBuffer.getNumChannels()) {
+        buffer->addFrom(ch, 0, inputCopyBuffer.getReadPointer(ch), numSamples);
       }
     }
 
