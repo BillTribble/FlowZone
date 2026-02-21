@@ -8,16 +8,24 @@ void RiffPlaybackEngine::prepare(double sampleRate, int /*samplesPerBlock*/) {
 
 void RiffPlaybackEngine::processNextBlock(
     juce::AudioBuffer<float> &outputBuffer, double targetBpm,
-    int numSamplesToProcess) {
+    int numSamplesToProcess, uint8_t layerMask) {
   const juce::ScopedLock sl(lock);
 
   const int outChannels = outputBuffer.getNumChannels();
 
   for (auto it = playingRiffs.begin(); it != playingRiffs.end();) {
     auto &riff = *it;
-    const int riffSamples = riff->audio.getNumSamples();
-    const int riffChannels = riff->audio.getNumChannels();
-    // Correct speed for both BPM and Sample Rate differences
+
+    // We sum locally for this riff then add to output
+    const int numLayers = static_cast<int>(riff->layers.size());
+    if (numLayers == 0) {
+      it = playingRiffs.erase(it);
+      continue;
+    }
+
+    // Use the first layer to determine length and speed (they should be
+    // consistent)
+    const int riffSamples = riff->layers[0].getNumSamples();
     const double speedRatio = (targetBpm / riff->sourceBpm) *
                               (riff->sourceSampleRate / currentSampleRate);
 
@@ -26,18 +34,27 @@ void RiffPlaybackEngine::processNextBlock(
       const int nextPosInt = (posInt + 1);
       const float fraction = static_cast<float>(riff->currentPosition - posInt);
 
-      for (int outCh = 0; outCh < outChannels; ++outCh) {
-        // If riff is mono, add to all output channels. If stereo, match 1:1.
-        int inCh = (riffChannels == 1) ? 0 : outCh;
-        if (inCh < riffChannels) {
-          const auto *riffData = riff->audio.getReadPointer(inCh);
-          float s0 = riffData[posInt];
-          float s1 = (nextPosInt < riffSamples)
-                         ? riffData[nextPosInt]
-                         : (riff->looping ? riffData[0] : 0.0f);
-          float interp = s0 + (s1 - s0) * fraction;
+      for (int layerIdx = 0; layerIdx < numLayers; ++layerIdx) {
+        // Check if this layer is enabled in the mask
+        if (!(layerMask & (1 << layerIdx)))
+          continue;
 
-          outputBuffer.addFrom(outCh, i, &interp, 1);
+        const auto &layerBuf = riff->layers[layerIdx];
+        const int layerChannels = layerBuf.getNumChannels();
+        const float gain = riff->layerGains[layerIdx];
+
+        for (int outCh = 0; outCh < outChannels; ++outCh) {
+          int inCh = (layerChannels == 1) ? 0 : outCh;
+          if (inCh < layerChannels) {
+            const auto *layerData = layerBuf.getReadPointer(inCh);
+            float s0 = layerData[posInt];
+            float s1 = (nextPosInt < riffSamples)
+                           ? layerData[nextPosInt]
+                           : (riff->looping ? layerData[0] : 0.0f);
+            float interp = (s0 + (s1 - s0) * fraction) * gain;
+
+            outputBuffer.addFrom(outCh, i, &interp, 1);
+          }
         }
       }
 
@@ -62,10 +79,7 @@ void RiffPlaybackEngine::processNextBlock(
   }
 }
 
-void RiffPlaybackEngine::playRiff(const juce::Uuid &id,
-                                  const juce::AudioBuffer<float> &audio,
-                                  double sourceBpm, double sourceSampleRate,
-                                  bool loop) {
+void RiffPlaybackEngine::playRiff(const Riff &riff, bool loop) {
   const juce::ScopedLock sl(lock);
 
   double inheritedPosition = 0.0;
@@ -74,22 +88,31 @@ void RiffPlaybackEngine::playRiff(const juce::Uuid &id,
   }
 
   auto playingRiff = std::make_unique<PlayingRiff>();
-  playingRiff->riffId = id;
-  // Deep copy the audio
-  playingRiff->audio.makeCopyOf(audio);
+  playingRiff->riffId = riff.id;
+
+  // Copy all layers
+  for (const auto &buf : riff.layerBuffers) {
+    juce::AudioBuffer<float> layerCopy;
+    layerCopy.makeCopyOf(buf);
+    playingRiff->layers.push_back(std::move(layerCopy));
+  }
+  playingRiff->layerGains = riff.layerGains;
 
   // Inherit position and wrap if necessary
-  if (audio.getNumSamples() > 0) {
+  if (!playingRiff->layers.empty() &&
+      playingRiff->layers[0].getNumSamples() > 0) {
+    int firstLayerSamples = playingRiff->layers[0].getNumSamples();
     playingRiff->currentPosition =
-        std::fmod(inheritedPosition, (double)audio.getNumSamples());
+        std::fmod(inheritedPosition, (double)firstLayerSamples);
   } else {
     playingRiff->currentPosition = 0.0;
   }
 
-  playingRiff->sourceBpm = sourceBpm;
-  playingRiff->sourceSampleRate = sourceSampleRate;
+  playingRiff->sourceBpm = riff.bpm;
+  playingRiff->sourceSampleRate = riff.sourceSampleRate;
   playingRiff->looping = loop;
   playingRiff->finished = false;
+  playingRiff->totalBars = riff.bars;
 
   playingRiffs.clear(); // Exclusive playback
   playingRiffs.push_back(std::move(playingRiff));

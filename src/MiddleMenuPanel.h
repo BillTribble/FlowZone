@@ -13,32 +13,24 @@ public:
   void paint(juce::Graphics &g) override;
   void resized() override;
 
-  enum class Tab { Mode, FX, Mixer };
+  enum class Tab { Mode, Sound, FX, Mixer };
   void setActiveTab(Tab tab);
 
   std::function<void(Tab)> onTabChanged;
 
   // Wire up controls from MainComponent
   void setupModeControls(LabeledKnob &gain, juce::TextButton &monitor);
-  void setupFxControls(XYPad &xy, juce::Slider &reverbSize,
-                       juce::Label &reverbSizeLabel);
+  void setupFxControls();
 
   // New Mic Reverb controls for Mode tab
   void setupMicReverb(juce::Slider &roomSize, juce::Slider &wetLevel);
   void setupMixerControls();
 
-  juce::Component &getModeContainer() { return modeContainer; }
-  juce::Component &getFxContainer() { return fxContainer; }
-  juce::Component &getMixerContainer() { return mixerContainer; }
-
 private:
   juce::TextButton modeTabButton{"MODE"};
+  juce::TextButton soundTabButton{"SOUND"};
   juce::TextButton fxTabButton{"FX"};
   juce::TextButton mixerTabButton{"MIXER"};
-
-  juce::Component modeContainer;
-  juce::Component fxContainer;
-  juce::Component mixerContainer;
 
   Tab activeTab{Tab::Mode};
 
@@ -51,9 +43,6 @@ private:
   juce::Slider *pMicReverbWetLevel{nullptr};
   juce::Label micReverbRoomSizeLabel;
   juce::Label micReverbWetLevelLabel;
-  juce::Component *pXYPad{nullptr};
-  juce::Slider *pReverbSizeSlider{nullptr};
-  juce::Label *pReverbSizeLabel{nullptr};
 
   // Mixer settings
   juce::TextButton snapToggle{"SNAP TO BAR"};

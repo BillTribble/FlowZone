@@ -14,13 +14,13 @@ public:
 
   void prepare(double sampleRate, int samplesPerBlock);
   void processNextBlock(juce::AudioBuffer<float> &outputBuffer,
-                        double targetBpm, int numSamplesToProcess);
+                        double targetBpm, int numSamplesToProcess,
+                        uint8_t layerMask = 0xFF);
 
   /**
    * Starts playback of a riff.
    */
-  void playRiff(const juce::Uuid &id, const juce::AudioBuffer<float> &audio,
-                double sourceBpm, double sourceSampleRate, bool loop = false);
+  void playRiff(const Riff &riff, bool loop = false);
 
   bool isRiffPlaying(const juce::Uuid &id) const;
   juce::Uuid getCurrentlyPlayingRiffId() const;
@@ -28,12 +28,14 @@ public:
 private:
   struct PlayingRiff {
     juce::Uuid riffId;
-    juce::AudioBuffer<float> audio;
+    std::vector<juce::AudioBuffer<float>> layers;
+    std::vector<float> layerGains;
     double currentPosition{0.0};
     double sourceBpm{120.0};
     double sourceSampleRate{44100.0};
     bool looping{false};
     bool finished{false};
+    int totalBars{1};
   };
 
   std::vector<std::unique_ptr<PlayingRiff>> playingRiffs;

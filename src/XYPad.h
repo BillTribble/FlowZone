@@ -14,8 +14,10 @@ public:
   void mouseDown(const juce::MouseEvent &e) override;
   void mouseDrag(const juce::MouseEvent &e) override;
   void resized() override;
+  void mouseUp(const juce::MouseEvent &e) override;
 
   std::function<void(float, float)> onXYChange;
+  std::function<void()> onRelease;
 
   void setValues(float x, float y);
   float getXValue() const { return xValue; }

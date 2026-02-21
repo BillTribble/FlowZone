@@ -3,6 +3,7 @@
 
 //==============================================================================
 MainComponent::MainComponent() {
+  LOG_STARTUP();
   // --- Title ---
   // titleLabel.setText("FlowZone", juce::dontSendNotification);
   // titleLabel.setFont(juce::FontOptions(28.0f, juce::Font::bold));
@@ -23,40 +24,7 @@ MainComponent::MainComponent() {
   // --- BPM Display (Header) ---
   addAndMakeVisible(bpmDisplay);
 
-  // --- Reverb Controls ---
-  reverbSizeSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
-  reverbSizeSlider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
-  reverbSizeSlider.setRange(0.0, 1.0, 0.01);
-  reverbSizeSlider.setValue(0.5);
-  reverbSizeSlider.setColour(juce::Slider::rotarySliderFillColourId,
-                             juce::Colour(0xFFCC66FF)); // Purple for Reverb
-  reverbSizeSlider.setColour(juce::Slider::rotarySliderOutlineColourId,
-                             juce::Colour(0xFF2A2A4A));
-  reverbSizeSlider.setColour(juce::Slider::thumbColourId, juce::Colours::white);
-  reverbSizeSlider.onValueChange = [this]() {
-    reverbRoomSize.store((float)reverbSizeSlider.getValue());
-  };
-  addAndMakeVisible(reverbSizeSlider);
-
-  reverbSizeLabel.setText("SIZE", juce::dontSendNotification);
-  reverbSizeLabel.setFont(juce::FontOptions(14.0f, juce::Font::bold));
-  reverbSizeLabel.setColour(juce::Label::textColourId,
-                            juce::Colours::white.withAlpha(0.6f));
-  reverbSizeLabel.setJustificationType(juce::Justification::centred);
-  addAndMakeVisible(reverbSizeLabel);
-
-  // --- FX Parameters from XY Pad ---
-  fxXYPad.onXYChange = [this](float x, float y) {
-    // X -> Delay Time (100ms to 800ms)
-    delayTimeSec = 0.1f + (x * 0.7f);
-    // Y -> Feedback (0 to 0.9)
-    delayFeedback = y * 0.9f;
-  };
-
-  middleMenuPanel.onTabChanged = [this](MiddleMenuPanel::Tab tab) {
-    // Tab change no longer affects fxEnabled directly, it's mouse-down on XY
-    // Pad
-  };
+  // bpmDisplay initialization is handled above
 
   // --- Play/Pause Button ---
   playPauseButton.setClickingTogglesState(true);
@@ -74,9 +42,6 @@ MainComponent::MainComponent() {
   addAndMakeVisible(playPauseButton);
 
   // --- Monitor Button ---
-  monitorButton.setClickingTogglesState(true);
-  monitorButton.setColour(juce::TextButton::buttonColourId,
-                          juce::Colour(0xFF1A1A2E));
   monitorButton.setColour(juce::TextButton::buttonOnColourId,
                           juce::Colour(0xFF00CC66));
   monitorButton.setColour(juce::TextButton::textColourOffId,
@@ -87,6 +52,7 @@ MainComponent::MainComponent() {
     bool on = monitorButton.getToggleState();
     monitorOn.store(on);
     monitorButton.setButtonText(on ? "MONITOR: ON" : "MONITOR: OFF");
+    LOG_ACTION("Mic", on ? "Monitor ON" : "Monitor OFF");
   };
   addAndMakeVisible(monitorButton);
 
@@ -115,7 +81,9 @@ MainComponent::MainComponent() {
   micReverbSizeSlider.setRange(0.0, 1.0, 0.01);
   micReverbSizeSlider.setValue(0.5);
   micReverbSizeSlider.onValueChange = [this]() {
-    micReverbRoomSize.store((float)micReverbSizeSlider.getValue());
+    float val = (float)micReverbSizeSlider.getValue();
+    micReverbRoomSize.store(val);
+    LOG_ACTION("Mic", "Reverb Size: " + juce::String(val, 2));
   };
 
   micReverbMixSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
@@ -123,16 +91,116 @@ MainComponent::MainComponent() {
   micReverbMixSlider.setRange(0.0, 1.0, 0.01);
   micReverbMixSlider.setValue(0.0); // Default dry
   micReverbMixSlider.onValueChange = [this]() {
-    micReverbWetLevel.store((float)micReverbMixSlider.getValue());
+    float val = (float)micReverbMixSlider.getValue();
+    micReverbWetLevel.store(val);
+    LOG_ACTION("Mic", "Reverb Mix: " + juce::String(val, 2));
   };
 
-  // --- Middle Menu Panel (Mode & FX Tabs) ---
+  // --- Initial Layout Configuration ---
+  middleMenuPanel.onTabChanged = [this](MiddleMenuPanel::Tab tab) {
+    updateLayoutForTab(tab);
+  };
+
+  layerGrid.onSelectionChanged = [this](uint8_t mask) {
+    selectedLayers.store(mask);
+  };
+
+  activeXYPad.onXYChange = [this](float x, float y) {
+    fxEngine.setDelayParams(x * 2.0f, y * 0.8f); // X=Time, Y=Feedback
+    fxEngine.setReverbParams(x, y * 0.5f);       // X=RoomSize, Y=Mix
+  };
+
+  activeXYPad.onRelease = [this]() {
+    LOG_ACTION("FX", "XY Pad Released - Committing FX");
+
+    auto playingId = riffEngine.getCurrentlyPlayingRiffId();
+    if (playingId.isNull())
+      return;
+
+    // Find the riff in history
+    Riff *targetRiff = nullptr;
+    for (auto &r : riffHistory.getHistoryRW()) {
+      if (r.id == playingId) {
+        targetRiff = &r;
+        break;
+      }
+    }
+
+    if (targetRiff == nullptr)
+      return;
+
+    uint8_t mask = selectedLayers.load();
+    if (mask == 0)
+      return;
+
+    // 1. Get the isolated audio for selected layers
+    juce::AudioBuffer<float> wetSum;
+    targetRiff->getSelectedLayerComposite(wetSum, mask);
+
+    if (wetSum.getNumSamples() == 0)
+      return;
+
+    // 2. Process it through a temporary engine to ensure clean/full baking
+    // We use the current params but a fresh state.
+    StandaloneFXEngine bakeEngine;
+    bakeEngine.prepare(
+        {currentSampleRate, (juce::uint32)wetSum.getNumSamples(), 2});
+
+    // Copy current params from real-time engine if we had getters,
+    // but we'll just use the XYPad coords for now as they are the source of
+    // truth.
+    float x = activeXYPad.getXValue();
+    float y = activeXYPad.getYValue();
+    bakeEngine.setDelayParams(x * 2.0f, y * 0.8f);
+    bakeEngine.setReverbParams(x, y * 0.5f);
+
+    juce::dsp::AudioBlock<float> block(wetSum);
+    juce::dsp::ProcessContextReplacing<float> context(block);
+    bakeEngine.process(context);
+
+    // 3. Commit back to riff
+    targetRiff->commitFX(wetSum, mask);
+
+    // 4. Update playback engine with new riff data
+    // (Important: Since RiffPlaybackEngine stores its own copies, we
+    // re-trigger)
+    riffEngine.playRiff(*targetRiff, true);
+
+    juce::Logger::writeToLog("FX Committed to Riff: " + targetRiff->name);
+    LOG_ACTION("FX", "Destructive Commit Done - " + targetRiff->name);
+
+    // Reset selection mask after commit to avoid accidental double-processing
+    selectedLayers.store(0);
+    // TODO: Update layerGrid UI state if needed
+  };
+
+  // Set default tab
+  updateLayoutForTab(MiddleMenuPanel::Tab::Mode);
+
+  addAndMakeVisible(topContentPanel);
+  addAndMakeVisible(bottomPerformancePanel);
   addAndMakeVisible(middleMenuPanel);
-  middleMenuPanel.setupModeControls(gainKnob,
-                                    monitorButton); // BPM removed from mode
+  middleMenuPanel.setupModeControls(gainKnob, monitorButton);
   middleMenuPanel.setupMicReverb(micReverbSizeSlider, micReverbMixSlider);
-  middleMenuPanel.setupFxControls(fxXYPad, reverbSizeSlider, reverbSizeLabel);
+  middleMenuPanel.setupFxControls();
   addAndMakeVisible(settingsButton);
+
+  instrumentModeGrid = std::make_unique<SelectionGrid>(
+      2, 4,
+      juce::StringArray{"Keys", "Drums", "Synth", "Voice", "Bass", "Guitar",
+                        "Brass", "Pad"});
+  instrumentModeGrid->onSelectionChanged = [this](int idx) {
+    LOG_ACTION("Instrument", "Mode Changed to: " + juce::String(idx));
+  };
+
+  soundPresetGrid = std::make_unique<SelectionGrid>(
+      3, 4,
+      juce::StringArray{"Natural", "Space", "Lo-Fi", "Acid", "Clean", "Crunch",
+                        "Lead", "Atmosphere", "Pulse", "Twitch", "Bells",
+                        "Drone"});
+  soundPresetGrid->onSelectionChanged = [this](int idx) {
+    LOG_ACTION("Sound", "Preset Changed to: " + juce::String(idx));
+  };
 
   // --- File Logger for Troubleshooting ---
   auto logFile = juce::File::getSpecialLocation(juce::File::userHomeDirectory)
@@ -155,8 +223,7 @@ MainComponent::MainComponent() {
     juce::Logger::writeToLog("Riff selected from history: " + riff.name);
     juce::AudioBuffer<float> composite;
     riff.getCompositeAudio(composite);
-    riffEngine.playRiff(riff.id, composite, currentBpm.load(),
-                        riff.sourceSampleRate, true);
+    riffEngine.playRiff(riff, true);
   };
   riffHistoryPanel.isRiffPlaying = [this](const juce::Uuid &id) {
     return riffEngine.isRiffPlaying(id);
@@ -193,6 +260,17 @@ MainComponent::MainComponent() {
         break;
       }
     }
+    // This closing brace was misplaced, it should be after the loop.
+    // The original code had it here, which meant newRiff.id was set outside the
+    // conditional. The instruction implies removing it, but it's syntactically
+    // incorrect to remove it without replacing it. Assuming the intent was to
+    // remove the extra brace and keep the logic within the loop. If the intent
+    // was to remove the entire `if (lastRiff)` block, the instruction was
+    // unclear. Given the context of "Fix API mismatches and call sites", this
+    // looks like a structural fix. The original code had an extra `}` here,
+    // which was likely a copy-paste error. Removing it makes the code
+    // syntactically correct and aligns with the `newRiff.id = juce::Uuid();`
+    // line.
 
     newRiff.id = juce::Uuid(); // New identity for the new snapshot
     newRiff.bpm = bpm;
@@ -214,9 +292,7 @@ MainComponent::MainComponent() {
     const auto &ref = riffHistory.addRiff(std::move(newRiff));
     juce::AudioBuffer<float> composite;
     ref.getCompositeAudio(composite);
-    riffEngine.playRiff(ref.id, composite, bpm, ref.sourceSampleRate, true);
-
-    riffHistoryPanel.repaint();
+    riffEngine.playRiff(ref, true);
   };
 
   // --- Audio Setup ---
@@ -239,21 +315,13 @@ void MainComponent::prepareToPlay(int samplesPerBlockExpected,
   riffEngine.prepare(sampleRate, samplesPerBlockExpected);
   waveformPanel.setSampleRate(sampleRate);
 
-  // FX: Allocate 2 seconds for delay
-  delayBuffer.setSize(2, static_cast<int>(sampleRate * 2.0));
-  delayBuffer.clear();
-  delayWritePos = 0;
-
-  reverb.setSampleRate(sampleRate);
   micReverb.setSampleRate(sampleRate);
+  fxEngine.prepare({sampleRate, (juce::uint32)samplesPerBlockExpected, 2});
 
   // Prepare scratch buffers
   inputCopyBuffer.setSize(2, samplesPerBlockExpected);
   looperMixBuffer.setSize(2, samplesPerBlockExpected);
   riffOutputBuffer.setSize(2, samplesPerBlockExpected);
-
-  // FX Crossfade (3ms)
-  fxLevelSelector.reset(sampleRate, 0.003); // 3ms duration
 }
 
 void MainComponent::getNextAudioBlock(
@@ -266,18 +334,72 @@ void MainComponent::getNextAudioBlock(
 
   auto *buffer = bufferToFill.buffer;
   const int numSamples = bufferToFill.numSamples;
+  const int numChannels = buffer->getNumChannels();
+  const double bpm = currentBpm.load();
 
   // 1. Process Input Gain
   float gain = gainLinear.load();
   buffer->applyGain(0, numSamples, gain);
 
-  // 2. Snapshot current block to pre-allocated scratch buffer
+  // 2. Capture Dry Input for Retrospective Buffer
+  // We do this BEFORE monitoring/adding riffs so it's always "just the
+  // performance"
+  inputCopyBuffer.setSize(numChannels, numSamples, false, true, true);
   inputCopyBuffer.copyFrom(0, 0, *buffer, 0, 0, numSamples);
-  if (buffer->getNumChannels() > 1)
+  if (numChannels > 1)
     inputCopyBuffer.copyFrom(1, 0, *buffer, 1, 0, numSamples);
 
-  // Calculate peak for level meter
-  peakLevel.store(buffer->getMagnitude(0, numSamples));
+  // 3. Clear output if monitor is off, otherwise monitor is already in buffer
+  if (!monitorOn.load()) {
+    buffer->clear();
+  }
+
+  // --- V9 Selective Riff Summing ---
+  // 1. Get Selected Layers into scratch buffer (Isolator)
+  riffOutputBuffer.clear(); // Using this as scratch for Dry sum first
+  looperMixBuffer.clear();
+
+  uint8_t mask = selectedLayers.load();
+
+  // Dry Sum (everything NOT in mask)
+  if (isPlaying.load()) {
+    riffEngine.processNextBlock(riffOutputBuffer, bpm, numSamples, ~mask);
+  }
+
+  // Wet Sum (everything IN mask)
+  if (isPlaying.load()) {
+    riffEngine.processNextBlock(looperMixBuffer, bpm, numSamples, mask);
+  }
+
+  // 2. Process Wet sum through FX Engine
+  if (mask != 0) {
+    juce::dsp::AudioBlock<float> block(looperMixBuffer);
+    juce::dsp::ProcessContextReplacing<float> context(block);
+    fxEngine.process(context);
+  }
+
+  // 3. Blend result back into main output
+  for (int ch = 0; ch < numChannels; ++ch) {
+    // Add Dry Riffs
+    if (ch < riffOutputBuffer.getNumChannels()) {
+      buffer->addFrom(ch, 0, riffOutputBuffer.getReadPointer(ch), numSamples);
+    }
+
+    // Add Wet Riffs (Selective FX result)
+    if (ch < looperMixBuffer.getNumChannels()) {
+      buffer->addFrom(ch, 0, looperMixBuffer.getReadPointer(ch), numSamples);
+    }
+
+    // Re-apply Level Meter monitoring to the final sum
+    if (ch == 0) {
+      float peak = buffer->getMagnitude(ch, 0, numSamples);
+      float currentPeak = peakLevel.load();
+      if (peak > currentPeak)
+        peakLevel.store(peak);
+
+      LOG_AUDIO_STATS(peak, peak > 1.0f);
+    }
+  }
 
   // --- Mic Reverb (Vocal Polish) ---
   micReverbParams.roomSize = micReverbRoomSize.load();
@@ -292,98 +414,13 @@ void MainComponent::getNextAudioBlock(
     micReverb.processMono(buffer->getWritePointer(0), numSamples);
   }
 
-  // 3. Prepare workspace buffers
-  bufferToFill.clearActiveBufferRegion(); // Final output starts empty
+  // 7. Push to retrospective buffer
+  // We push the looperMixBuffer which should contain the CLEAN input
+  // (inputCopyBuffer)
   looperMixBuffer.copyFrom(0, 0, inputCopyBuffer, 0, 0, numSamples);
-  if (looperMixBuffer.getWritePointer(1) != nullptr &&
-      inputCopyBuffer.getNumChannels() > 1)
+  if (numChannels > 1)
     looperMixBuffer.copyFrom(1, 0, inputCopyBuffer, 1, 0, numSamples);
 
-  riffOutputBuffer.clear();
-
-  // 4. Process Riffs ONCE into riffOutputBuffer
-  if (isPlaying.load()) {
-    riffEngine.processNextBlock(riffOutputBuffer, currentBpm.load(),
-                                numSamples);
-  }
-
-  // Add Riffs to speaker output
-  for (int ch = 0; ch < buffer->getNumChannels(); ++ch) {
-    if (ch < riffOutputBuffer.getNumChannels()) {
-      buffer->addFrom(ch, 0, riffOutputBuffer, ch, 0, numSamples);
-    }
-  }
-
-  // Add Riffs to looper mix (ONLY IF FX IS ACTIVE)
-  const bool active = fxXYPad.isMouseButtonDown();
-  if (active) {
-    for (int ch = 0; ch < looperMixBuffer.getNumChannels(); ++ch) {
-      if (ch < riffOutputBuffer.getNumChannels()) {
-        looperMixBuffer.addFrom(ch, 0, riffOutputBuffer, ch, 0, numSamples);
-      }
-    }
-  }
-
-  // 5. Monitor toggle (Speaker path only: add mic input back)
-  if (monitorOn.load()) {
-    for (int ch = 0; ch < buffer->getNumChannels(); ++ch) {
-      buffer->addFrom(ch, 0, inputCopyBuffer, ch, 0, numSamples);
-    }
-  }
-
-  // 6. FX Processing with 3ms Smooth Crossfade
-  fxLevelSelector.setValue(active ? 1.0f : 0.0f);
-
-  // Apply Delay Logic
-  for (int i = 0; i < numSamples; ++i) {
-    // Smoothed mix level (advance once per frame for stereo sync)
-    const float currentMix = fxLevelSelector.getNextValue();
-
-    for (int ch = 0; ch < buffer->getNumChannels(); ++ch) {
-      float *outData = buffer->getWritePointer(ch);
-      float *loopData = looperMixBuffer.getWritePointer(ch);
-      float *dData = delayBuffer.getWritePointer(ch);
-      const int dSize = delayBuffer.getNumSamples();
-      const float dTime = delayTimeSec.load();
-      const float dFeedback = delayFeedback.load();
-      const int dSamples = static_cast<int>(currentSampleRate * dTime);
-
-      const int readPos = (delayWritePos - dSamples + i + dSize) % dSize;
-      const float dSample = dData[readPos];
-
-      // Capture current dry signals BEFORE mixing FX (for feeding delay line)
-      const float dryLoop = loopData[i];
-
-      // Mixing for Speakers
-      outData[i] = (outData[i] * (1.0f - currentMix)) + (dSample * currentMix);
-
-      // Mixing for Looper
-      loopData[i] = (dryLoop * (1.0f - currentMix)) + (dSample * currentMix);
-
-      // Feed delay line from looper path (always has input + riffs)
-      dData[(delayWritePos + i) % dSize] = dryLoop + (dSample * dFeedback);
-    }
-  }
-  delayWritePos = (delayWritePos + numSamples) % delayBuffer.getNumSamples();
-
-  // Reverb
-  const float revMix = fxLevelSelector.getCurrentValue();
-  reverbParams.roomSize = reverbRoomSize.load();
-  reverbParams.wetLevel = revMix;
-  reverbParams.dryLevel = 1.0f - revMix;
-  reverb.setParameters(reverbParams);
-
-  if (buffer->getNumChannels() >= 2) {
-    reverb.processStereo(buffer->getWritePointer(0), buffer->getWritePointer(1),
-                         numSamples);
-    reverb.processStereo(looperMixBuffer.getWritePointer(0),
-                         looperMixBuffer.getWritePointer(1), numSamples);
-  } else {
-    reverb.processMono(buffer->getWritePointer(0), numSamples);
-    reverb.processMono(looperMixBuffer.getWritePointer(0), numSamples);
-  }
-
-  // 7. Push to retrospective buffer
   retroBuffer.pushBlock(looperMixBuffer);
 }
 
@@ -409,40 +446,98 @@ void MainComponent::paint(juce::Graphics &g) {
 }
 
 void MainComponent::resized() {
-  auto area = getLocalBounds().reduced(20);
+  auto area = getLocalBounds();
 
-  // Header Area (Top 40px)
+  // 1. Header Area (Fixed 40px)
   auto headerArea = area.removeFromTop(40);
-
-  // Level meter in the middle
-  levelMeter.setHorizontal(true);
-  levelMeter.setBounds(headerArea.withSizeKeepingCentre(
-      std::min(headerArea.getWidth() - 100, 300), 12));
-
-  // Play/Pause button on the right
+  settingsButton.setBounds(headerArea.removeFromLeft(100).reduced(5, 5));
   playPauseButton.setBounds(headerArea.removeFromRight(80).reduced(2, 5));
-
-  // BPM Header Display
   bpmDisplay.setBounds(headerArea.removeFromRight(100));
+  levelMeter.setHorizontal(true);
+  levelMeter.setBounds(headerArea.reduced(20, 12));
 
-  area.removeFromTop(10); // spacing
+  // 2. Riff History (Fixed 50px at the very bottom)
+  auto historyArea = area.removeFromBottom(50);
+  riffHistoryPanel.setBounds(historyArea);
 
-  // Main content area - takes up the middle section above the bottom panels
-  auto contentArea = area.removeFromTop(area.getHeight() - 200);
+  // 3. Bottom Performance Panel (Fixed 240px above history)
+  auto performanceArea = area.removeFromBottom(240);
+  bottomPerformancePanel.setBounds(performanceArea);
 
-  // Middle Menu fills the content area
-  middleMenuPanel.setBounds(contentArea.reduced(5, 0));
+  // 4. Waveform Timeline (Fixed 120px above performance)
+  auto waveformArea = area.removeFromBottom(120);
+  waveformPanel.setBounds(waveformArea);
 
-  // --- Waveform Panel at the bottom, full width, 120px ---
-  auto bottomArea = getLocalBounds().removeFromBottom(200);
-  waveformPanel.setBounds(bottomArea.removeFromTop(120));
-  riffHistoryPanel.setBounds(bottomArea);
+  // 5. Middle Menu Tab Bar (Fixed 40px above waveform)
+  auto tabArea = area.removeFromBottom(40);
+  middleMenuPanel.setBounds(tabArea);
 
-  // Settings button position (top right, above meter maybe? or just next to it)
-  settingsButton.setBounds(10, 10, 80, 25);
+  // 6. Top Content Panel (Remaining middle space, ~260px)
+  topContentPanel.setBounds(area);
+
+  if (instrumentModeGrid) {
+    instrumentModeGrid->setBounds(topContentPanel.getLocalBounds());
+  }
+  if (soundPresetGrid) {
+    soundPresetGrid->setBounds(topContentPanel.getLocalBounds());
+  }
+  layerGrid.setBounds(topContentPanel.getLocalBounds());
+  activeXYPad.setBounds(bottomPerformancePanel.getLocalBounds());
 }
 
-//==============================================================================
+void MainComponent::updateLayoutForTab(MiddleMenuPanel::Tab tab) {
+  activeTab = tab;
+
+  LOG_ACTION("UI", "Tab Switched to: " + juce::String((int)tab));
+
+  // 1. Reset Visibility
+  gainKnob.setVisible(false);
+  monitorButton.setVisible(false);
+  micReverbSizeSlider.setVisible(false);
+  micReverbMixSlider.setVisible(false);
+  layerGrid.setVisible(false);
+  activeXYPad.setVisible(false);
+
+  if (instrumentModeGrid)
+    instrumentModeGrid->setVisible(false);
+  if (soundPresetGrid)
+    soundPresetGrid->setVisible(false);
+
+  // 2. Configure based on tab
+  if (tab == MiddleMenuPanel::Tab::Mode) {
+    // Mode tab (Instrument)
+    if (instrumentModeGrid) {
+      topContentPanel.addAndMakeVisible(*instrumentModeGrid);
+      instrumentModeGrid->setVisible(true);
+    }
+
+    bottomPerformancePanel.addAndMakeVisible(gainKnob);
+    bottomPerformancePanel.addAndMakeVisible(monitorButton);
+    bottomPerformancePanel.addAndMakeVisible(micReverbSizeSlider);
+    bottomPerformancePanel.addAndMakeVisible(micReverbMixSlider);
+
+    gainKnob.setVisible(true);
+    monitorButton.setVisible(true);
+    micReverbSizeSlider.setVisible(true);
+    micReverbMixSlider.setVisible(true);
+  } else if (tab == MiddleMenuPanel::Tab::FX) {
+    // FX tab
+    topContentPanel.addAndMakeVisible(layerGrid);
+    layerGrid.setVisible(true);
+
+    bottomPerformancePanel.addAndMakeVisible(activeXYPad);
+    activeXYPad.setVisible(true);
+  } else if (tab == MiddleMenuPanel::Tab::Sound) {
+    // Sound tab (Presets)
+    if (soundPresetGrid) {
+      topContentPanel.addAndMakeVisible(*soundPresetGrid);
+      soundPresetGrid->setVisible(true);
+    }
+  }
+
+  resized();
+}
+
 void MainComponent::timerCallback() {
   // Read peak from audio thread (atomic) and update the meter
   levelMeter.setLevel(peakLevel.load());
@@ -454,10 +549,9 @@ void MainComponent::timerCallback() {
     const int framesPerBar =
         static_cast<int>(currentSampleRate * (60.0 / bpm) * 4.0);
 
-    // BPM calculation (default 120)
     const int sectionW = std::max(panelW / 4, 1);
-
     const int bars[] = {8, 4, 2, 1};
+
     for (int i = 0; i < 4; ++i) {
       const int numFrames = static_cast<int>(framesPerBar * bars[i]);
       auto sectionData = retroBuffer.getWaveformData(numFrames, sectionW);

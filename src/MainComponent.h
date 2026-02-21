@@ -1,4 +1,6 @@
 #pragma once
+#include "BottomPerformancePanel.h"
+#include "FlowZoneLogger.h"
 #include "LabeledKnob.h"
 #include "LevelMeter.h"
 #include "MiddleMenuPanel.h"
@@ -6,8 +8,12 @@
 #include "Riff.h"
 #include "RiffHistoryPanel.h"
 #include "RiffPlaybackEngine.h"
+#include "SelectionGrid.h"
+#include "StandaloneFXEngine.h"
+#include "TopContentPanel.h"
 #include "WaveformPanel.h"
 #include "XYPad.h"
+#include "ZigzagLayerGrid.h"
 #include <juce_audio_utils/juce_audio_utils.h>
 
 //==============================================================================
@@ -27,6 +33,7 @@ public:
   // Component overrides
   void paint(juce::Graphics &g) override;
   void resized() override;
+  void updateLayoutForTab(MiddleMenuPanel::Tab tab);
 
 private:
   void timerCallback() override;
@@ -41,6 +48,12 @@ private:
   WaveformPanel waveformPanel;
   RiffHistoryPanel riffHistoryPanel;
   MiddleMenuPanel middleMenuPanel;
+  TopContentPanel topContentPanel;
+  BottomPerformancePanel bottomPerformancePanel;
+  XYPad activeXYPad;
+  ZigzagLayerGrid layerGrid;
+  std::unique_ptr<SelectionGrid> instrumentModeGrid;
+  std::unique_ptr<SelectionGrid> soundPresetGrid;
 
   // BPM Header Display (Custom component for drag-to-edit)
   struct BpmDisplay : public juce::Component {
@@ -57,14 +70,10 @@ private:
     void mouseDrag(const juce::MouseEvent &e) override {
       float delta = -e.getDistanceFromDragStartY() * 0.2f;
       owner.updateBpm(owner.currentBpm.load() + delta);
+      LOG_ACTION("Engine",
+                 "BPM Adjusted: " + juce::String(owner.currentBpm.load(), 1));
     }
   } bpmDisplay{*this};
-
-  // Reverb Controls
-  juce::Slider reverbSizeSlider;
-  juce::Slider reverbMixSlider;
-  juce::Label reverbSizeLabel;
-  juce::Label reverbMixLabel;
 
   // New Mic Reverb UI (for the Mode tab)
   juce::Slider micReverbSizeSlider;
@@ -86,12 +95,7 @@ private:
   RiffHistory riffHistory;
   RiffPlaybackEngine riffEngine;
   std::atomic<double> currentBpm{120.0};
-
-  // FX state
-  juce::Reverb reverb;
-  juce::Reverb::Parameters reverbParams;
-  std::atomic<float> reverbRoomSize{0.5f};
-  std::atomic<float> reverbWetLevel{0.3f};
+  MiddleMenuPanel::Tab activeTab{MiddleMenuPanel::Tab::Mode};
 
   // --- Mic Reverb (Separate from Master FX) ---
   juce::Reverb micReverb;
@@ -99,20 +103,15 @@ private:
   std::atomic<float> micReverbRoomSize{0.5f};
   std::atomic<float> micReverbWetLevel{0.0f}; // Default off
 
-  // --- Delay FX ---
-  XYPad fxXYPad;
-  juce::AudioBuffer<float> delayBuffer;
-  int delayWritePos{0};
-  std::atomic<float> delayTimeSec{0.5f};
-  std::atomic<float> delayFeedback{0.5f};
-  std::atomic<bool> fxActive{false}; // active when XY pad is clicked
+  // --- V9 Selective FX Engine ---
+  StandaloneFXEngine fxEngine;
+  std::atomic<uint8_t> selectedLayers{0}; // Bitmask for layers 1-8
 
   // --- Scratch Buffers (Pre-allocated to avoid allocations in audio thread)
   // ---
   juce::AudioBuffer<float> inputCopyBuffer;
   juce::AudioBuffer<float> looperMixBuffer;
   juce::AudioBuffer<float> riffOutputBuffer;
-  juce::LinearSmoothedValue<float> fxLevelSelector{0.0f}; // 0 = Dry, 1 = FX
 
   // --- Settings ---
   juce::TextButton settingsButton{"SETTINGS"};

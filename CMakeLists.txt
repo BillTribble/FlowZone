@@ -28,6 +28,11 @@ target_sources(FlowZone PRIVATE
     src/RiffPlaybackEngine.cpp
     src/MiddleMenuPanel.cpp
     src/XYPad.cpp
+    src/StandaloneFXEngine.h
+    src/ZigzagLayerGrid.h
+    src/SelectionGrid.h
+    src/TopContentPanel.h
+    src/FlowZoneLogger.h
 )
 
 target_compile_definitions(FlowZone PRIVATE
@@ -46,6 +51,7 @@ target_link_libraries(FlowZone PRIVATE
     juce::juce_audio_utils
     juce::juce_gui_basics
     juce::juce_gui_extra
+    juce::juce_dsp
     juce::juce_recommended_config_flags
     juce::juce_recommended_warning_flags
 )

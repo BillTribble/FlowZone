@@ -44,6 +44,11 @@ void XYPad::mouseDown(const juce::MouseEvent &e) { handleMouse(e); }
 
 void XYPad::mouseDrag(const juce::MouseEvent &e) { handleMouse(e); }
 
+void XYPad::mouseUp(const juce::MouseEvent &e) {
+  if (onRelease)
+    onRelease();
+}
+
 void XYPad::handleMouse(const juce::MouseEvent &e) {
   auto padArea = getLocalBounds().toFloat().reduced(10.0f);
 
