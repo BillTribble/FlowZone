@@ -1,19 +1,18 @@
 #pragma once
-#include "BottomPerformancePanel.h"
+#include "FXTabBottom.h"
+#include "FXTabTop.h"
 #include "FlowZoneLogger.h"
-#include "LabeledKnob.h"
 #include "LevelMeter.h"
-#include "MiddleMenuPanel.h"
+#include "MixerTabComponents.h"
+#include "ModeTabBottom.h"
+#include "ModeTabTop.h"
 #include "RetrospectiveBuffer.h"
 #include "Riff.h"
 #include "RiffHistoryPanel.h"
 #include "RiffPlaybackEngine.h"
-#include "SelectionGrid.h"
+#include "SandwichFramework.h"
 #include "StandaloneFXEngine.h"
-#include "TopContentPanel.h"
 #include "WaveformPanel.h"
-#include "XYPad.h"
-#include "ZigzagLayerGrid.h"
 #include <juce_audio_utils/juce_audio_utils.h>
 
 //==============================================================================
@@ -37,24 +36,11 @@ public:
 
 private:
   void timerCallback() override;
+  void setupModeTabLogic();
+  void setupFXTabLogic();
 
-  // UI components
-  LabeledKnob gainKnob{"GAIN", "dB"};
-  LevelMeter levelMeter;
-  juce::TextButton monitorButton{"MONITOR: OFF"};
-  juce::Label titleLabel;
-  juce::TextButton playPauseButton{
-      "PAUSE"}; // Starts in playing mode (PAUSE is the action)
-  WaveformPanel waveformPanel;
-  RiffHistoryPanel riffHistoryPanel;
-  MiddleMenuPanel middleMenuPanel;
-  TopContentPanel topContentPanel;
-  BottomPerformancePanel bottomPerformancePanel;
-  XYPad activeXYPad;
-  juce::Label micModeIndicator;
-  ZigzagLayerGrid layerGrid;
-  std::unique_ptr<SelectionGrid> instrumentModeGrid;
-  std::unique_ptr<SelectionGrid> fxModeGrid;
+  // --- Dynamic Layout Helpers ---
+  void updateBpm(double newBpm);
 
   // BPM Header Display (Custom component for drag-to-edit)
   struct BpmDisplay : public juce::Component {
@@ -71,16 +57,30 @@ private:
     void mouseDrag(const juce::MouseEvent &e) override {
       float delta = -e.getDistanceFromDragStartY() * 0.2f;
       owner.updateBpm(owner.currentBpm.load() + delta);
-      LOG_ACTION("Engine",
-                 "BPM Adjusted: " + juce::String(owner.currentBpm.load(), 1));
     }
-  } bpmDisplay{*this};
+  };
 
-  // New Mic Reverb UI (for the Mode tab)
-  juce::Slider micReverbSizeSlider;
-  juce::Slider micReverbMixSlider;
-  juce::Label micReverbSizeLabel;
-  juce::Label micReverbMixLabel;
+  // UI components
+  juce::TextButton settingsButton{"SETTINGS"};
+  juce::TextButton playPauseButton{"PAUSE"};
+  BpmDisplay bpmDisplay{*this};
+  LevelMeter levelMeter;
+
+  WaveformPanel waveformPanel;
+  RiffHistoryPanel riffHistoryPanel;
+  MiddleMenuPanel middleMenuPanel;
+
+  // Framework & Modular Components
+  SandwichFramework framework{middleMenuPanel};
+
+  ModeTabTop modeTop;
+  ModeTabBottom modeBottom;
+
+  FXTabTop fxTop;
+  FXTabBottom fxBottom;
+
+  MixerTabTop mixerTop;
+  MixerTabBottom mixerBottom;
 
   // Audio pipeline
   RetrospectiveBuffer retroBuffer;
@@ -92,7 +92,6 @@ private:
   std::atomic<bool> monitorOn{false};  // route mic to output?
   std::atomic<bool> isPlaying{true};   // play riffs?
 
-  void updateBpm(double newBpm);
   RiffHistory riffHistory;
   RiffPlaybackEngine riffEngine;
   std::atomic<double> currentBpm{120.0};
@@ -108,16 +107,12 @@ private:
   StandaloneFXEngine fxEngine;
   std::atomic<uint8_t> selectedLayers{0}; // Bitmask for layers 1-8
 
-  // --- Scratch Buffers (Pre-allocated to avoid allocations in audio thread)
-  // ---
+  // --- Scratch Buffers ---
   juce::AudioBuffer<float> inputCopyBuffer;
   juce::AudioBuffer<float> looperMixBuffer;
   juce::AudioBuffer<float> riffOutputBuffer;
 
-  // --- Settings ---
-  juce::TextButton settingsButton{"SETTINGS"};
   std::unique_ptr<juce::AudioDeviceSelectorComponent> deviceSelector;
-
   double lastCaptureTime{0.0};
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)

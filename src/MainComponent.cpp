@@ -4,34 +4,15 @@
 //==============================================================================
 MainComponent::MainComponent() {
   LOG_STARTUP();
-  // --- Title & Mic Mode Indicator ---
-  micModeIndicator.setText("MIC MODE", juce::dontSendNotification);
-  micModeIndicator.setFont(juce::Font(24.0f, juce::Font::bold));
-  micModeIndicator.setJustificationType(juce::Justification::centred);
-  micModeIndicator.setColour(juce::Label::backgroundColourId,
-                             juce::Colour(0xFF00CC66));
-  micModeIndicator.setColour(juce::Label::textColourId, juce::Colours::black);
-  // (We'll position it in resized)
 
-  // --- Gain Knob ---
-  auto &gainSlider = gainKnob.getSlider();
-  gainSlider.setRange(-60.0, 12.0, 0.1);
-  gainSlider.setValue(10.0); // Initial Gain is 10 dB as requested
-  gainSlider.onValueChange = [this, &gainSlider]() {
-    float dB = static_cast<float>(gainSlider.getValue());
-    gainLinear.store(juce::Decibels::decibelsToGain(dB));
-  };
-  bottomPerformancePanel.addAndMakeVisible(gainKnob);
-
-  // --- BPM Display (Header) ---
+  // --- Header UI ---
   addAndMakeVisible(bpmDisplay);
+  addAndMakeVisible(playPauseButton);
+  addAndMakeVisible(settingsButton);
+  addAndMakeVisible(levelMeter);
 
-  // bpmDisplay initialization is handled above
-
-  // --- Play/Pause Button ---
   playPauseButton.setClickingTogglesState(true);
-  playPauseButton.setToggleState(
-      true, juce::dontSendNotification); // Default to Playing
+  playPauseButton.setToggleState(true, juce::dontSendNotification);
   playPauseButton.setColour(juce::TextButton::buttonColourId,
                             juce::Colour(0xFF2A2A4A));
   playPauseButton.setColour(juce::TextButton::buttonOnColourId,
@@ -41,25 +22,7 @@ MainComponent::MainComponent() {
     isPlaying.store(playing);
     playPauseButton.setButtonText(playing ? "PAUSE" : "PLAY");
   };
-  addAndMakeVisible(playPauseButton);
 
-  // --- Monitor Button ---
-  monitorButton.setClickingTogglesState(true);
-  monitorButton.setColour(juce::TextButton::buttonOnColourId,
-                          juce::Colour(0xFF00CC66));
-  monitorButton.setColour(juce::TextButton::textColourOffId,
-                          juce::Colours::white.withAlpha(0.6f));
-  monitorButton.setColour(juce::TextButton::textColourOnId,
-                          juce::Colours::black);
-  monitorButton.onClick = [this]() {
-    bool on = monitorButton.getToggleState();
-    monitorOn.store(on);
-    monitorButton.setButtonText(on ? "MONITOR: ON" : "MONITOR: OFF");
-    LOG_ACTION("Mic", on ? "Monitor ON" : "Monitor OFF");
-  };
-  bottomPerformancePanel.addAndMakeVisible(monitorButton);
-
-  // --- Settings Button ---
   settingsButton.setColour(juce::TextButton::buttonColourId,
                            juce::Colour(0xFF2A2A4A).withAlpha(0.8f));
   settingsButton.onClick = [this]() {
@@ -78,161 +41,35 @@ MainComponent::MainComponent() {
     }
   };
 
-  // --- Mic Reverb UI (Mode Tab) ---
-  micReverbSizeSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
-  micReverbSizeSlider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
-  micReverbSizeSlider.setRange(0.0, 1.0, 0.01);
-  micReverbSizeSlider.setValue(0.5);
-  micReverbSizeSlider.onValueChange = [this]() {
-    float val = (float)micReverbSizeSlider.getValue();
-    micReverbRoomSize.store(val);
-    LOG_ACTION("Mic", "Reverb Size: " + juce::String(val, 2));
-  };
+  // --- Main Framework & Tab Panels ---
+  addAndMakeVisible(framework);
+  addAndMakeVisible(waveformPanel);
+  addAndMakeVisible(riffHistoryPanel);
 
-  micReverbMixSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
-  micReverbMixSlider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
-  micReverbMixSlider.setRange(0.0, 1.0, 0.01);
-  micReverbMixSlider.setValue(0.0); // Default dry
-  micReverbMixSlider.onValueChange = [this]() {
-    float val = (float)micReverbMixSlider.getValue();
-    micReverbWetLevel.store(val);
-    LOG_ACTION("Mic", "Reverb Mix: " + juce::String(val, 2));
-  };
-
-  bottomPerformancePanel.addAndMakeVisible(micReverbSizeSlider);
-  bottomPerformancePanel.addAndMakeVisible(micReverbMixSlider);
-
-  // --- Initial Layout Configuration ---
   middleMenuPanel.onTabChanged = [this](MiddleMenuPanel::Tab tab) {
     updateLayoutForTab(tab);
   };
-
-  layerGrid.onSelectionChanged = [this](uint8_t mask) {
-    selectedLayers.store(mask);
-  };
-
-  activeXYPad.onXYChange = [this](float x, float y) {
-    fxEngine.setDelayParams(x * 2.0f, y * 0.8f); // X=Time, Y=Feedback
-    fxEngine.setReverbParams(x, y * 0.5f);       // X=RoomSize, Y=Mix
-  };
-
-  activeXYPad.onRelease = [this]() {
-    LOG_ACTION("FX", "XY Pad Released - Committing FX");
-
-    auto playingId = riffEngine.getCurrentlyPlayingRiffId();
-    if (playingId.isNull())
-      return;
-
-    // Find the riff in history
-    Riff *targetRiff = nullptr;
-    for (auto &r : riffHistory.getHistoryRW()) {
-      if (r.id == playingId) {
-        targetRiff = &r;
-        break;
-      }
-    }
-
-    if (targetRiff == nullptr)
-      return;
-
-    uint8_t mask = selectedLayers.load();
-    if (mask == 0)
-      return;
-
-    // 1. Get the isolated audio for selected layers
-    juce::AudioBuffer<float> wetSum;
-    targetRiff->getSelectedLayerComposite(wetSum, mask);
-
-    if (wetSum.getNumSamples() == 0)
-      return;
-
-    // 2. Process it through a temporary engine to ensure clean/full baking
-    // We use the current params but a fresh state.
-    StandaloneFXEngine bakeEngine;
-    bakeEngine.prepare(
-        {currentSampleRate, (juce::uint32)wetSum.getNumSamples(), 2});
-
-    // Copy current params from real-time engine if we had getters,
-    // but we'll just use the XYPad coords for now as they are the source of
-    // truth.
-    float x = activeXYPad.getXValue();
-    float y = activeXYPad.getYValue();
-    bakeEngine.setDelayParams(x * 2.0f, y * 0.8f);
-    bakeEngine.setReverbParams(x, y * 0.5f);
-
-    juce::dsp::AudioBlock<float> block(wetSum);
-    juce::dsp::ProcessContextReplacing<float> context(block);
-    bakeEngine.process(context);
-
-    // 3. Commit back to riff
-    targetRiff->commitFX(wetSum, mask);
-
-    // 4. Update playback engine with new riff data
-    // (Important: Since RiffPlaybackEngine stores its own copies, we
-    // re-trigger)
-    riffEngine.playRiff(*targetRiff, true);
-
-    juce::Logger::writeToLog("FX Committed to Riff: " + targetRiff->name);
-    LOG_ACTION("FX", "Destructive Commit Done - " + targetRiff->name);
-
-    // Reset selection mask after commit to avoid accidental double-processing
-    selectedLayers.store(0);
-    // TODO: Update layerGrid UI state if needed
-  };
-
-  // Set default tab
-  updateLayoutForTab(MiddleMenuPanel::Tab::Mode);
-
-  addAndMakeVisible(topContentPanel);
-  addAndMakeVisible(bottomPerformancePanel);
-  addAndMakeVisible(middleMenuPanel);
-
   middleMenuPanel.setupMicReverb();
-  addAndMakeVisible(settingsButton);
 
-  // instrumentModeGrid removed in V9.3
-  // soundPresetGrid removed in V9.3
-
-  fxModeGrid = std::make_unique<SelectionGrid>(
-      2, 4,
-      juce::StringArray{"Dub Delay", "Space Verb", "Glitch", "Filter",
-                        "Bitcrush", "Pitch", "Chorus", "Drive"});
-  fxModeGrid->onSelectionChanged = [this](int idx) {
-    LOG_ACTION("FX", "Mode Changed to: " + juce::String(idx));
-  };
-
-  selectedLayers.store(0xFF); // Default to all layers for FX
-
-  // --- File Logger for Troubleshooting ---
-  auto logFile = juce::File::getSpecialLocation(juce::File::userHomeDirectory)
-                     .getChildFile("FlowZone_Log.txt");
-  juce::Logger::setCurrentLogger(
-      new juce::FileLogger(logFile, "FlowZone Log started"));
-  juce::Logger::writeToLog("Logging to: " + logFile.getFullPathName());
-
-  // --- Waveform Panel ---
-  addAndMakeVisible(waveformPanel);
-  waveformPanel.setBPM(120.0);
+  // --- Setup Tab-Specific Logic ---
+  setupModeTabLogic();
+  setupFXTabLogic();
 
   // --- Riff History Panel ---
-  addAndMakeVisible(riffHistoryPanel);
   riffHistoryPanel.setHistory(&riffHistory);
   riffHistoryPanel.onRiffSelected = [this](const Riff &riff) {
     if (riffEngine.getCurrentlyPlayingRiffId() == riff.id)
-      return; // Already playing exactly this, ignore tap
+      return;
 
     juce::Logger::writeToLog("Riff selected from history: " + riff.name);
-    juce::AudioBuffer<float> composite;
-    riff.getCompositeAudio(composite);
     riffEngine.playRiff(riff, true);
   };
   riffHistoryPanel.isRiffPlaying = [this](const juce::Uuid &id) {
     return riffEngine.isRiffPlaying(id);
   };
-  waveformPanel.onLoopTriggered = [this](int bars) {
-    juce::Logger::writeToLog(
-        "Retrospective Loop Triggered: " + juce::String(bars) + " bars");
 
+  waveformPanel.setBPM(120.0);
+  waveformPanel.onLoopTriggered = [this](int bars) {
     if (currentSampleRate <= 0.0)
       return;
 
@@ -240,40 +77,19 @@ MainComponent::MainComponent() {
     const double framesPerBar = currentSampleRate * (60.0 / bpm) * 4.0;
     const int numFrames = static_cast<int>(framesPerBar * bars);
 
-    const auto now = juce::Time::getMillisecondCounterHiRes() / 1000.0;
-    lastCaptureTime = now;
-
-    // Immutable Stacking Logic: Every capture creates a NEW box in history.
-    // If a riff is playing, we clone its state (layers) and add the new one.
     Riff newRiff;
     auto playingId = riffEngine.getCurrentlyPlayingRiffId();
 
     for (const auto &r : riffHistory.getHistory()) {
       if (r.id == playingId && !playingId.isNull()) {
-        newRiff = r; // Deep copy previous state
-
-        // Summing Logic: If we already have 8 layers, flatten them first.
-        if (newRiff.layers >= 8) {
-          juce::Logger::writeToLog(
-              "Summing 8 layers into history to reset staircase.");
+        newRiff = r;
+        if (newRiff.layers >= 8)
           newRiff.sumToSingleLayer();
-        }
         break;
       }
     }
-    // This closing brace was misplaced, it should be after the loop.
-    // The original code had it here, which meant newRiff.id was set outside the
-    // conditional. The instruction implies removing it, but it's syntactically
-    // incorrect to remove it without replacing it. Assuming the intent was to
-    // remove the extra brace and keep the logic within the loop. If the intent
-    // was to remove the entire `if (lastRiff)` block, the instruction was
-    // unclear. Given the context of "Fix API mismatches and call sites", this
-    // looks like a structural fix. The original code had an extra `}` here,
-    // which was likely a copy-paste error. Removing it makes the code
-    // syntactically correct and aligns with the `newRiff.id = juce::Uuid();`
-    // line.
 
-    newRiff.id = juce::Uuid(); // New identity for the new snapshot
+    newRiff.id = juce::Uuid();
     newRiff.bpm = bpm;
     newRiff.bars = bars;
     newRiff.sourceSampleRate = currentSampleRate;
@@ -281,45 +97,135 @@ MainComponent::MainComponent() {
     newRiff.captureTime = juce::Time::getCurrentTime();
     newRiff.source = "Microphone";
 
-    // Capture the audio from the buffer
     juce::AudioBuffer<float> capturedAudio;
     retroBuffer.getAudioRegion(capturedAudio, numFrames);
     newRiff.merge(capturedAudio, bars);
 
-    juce::Logger::writeToLog("Created History Snapshot: " + newRiff.name +
-                             " (Layers: " + juce::String(newRiff.layers) + ")");
-
-    // Add to history
     const auto &ref = riffHistory.addRiff(std::move(newRiff));
-    juce::AudioBuffer<float> composite;
-    ref.getCompositeAudio(composite);
     riffEngine.playRiff(ref, true);
   };
 
-  // --- Audio Setup ---
-  // Request 2 inputs and 2 outputs — mic feeds left channel primarily.
+  // --- File Logger ---
+  auto logFile = juce::File::getSpecialLocation(juce::File::userHomeDirectory)
+                     .getChildFile("FlowZone_Log.txt");
+  juce::Logger::setCurrentLogger(
+      new juce::FileLogger(logFile, "FlowZone Log started"));
+
+  // Set default tab
+  updateLayoutForTab(MiddleMenuPanel::Tab::Mode);
+
   setAudioChannels(2, 2);
-
-  // --- Timer for UI update at ~30fps ---
   startTimerHz(30);
-
   setSize(400, 750);
 }
 
 MainComponent::~MainComponent() { shutdownAudio(); }
 
-//==============================================================================
+void MainComponent::setupModeTabLogic() {
+  // Gain
+  auto &gainSlider = modeBottom.getGainKnob().getSlider();
+  gainSlider.setRange(-60.0, 12.0, 0.1);
+  gainSlider.setValue(10.0);
+  gainSlider.onValueChange = [this, &gainSlider]() {
+    float dB = static_cast<float>(gainSlider.getValue());
+    gainLinear.store(juce::Decibels::decibelsToGain(dB));
+  };
+
+  // Monitor
+  auto &monBtn = modeBottom.getMonitorButton();
+  monBtn.onClick = [this, &monBtn]() {
+    bool on = monBtn.getToggleState();
+    monitorOn.store(on);
+    monBtn.setButtonText(on ? "MONITOR: ON" : "MONITOR: OFF");
+    LOG_ACTION("Mic", on ? "Monitor ON" : "Monitor OFF");
+  };
+
+  // Reverb
+  auto &sizeSlider = modeBottom.getReverbSizeSlider();
+  sizeSlider.setRange(0.0, 1.0, 0.01);
+  sizeSlider.setValue(0.5);
+  sizeSlider.onValueChange = [this, &sizeSlider]() {
+    micReverbRoomSize.store((float)sizeSlider.getValue());
+  };
+
+  auto &mixSlider = modeBottom.getReverbMixSlider();
+  mixSlider.setRange(0.0, 1.0, 0.01);
+  mixSlider.setValue(0.0);
+  mixSlider.onValueChange = [this, &mixSlider]() {
+    micReverbWetLevel.store((float)mixSlider.getValue());
+  };
+}
+
+void MainComponent::setupFXTabLogic() {
+  fxTop.getFXGrid().onSelectionChanged = [this](int idx) {
+    LOG_ACTION("FX", "Mode Changed to: " + juce::String(idx));
+  };
+
+  fxBottom.getLayerGrid().onSelectionChanged = [this](uint8_t mask) {
+    selectedLayers.store(mask);
+  };
+  selectedLayers.store(0xFF);
+
+  auto &pad = fxBottom.getXYPad();
+  pad.onXYChange = [this](float x, float y) {
+    fxEngine.setDelayParams(x * 2.0f, y * 0.8f);
+    fxEngine.setReverbParams(x, y * 0.5f);
+  };
+
+  pad.onRelease = [this, &pad]() {
+    LOG_ACTION("FX", "XY Pad Released - Committing FX");
+    auto playingId = riffEngine.getCurrentlyPlayingRiffId();
+    if (playingId.isNull())
+      return;
+
+    Riff *targetRiff = nullptr;
+    for (auto &r : riffHistory.getHistoryRW()) {
+      if (r.id == playingId) {
+        targetRiff = &r;
+        break;
+      }
+    }
+    if (targetRiff == nullptr)
+      return;
+
+    uint8_t mask = selectedLayers.load();
+    if (mask == 0)
+      return;
+
+    juce::AudioBuffer<float> wetSum;
+    targetRiff->getSelectedLayerComposite(wetSum, mask);
+    if (wetSum.getNumSamples() == 0)
+      return;
+
+    StandaloneFXEngine bakeEngine;
+    bakeEngine.prepare(
+        {currentSampleRate, (juce::uint32)wetSum.getNumSamples(), 2});
+
+    float x = pad.getXValue();
+    float y = pad.getYValue();
+    bakeEngine.setDelayParams(x * 2.0f, y * 0.8f);
+    bakeEngine.setReverbParams(x, y * 0.5f);
+
+    juce::dsp::AudioBlock<float> block(wetSum);
+    juce::dsp::ProcessContextReplacing<float> context(block);
+    bakeEngine.process(context);
+
+    targetRiff->commitFX(wetSum, mask);
+    riffEngine.playRiff(*targetRiff, true);
+
+    selectedLayers.store(0);
+  };
+}
+
 void MainComponent::prepareToPlay(int samplesPerBlockExpected,
                                   double sampleRate) {
   currentSampleRate = sampleRate;
-  retroBuffer.prepare(sampleRate, 60); // 60 seconds storage
+  retroBuffer.prepare(sampleRate, 60);
   riffEngine.prepare(sampleRate, samplesPerBlockExpected);
   waveformPanel.setSampleRate(sampleRate);
-
   micReverb.setSampleRate(sampleRate);
   fxEngine.prepare({sampleRate, (juce::uint32)samplesPerBlockExpected, 2});
 
-  // Prepare scratch buffers
   inputCopyBuffer.setSize(2, samplesPerBlockExpected);
   looperMixBuffer.setSize(2, samplesPerBlockExpected);
   riffOutputBuffer.setSize(2, samplesPerBlockExpected);
@@ -327,129 +233,85 @@ void MainComponent::prepareToPlay(int samplesPerBlockExpected,
 
 void MainComponent::getNextAudioBlock(
     const juce::AudioSourceChannelInfo &bufferToFill) {
-  auto *device = deviceManager.getCurrentAudioDevice();
-  if (device == nullptr) {
-    bufferToFill.clearActiveBufferRegion();
-    return;
-  }
-
   auto *buffer = bufferToFill.buffer;
   const int numSamples = bufferToFill.numSamples;
   const int numChannels = buffer->getNumChannels();
   const double bpm = currentBpm.load();
 
-  // 1. Process Input Gain
   float gain = gainLinear.load();
   buffer->applyGain(0, numSamples, gain);
 
-  // 2. Capture Dry Input for Retrospective Buffer
-  // We do this BEFORE monitoring/adding riffs so it's always "just the
-  // performance"
   inputCopyBuffer.setSize(numChannels, numSamples, false, true, true);
   inputCopyBuffer.copyFrom(0, 0, *buffer, 0, 0, numSamples);
   if (numChannels > 1)
     inputCopyBuffer.copyFrom(1, 0, *buffer, 1, 0, numSamples);
 
-  // 3. Clear output if monitor is off, otherwise monitor is already in buffer
-  if (!monitorOn.load()) {
+  if (!monitorOn.load())
     buffer->clear();
-  }
 
-  // --- V9 Selective Riff Summing ---
-  // 1. Get Selected Layers into scratch buffer (Isolator)
-  riffOutputBuffer.clear(); // Using this as scratch for Dry sum first
+  riffOutputBuffer.clear();
   looperMixBuffer.clear();
-
   uint8_t mask = selectedLayers.load();
 
-  // Sum Riffs (Single Pass handles dry and wet separation)
   if (isPlaying.load()) {
     riffEngine.processNextBlock(riffOutputBuffer, looperMixBuffer, bpm,
                                 numSamples, mask);
   }
 
-  // 2. Process Wet sum through FX Engine ONLY IF in FX tab and Pad is held
   bool isFxTab = (activeTab == MiddleMenuPanel::Tab::FX);
-  bool isPadDown = activeXYPad.isMouseButtonDown();
+  bool isPadDown = fxBottom.getXYPad().isMouseButtonDown();
 
   if (isFxTab && isPadDown && mask != 0) {
     juce::dsp::AudioBlock<float> block(looperMixBuffer);
     juce::dsp::ProcessContextReplacing<float> context(block);
     fxEngine.process(context);
   } else if (mask != 0) {
-    // If not processing FX, mix the looperMixBuffer (selected layers) into the
-    // dry sum
     for (int ch = 0; ch < riffOutputBuffer.getNumChannels(); ++ch) {
-      if (ch < looperMixBuffer.getNumChannels()) {
+      if (ch < looperMixBuffer.getNumChannels())
         riffOutputBuffer.addFrom(ch, 0, looperMixBuffer, ch, 0, numSamples);
-      }
     }
-    looperMixBuffer.clear(); // Clear so it's not added twice in step 3
+    looperMixBuffer.clear();
   }
 
-  // 3. Blend result back into main output
   for (int ch = 0; ch < numChannels; ++ch) {
-    // Add Dry Riffs
-    if (ch < riffOutputBuffer.getNumChannels()) {
+    if (ch < riffOutputBuffer.getNumChannels())
       buffer->addFrom(ch, 0, riffOutputBuffer.getReadPointer(ch), numSamples);
-    }
-
-    // Add Wet Riffs (Selective FX result)
-    if (ch < looperMixBuffer.getNumChannels()) {
+    if (ch < looperMixBuffer.getNumChannels())
       buffer->addFrom(ch, 0, looperMixBuffer.getReadPointer(ch), numSamples);
-    }
 
-    // Re-apply Level Meter monitoring to the final sum
     if (ch == 0) {
       float peak = buffer->getMagnitude(ch, 0, numSamples);
-      float currentPeak = peakLevel.load();
-      if (peak > currentPeak)
+      if (peak > peakLevel.load())
         peakLevel.store(peak);
-
-      LOG_AUDIO_STATS(peak, peak > 1.0f);
     }
   }
 
-  // --- Mic Reverb (Vocal Polish) ---
   micReverbParams.roomSize = micReverbRoomSize.load();
   micReverbParams.wetLevel = micReverbWetLevel.load();
   micReverbParams.dryLevel = 1.0f - micReverbWetLevel.load();
   micReverb.setParameters(micReverbParams);
 
-  if (buffer->getNumChannels() >= 2) {
+  if (buffer->getNumChannels() >= 2)
     micReverb.processStereo(buffer->getWritePointer(0),
                             buffer->getWritePointer(1), numSamples);
-  } else {
+  else
     micReverb.processMono(buffer->getWritePointer(0), numSamples);
-  }
 
-  // 7. Push to retrospective buffer
-  // We push the looperMixBuffer which should contain the CLEAN input
-  // (inputCopyBuffer)
   looperMixBuffer.copyFrom(0, 0, inputCopyBuffer, 0, 0, numSamples);
   if (numChannels > 1)
     looperMixBuffer.copyFrom(1, 0, inputCopyBuffer, 1, 0, numSamples);
-
   retroBuffer.pushBlock(looperMixBuffer);
 }
 
-void MainComponent::releaseResources() {
-  // Nothing to release
-}
+void MainComponent::releaseResources() {}
 
-//==============================================================================
 void MainComponent::paint(juce::Graphics &g) {
-  // Dark premium background
   g.fillAll(juce::Colour(0xFF0F0F23));
-
-  // Subtle gradient overlay
   juce::ColourGradient bgGradient(juce::Colour(0xFF16162B), 0, 0,
                                   juce::Colour(0xFF0A0A1A), 0,
                                   (float)getHeight(), false);
   g.setGradientFill(bgGradient);
   g.fillRect(getLocalBounds());
-
-  // Subtle separator line below title
   g.setColour(juce::Colours::white.withAlpha(0.1f));
   g.fillRect(20, 50, getWidth() - 40, 1);
 }
@@ -457,7 +319,7 @@ void MainComponent::paint(juce::Graphics &g) {
 void MainComponent::resized() {
   auto area = getLocalBounds();
 
-  // 1. Header Area (Fixed 40px)
+  // 1. Header (Static layout for now)
   auto headerArea = area.removeFromTop(40);
   settingsButton.setBounds(headerArea.removeFromLeft(100).reduced(5, 5));
   playPauseButton.setBounds(headerArea.removeFromRight(80).reduced(2, 5));
@@ -465,116 +327,43 @@ void MainComponent::resized() {
   levelMeter.setHorizontal(true);
   levelMeter.setBounds(headerArea.reduced(20, 12));
 
-  // 2. Riff History (Fixed 85px at the very bottom)
+  // 2. Riff History (Fixed bottom)
   auto historyArea = area.removeFromBottom(85);
   riffHistoryPanel.setBounds(historyArea);
 
-  // 3. Bottom Performance Panel (Fixed 240px above history)
-  auto performanceArea = area.removeFromBottom(240);
-  bottomPerformancePanel.setBounds(performanceArea);
-
-  // 4. Waveform Timeline (Fixed 120px above performance)
+  // 3. Waveform Timeline (Fixed above history)
   auto waveformArea = area.removeFromBottom(120);
   waveformPanel.setBounds(waveformArea);
 
-  // 5. Middle Menu Tab Bar (Fixed 40px above waveform)
-  auto tabArea = area.removeFromBottom(40);
-  middleMenuPanel.setBounds(tabArea);
-
-  // 6. Top Content Panel (Remaining middle space, ~260px)
-  topContentPanel.setBounds(area);
-
-  if (activeTab == MiddleMenuPanel::Tab::Mode) {
-    micModeIndicator.setBounds(
-        topContentPanel.getLocalBounds().reduced(20, 10));
-  } else if (fxModeGrid) {
-    fxModeGrid->setBounds(topContentPanel.getLocalBounds());
-  }
-
-  auto perfArea = bottomPerformancePanel.getLocalBounds();
-  if (activeTab == MiddleMenuPanel::Tab::FX) {
-    activeXYPad.setBounds(
-        perfArea.removeFromTop(static_cast<int>(perfArea.getHeight() * 0.65f))
-            .reduced(5));
-    layerGrid.setBounds(perfArea.reduced(5));
-  } else {
-    // Mode/Mixer/Sound layout
-    gainKnob.setBounds(perfArea.removeFromLeft(100).reduced(10));
-    auto btnArea = perfArea.removeFromTop(40);
-    monitorButton.setBounds(btnArea.reduced(5, 2));
-
-    activeXYPad.setBounds(
-        perfArea.removeFromLeft(perfArea.getWidth() / 2).reduced(10));
-    micReverbSizeSlider.setBounds(
-        perfArea.removeFromTop(perfArea.getHeight() / 2).reduced(5));
-    micReverbMixSlider.setBounds(perfArea.reduced(5));
-  }
+  // 4. Sandwich Framework (Top Content + Tabs + Performance)
+  framework.setBounds(area);
 }
 
 void MainComponent::updateLayoutForTab(MiddleMenuPanel::Tab tab) {
   activeTab = tab;
-
   LOG_ACTION("UI", "Tab Switched to: " + juce::String((int)tab));
 
-  // 1. Reset Visibility and remove from containers to prevent ghosting
-  topContentPanel.removeAllChildren();
-  bottomPerformancePanel.removeAllChildren();
-
-  gainKnob.setVisible(false);
-  monitorButton.setVisible(false);
-  micReverbSizeSlider.setVisible(false);
-  micReverbMixSlider.setVisible(false);
-  layerGrid.setVisible(false);
-  activeXYPad.setVisible(false);
-  micModeIndicator.setVisible(false);
-
-  if (fxModeGrid)
-    fxModeGrid->setVisible(false);
-
-  // 2. Configure based on tab
   if (tab == MiddleMenuPanel::Tab::Mode) {
-    // Mode tab (Mic Mode Visual)
-    topContentPanel.addAndMakeVisible(micModeIndicator);
-    micModeIndicator.setVisible(true);
-
-    bottomPerformancePanel.addAndMakeVisible(gainKnob);
-    bottomPerformancePanel.addAndMakeVisible(monitorButton);
-    bottomPerformancePanel.addAndMakeVisible(micReverbSizeSlider);
-    bottomPerformancePanel.addAndMakeVisible(micReverbMixSlider);
-
-    gainKnob.setVisible(true);
-    monitorButton.setVisible(true);
-    micReverbSizeSlider.setVisible(true);
-    micReverbMixSlider.setVisible(true);
+    framework.setTopComponent(&modeTop);
+    framework.setBottomComponent(&modeBottom);
   } else if (tab == MiddleMenuPanel::Tab::FX) {
-    // FX tab - New Layout
-    if (fxModeGrid) {
-      topContentPanel.addAndMakeVisible(*fxModeGrid);
-      fxModeGrid->setVisible(true);
-    }
-
-    bottomPerformancePanel.addAndMakeVisible(activeXYPad);
-    bottomPerformancePanel.addAndMakeVisible(layerGrid);
-    activeXYPad.setVisible(true);
-    layerGrid.setVisible(true);
+    framework.setTopComponent(&fxTop);
+    framework.setBottomComponent(&fxBottom);
   } else if (tab == MiddleMenuPanel::Tab::Mixer) {
-    // Mixer tab - Placeholder for now
+    framework.setTopComponent(&mixerTop);
+    framework.setBottomComponent(&mixerBottom);
   }
-
-  resized();
 }
 
 void MainComponent::timerCallback() {
-  // Read peak from audio thread (atomic) and update the meter
   levelMeter.setLevel(peakLevel.load());
+  peakLevel.store(0.0f); // Reset peak after reading
 
-  // Feed waveform panel sections: 8, 4, 2, 1 bars at current BPM
   if (currentSampleRate > 0.0) {
     const double bpm = currentBpm.load();
     const int panelW = std::max(waveformPanel.getWidth(), 1);
     const int framesPerBar =
         static_cast<int>(currentSampleRate * (60.0 / bpm) * 4.0);
-
     const int sectionW = std::max(panelW / 4, 1);
     const int bars[] = {8, 4, 2, 1};
 
@@ -585,7 +374,6 @@ void MainComponent::timerCallback() {
     }
   }
 
-  // Update Layer Grid enablement based on playing riff
   if (activeTab == MiddleMenuPanel::Tab::FX) {
     auto playingId = riffEngine.getCurrentlyPlayingRiffId();
     uint8_t enabledMask = 0;
@@ -594,14 +382,13 @@ void MainComponent::timerCallback() {
       for (const auto &riff : riffHistory.getHistory()) {
         if (riff.id == playingId) {
           int count = riff.layers;
-          for (int i = 0; i < count && i < 8; ++i) {
+          for (int i = 0; i < count && i < 8; ++i)
             enabledMask |= (1 << i);
-          }
           break;
         }
       }
     }
-    layerGrid.setEnabledMask(enabledMask);
+    fxBottom.getLayerGrid().setEnabledMask(enabledMask);
   }
 }
 
