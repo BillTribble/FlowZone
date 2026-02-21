@@ -76,30 +76,10 @@ MainComponent::MainComponent() {
     const double bpm = currentBpm.load();
     const double framesPerBar = currentSampleRate * (60.0 / bpm) * 4.0;
 
-    // --- Master Clock Synchronized Capture ---
-    // The retrospective buffer lags slightly behind or isn't perfectly
-    // bar-aligned with the current playback position. Calculate the precise
-    // sample offset from the start of the current bar (master phase) to ensure
-    // perfectly locked playback.
-    const double masterPpq = playbackPosition.load();
-    const double beatsPerBar = 4.0;
-    const double barsToCapture = static_cast<double>(bars);
-
-    // Find how many beats into the current 'barsToCapture' cycle we are.
-    // e.g. for a 1-bar loop (4 beats), if we are at PPQ 5.5, we are 1.5 beats
-    // into the current cycle.
-    const double cycleDuration = barsToCapture * beatsPerBar;
-    const double currentBeatInCycle =
-        masterPpq - std::floor(masterPpq / cycleDuration) * cycleDuration;
-
-    // Convert those extra beats into an exact sample offset into the past.
-    // We want to grab a full loop starting exactly from the '1' of the current
-    // cycle.
-    const double framesPerBeat = currentSampleRate * (60.0 / bpm);
-    const int offsetSamples =
-        static_cast<int>(currentBeatInCycle * framesPerBeat);
-    const int numFrames =
-        static_cast<int>(barsToCapture * beatsPerBar * framesPerBeat);
+    // --- WYSIWYG Capture ---
+    // Revert to visual sync directly to solve missing audio chunks.
+    const int offsetSamples = 0;
+    const int numFrames = static_cast<int>(framesPerBar * bars);
 
     Riff newRiff;
     juce::AudioBuffer<float> capturedAudio;
@@ -189,6 +169,14 @@ void MainComponent::setupModeTabLogic() {
     LOG_ACTION("Mic", on ? "Monitor ON" : "Monitor OFF");
   };
 
+  auto &bypassBtn = modeBottom.getBypassButton();
+  bypassBtn.onClick = [this, &bypassBtn]() {
+    bool bypassed = bypassBtn.getToggleState();
+    micReverbBypassed.store(bypassed);
+    bypassBtn.setButtonText(bypassed ? "BYPASS: ON" : "BYPASS: OFF");
+    LOG_ACTION("Mic", bypassed ? "Reverb Bypass ON" : "Reverb Bypass OFF");
+  };
+
   // Reverb
   auto &sizeSlider = modeBottom.getReverbSizeSlider();
   sizeSlider.setRange(0.0, 1.0, 0.01);
@@ -221,10 +209,7 @@ void MainComponent::setupFXTabLogic() {
     fxEngine.setReverbParams(x, y * 0.5f);
   };
 
-  pad.onRelease = [this, &pad]() {
-    LOG_ACTION("FX", "XY Pad Released");
-    selectedLayers.store(0);
-  };
+  pad.onRelease = [this, &pad]() { LOG_ACTION("FX", "XY Pad Released"); };
 }
 
 void MainComponent::prepareToPlay(int samplesPerBlockExpected,
@@ -275,14 +260,16 @@ void MainComponent::getNextAudioBlock(
   }
 
   // --- 4. Mic Reverb Routing (Input-Only) ---
-  micReverbParams.roomSize = micReverbRoomSize.load();
-  micReverbParams.wetLevel = micReverbWetLevel.load();
-  micReverbParams.dryLevel = 1.0f - micReverbWetLevel.load();
-  micReverb.setParameters(micReverbParams);
+  if (!micReverbBypassed.load()) {
+    micReverbParams.roomSize = micReverbRoomSize.load();
+    micReverbParams.wetLevel = micReverbWetLevel.load();
+    micReverbParams.dryLevel = 1.0f - micReverbWetLevel.load();
+    micReverb.setParameters(micReverbParams);
 
-  if (inputCopyBuffer.getNumChannels() >= 2)
-    micReverb.processStereo(inputCopyBuffer.getWritePointer(0),
-                            inputCopyBuffer.getWritePointer(1), numSamples);
+    if (inputCopyBuffer.getNumChannels() >= 2)
+      micReverb.processStereo(inputCopyBuffer.getWritePointer(0),
+                              inputCopyBuffer.getWritePointer(1), numSamples);
+  }
 
   buffer->clear();
 
@@ -300,24 +287,18 @@ void MainComponent::getNextAudioBlock(
   bool isPadDown = fxBottom.getXYPad().isMouseButtonDown();
 
   if (isFxTab) {
-    if (isPadDown && mask != 0) {
-      juce::dsp::AudioBlock<float> block(looperMixBuffer);
-      juce::dsp::ProcessContextReplacing<float> context(block);
-      fxEngine.process(context);
-
-      // FX Mode (Pad Down): Looper sees the WET signal
+    if (mask != 0) {
+      if (isPadDown) {
+        juce::dsp::AudioBlock<float> block(looperMixBuffer);
+        juce::dsp::ProcessContextReplacing<float> context(block);
+        fxEngine.process(context);
+      }
+      // FX Mode: Looper ALWAYS sees the selected layers (wet if pad down, dry
+      // if pad up)
       retroBuffer.pushBlock(looperMixBuffer);
     } else {
-      // FX Mode (Pad Up): Looper sees the DRY Riff signal (not the mic)
-      retroBuffer.pushBlock(riffOutputBuffer);
-
-      if (mask != 0) {
-        for (int ch = 0; ch < riffOutputBuffer.getNumChannels(); ++ch) {
-          if (ch < looperMixBuffer.getNumChannels())
-            riffOutputBuffer.addFrom(ch, 0, looperMixBuffer, ch, 0, numSamples);
-        }
-        looperMixBuffer.clear();
-      }
+      // No layers selected - just keep looper fed with Mic
+      retroBuffer.pushBlock(inputCopyBuffer);
     }
   } else {
     // Normal Mode: Looper sees the DRY Mic signal

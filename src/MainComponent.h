@@ -103,6 +103,7 @@ private:
   juce::Reverb::Parameters micReverbParams;
   std::atomic<float> micReverbRoomSize{0.5f};
   std::atomic<float> micReverbWetLevel{0.0f}; // Default off
+  std::atomic<bool> micReverbBypassed{false};
 
   // --- V9 Selective FX Engine ---
   StandaloneFXEngine fxEngine;
