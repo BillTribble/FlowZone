@@ -97,14 +97,20 @@ MainComponent::MainComponent() {
     uint8_t mask = selectedLayers.load();
 
     if (isFxTab && mask != 0) {
-      // FX Bounce: Ensure we collapse everything into ONE new layer
+      // FX Bounce: Selected layers (in mask) are consolidated into ONE wet
+      // layer. commitFX handles replacing mask layers with capturedAudio.
       newRiff.commitFX(capturedAudio, mask);
-      selectedLayers.store(0xFF); // Default back to all layers selected
+      // Ensure we don't accidentally merge or sum again here
+      selectedLayers.store(0xFF); // Reset to "all selected" for the new riff
     } else {
-      // Normal Capture
-      if (newRiff.layers >= 8)
+      // Normal Capture: Handle 8-layer limit correctly
+      if (newRiff.layers >= 8) {
+        // Record 9th -> then flatten all 9 into exactly ONE composite
+        newRiff.merge(capturedAudio, bars);
         newRiff.sumToSingleLayer();
-      newRiff.merge(capturedAudio, bars);
+      } else {
+        newRiff.merge(capturedAudio, bars);
+      }
     }
 
     newRiff.id = juce::Uuid();
@@ -337,19 +343,34 @@ void MainComponent::getNextAudioBlock(
   }
 
   // --- 5. Final Hardware Mix (Monitoring) ---
+  const uint8_t selectionMask = mask;
+  const uint8_t remainderMask = (~selectionMask) & 0xFF;
+
   for (int ch = 0; ch < numChannels; ++ch) {
+    // A. Unselected Dry Layers: Always audible in dry riff output buffer if
+    // routed correctly. riffEngine.processNextBlock already handles the
+    // mask-based split. Dry component (unselected)
     if (ch < riffOutputBuffer.getNumChannels())
       buffer->addFrom(ch, 0, riffOutputBuffer.getReadPointer(ch), numSamples);
 
-    // Monitor Input (Stereo + Reverb)
+    // B. Monitor / Input Path
     if (monitorOn.load()) {
       if (isFxTab) {
-        // In FX Mode: NEVER hear the mic. Hear wet signal if pad is down.
-        if (isPadDown && ch < looperMixBuffer.getNumChannels())
+        // FX Mode: Mic is suppressed. Selected layers are WET.
+        if (isPadDown && ch < looperMixBuffer.getNumChannels()) {
+          // Add wet processed signal (Selected layers through FX)
           buffer->addFrom(ch, 0, looperMixBuffer.getReadPointer(ch),
                           numSamples);
+        } else if (!isPadDown) {
+          // When pad is UP, we should hear the selected layers DRY.
+          // riffEngine.processNextBlock puts selected layers in looperMixBuffer
+          // (dry) when mask != 0.
+          if (ch < looperMixBuffer.getNumChannels())
+            buffer->addFrom(ch, 0, looperMixBuffer.getReadPointer(ch),
+                            numSamples);
+        }
       } else {
-        // In Normal Mode: Hear the centered dry mic signal
+        // Normal Mode: Hear the centered dry mic signal
         if (ch < inputCopyBuffer.getNumChannels())
           buffer->addFrom(ch, 0, inputCopyBuffer.getReadPointer(ch),
                           numSamples);
