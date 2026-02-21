@@ -85,6 +85,7 @@ void RiffPlaybackEngine::playRiff(const Riff &riff, bool loop) {
   double inheritedPosition = 0.0;
   if (!playingRiffs.empty()) {
     inheritedPosition = playingRiffs.front()->currentPosition;
+    playingRiffs.clear(); // Ensure exclusive playback and correct inheritance
   }
 
   auto playingRiff = std::make_unique<PlayingRiff>();

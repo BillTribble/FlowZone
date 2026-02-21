@@ -241,10 +241,14 @@ void MainComponent::getNextAudioBlock(
   float gain = gainLinear.load();
   buffer->applyGain(0, numSamples, gain);
 
-  inputCopyBuffer.setSize(numChannels, numSamples, false, true, true);
-  inputCopyBuffer.copyFrom(0, 0, *buffer, 0, 0, numSamples);
-  if (numChannels > 1)
-    inputCopyBuffer.copyFrom(1, 0, *buffer, 1, 0, numSamples);
+  inputCopyBuffer.setSize(2, numSamples, false, true, true);
+  if (numChannels > 0) {
+    inputCopyBuffer.copyFrom(0, 0, *buffer, 0, 0, numSamples);
+    inputCopyBuffer.copyFrom(1, 0, *buffer, (numChannels > 1 ? 1 : 0), 0,
+                             numSamples);
+  } else {
+    inputCopyBuffer.clear();
+  }
 
   if (!monitorOn.load())
     buffer->clear();

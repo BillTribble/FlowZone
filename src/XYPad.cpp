@@ -50,6 +50,7 @@ void XYPad::mouseDrag(const juce::MouseEvent &e) { handleMouse(e); }
 void XYPad::mouseUp(const juce::MouseEvent &e) {
   if (onRelease)
     onRelease();
+  repaint();
 }
 
 void XYPad::handleMouse(const juce::MouseEvent &e) {
