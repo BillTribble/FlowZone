@@ -2,8 +2,8 @@
 
 void RiffPlaybackEngine::prepare(double sampleRate, int /*samplesPerBlock*/) {
   currentSampleRate = sampleRate;
-  const juce::ScopedLock sl(lock);
-  playingRiffs.clear();
+  // Keep playing riffs when sample rate/buffer size changes!
+  // The process logic handles arbitrary sample rates properly.
 }
 
 void RiffPlaybackEngine::processNextBlock(juce::AudioBuffer<float> &dryBuffer,

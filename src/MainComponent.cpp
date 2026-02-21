@@ -135,6 +135,14 @@ MainComponent::MainComponent() {
   updateLayoutForTab(MiddleMenuPanel::Tab::Mode);
 
   setAudioChannels(2, 2);
+
+  // Set default buffer size to 32 samples
+  auto setup = deviceManager.getAudioDeviceSetup();
+  if (setup.bufferSize != 32 && setup.bufferSize > 0) {
+    setup.bufferSize = 32;
+    deviceManager.setAudioDeviceSetup(setup, true);
+  }
+
   startTimerHz(30);
   setSize(400, 750);
 }
