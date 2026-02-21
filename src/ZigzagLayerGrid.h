@@ -17,6 +17,7 @@ public:
         if (onSelectionChanged)
           onSelectionChanged(getSelectionMask());
       };
+      b->setToggleState(true, juce::dontSendNotification);
       addAndMakeVisible(b);
     }
   }

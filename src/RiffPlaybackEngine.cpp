@@ -6,25 +6,25 @@ void RiffPlaybackEngine::prepare(double sampleRate, int /*samplesPerBlock*/) {
   playingRiffs.clear();
 }
 
-void RiffPlaybackEngine::processNextBlock(
-    juce::AudioBuffer<float> &outputBuffer, double targetBpm,
-    int numSamplesToProcess, uint8_t layerMask) {
+void RiffPlaybackEngine::processNextBlock(juce::AudioBuffer<float> &dryBuffer,
+                                          juce::AudioBuffer<float> &wetBuffer,
+                                          double targetBpm,
+                                          int numSamplesToProcess,
+                                          uint8_t layerMask) {
   const juce::ScopedLock sl(lock);
 
-  const int outChannels = outputBuffer.getNumChannels();
+  const int dryChannels = dryBuffer.getNumChannels();
+  const int wetChannels = wetBuffer.getNumChannels();
 
   for (auto it = playingRiffs.begin(); it != playingRiffs.end();) {
     auto &riff = *it;
 
-    // We sum locally for this riff then add to output
     const int numLayers = static_cast<int>(riff->layers.size());
     if (numLayers == 0) {
       it = playingRiffs.erase(it);
       continue;
     }
 
-    // Use the first layer to determine length and speed (they should be
-    // consistent)
     const int riffSamples = riff->layers[0].getNumSamples();
     const double speedRatio = (targetBpm / riff->sourceBpm) *
                               (riff->sourceSampleRate / currentSampleRate);
@@ -35,9 +35,9 @@ void RiffPlaybackEngine::processNextBlock(
       const float fraction = static_cast<float>(riff->currentPosition - posInt);
 
       for (int layerIdx = 0; layerIdx < numLayers; ++layerIdx) {
-        // Check if this layer is enabled in the mask
-        if (!(layerMask & (1 << layerIdx)))
-          continue;
+        bool isWet = (layerMask & (1 << layerIdx));
+        auto &targetBuffer = isWet ? wetBuffer : dryBuffer;
+        const int outChannels = targetBuffer.getNumChannels();
 
         const auto &layerBuf = riff->layers[layerIdx];
         const int layerChannels = layerBuf.getNumChannels();
@@ -53,7 +53,7 @@ void RiffPlaybackEngine::processNextBlock(
                            : (riff->looping ? layerData[0] : 0.0f);
             float interp = (s0 + (s1 - s0) * fraction) * gain;
 
-            outputBuffer.addFrom(outCh, i, &interp, 1);
+            targetBuffer.addFrom(outCh, i, &interp, 1);
           }
         }
       }
@@ -114,7 +114,6 @@ void RiffPlaybackEngine::playRiff(const Riff &riff, bool loop) {
   playingRiff->finished = false;
   playingRiff->totalBars = riff.bars;
 
-  playingRiffs.clear(); // Exclusive playback
   playingRiffs.push_back(std::move(playingRiff));
 }
 

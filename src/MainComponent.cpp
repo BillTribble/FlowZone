@@ -202,6 +202,16 @@ MainComponent::MainComponent() {
     LOG_ACTION("Sound", "Preset Changed to: " + juce::String(idx));
   };
 
+  fxModeGrid = std::make_unique<SelectionGrid>(
+      2, 4,
+      juce::StringArray{"Dub Delay", "Space Verb", "Glitch", "Filter",
+                        "Bitcrush", "Pitch", "Chorus", "Drive"});
+  fxModeGrid->onSelectionChanged = [this](int idx) {
+    LOG_ACTION("FX", "Mode Changed to: " + juce::String(idx));
+  };
+
+  selectedLayers.store(0xFF); // Default to all layers for FX
+
   // --- File Logger for Troubleshooting ---
   auto logFile = juce::File::getSpecialLocation(juce::File::userHomeDirectory)
                      .getChildFile("FlowZone_Log.txt");
@@ -361,14 +371,10 @@ void MainComponent::getNextAudioBlock(
 
   uint8_t mask = selectedLayers.load();
 
-  // Dry Sum (everything NOT in mask)
+  // Sum Riffs (Single Pass handles dry and wet separation)
   if (isPlaying.load()) {
-    riffEngine.processNextBlock(riffOutputBuffer, bpm, numSamples, ~mask);
-  }
-
-  // Wet Sum (everything IN mask)
-  if (isPlaying.load()) {
-    riffEngine.processNextBlock(looperMixBuffer, bpm, numSamples, mask);
+    riffEngine.processNextBlock(riffOutputBuffer, looperMixBuffer, bpm,
+                                numSamples, mask);
   }
 
   // 2. Process Wet sum through FX Engine
@@ -475,14 +481,31 @@ void MainComponent::resized() {
   // 6. Top Content Panel (Remaining middle space, ~260px)
   topContentPanel.setBounds(area);
 
-  if (instrumentModeGrid) {
+  if (instrumentModeGrid)
     instrumentModeGrid->setBounds(topContentPanel.getLocalBounds());
-  }
-  if (soundPresetGrid) {
+  if (soundPresetGrid)
     soundPresetGrid->setBounds(topContentPanel.getLocalBounds());
+  if (fxModeGrid)
+    fxModeGrid->setBounds(topContentPanel.getLocalBounds());
+
+  auto perfArea = bottomPerformancePanel.getLocalBounds();
+  if (activeTab == MiddleMenuPanel::Tab::FX) {
+    activeXYPad.setBounds(
+        perfArea.removeFromTop(static_cast<int>(perfArea.getHeight() * 0.65f))
+            .reduced(5));
+    layerGrid.setBounds(perfArea.reduced(5));
+  } else {
+    // Mode/Mixer/Sound layout
+    gainKnob.setBounds(perfArea.removeFromLeft(100).reduced(10));
+    auto btnArea = perfArea.removeFromTop(40);
+    monitorButton.setBounds(btnArea.reduced(5, 2));
+
+    activeXYPad.setBounds(
+        perfArea.removeFromLeft(perfArea.getWidth() / 2).reduced(10));
+    micReverbSizeSlider.setBounds(
+        perfArea.removeFromTop(perfArea.getHeight() / 2).reduced(5));
+    micReverbMixSlider.setBounds(perfArea.reduced(5));
   }
-  layerGrid.setBounds(topContentPanel.getLocalBounds());
-  activeXYPad.setBounds(bottomPerformancePanel.getLocalBounds());
 }
 
 void MainComponent::updateLayoutForTab(MiddleMenuPanel::Tab tab) {
@@ -498,10 +521,10 @@ void MainComponent::updateLayoutForTab(MiddleMenuPanel::Tab tab) {
   layerGrid.setVisible(false);
   activeXYPad.setVisible(false);
 
-  if (instrumentModeGrid)
-    instrumentModeGrid->setVisible(false);
-  if (soundPresetGrid)
-    soundPresetGrid->setVisible(false);
+  if (fxModeGrid)
+    fxModeGrid->setVisible(false);
+  layerGrid.setVisible(false);
+  activeXYPad.setVisible(false);
 
   // 2. Configure based on tab
   if (tab == MiddleMenuPanel::Tab::Mode) {
@@ -521,12 +544,16 @@ void MainComponent::updateLayoutForTab(MiddleMenuPanel::Tab tab) {
     micReverbSizeSlider.setVisible(true);
     micReverbMixSlider.setVisible(true);
   } else if (tab == MiddleMenuPanel::Tab::FX) {
-    // FX tab
-    topContentPanel.addAndMakeVisible(layerGrid);
-    layerGrid.setVisible(true);
+    // FX tab - New Layout
+    if (fxModeGrid) {
+      topContentPanel.addAndMakeVisible(*fxModeGrid);
+      fxModeGrid->setVisible(true);
+    }
 
     bottomPerformancePanel.addAndMakeVisible(activeXYPad);
+    bottomPerformancePanel.addAndMakeVisible(layerGrid);
     activeXYPad.setVisible(true);
+    layerGrid.setVisible(true);
   } else if (tab == MiddleMenuPanel::Tab::Sound) {
     // Sound tab (Presets)
     if (soundPresetGrid) {

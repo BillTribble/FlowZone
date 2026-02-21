@@ -13,9 +13,9 @@ public:
   ~RiffPlaybackEngine() = default;
 
   void prepare(double sampleRate, int samplesPerBlock);
-  void processNextBlock(juce::AudioBuffer<float> &outputBuffer,
-                        double targetBpm, int numSamplesToProcess,
-                        uint8_t layerMask = 0xFF);
+  void processNextBlock(juce::AudioBuffer<float> &dryBuffer,
+                        juce::AudioBuffer<float> &wetBuffer, double targetBpm,
+                        int numSamplesToProcess, uint8_t layerMask = 0xFF);
 
   /**
    * Starts playback of a riff.
