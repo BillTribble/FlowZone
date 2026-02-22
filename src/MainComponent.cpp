@@ -11,7 +11,6 @@ MainComponent::MainComponent() {
   addAndMakeVisible(bpmDisplay);
   addAndMakeVisible(playPauseButton);
   addAndMakeVisible(newRiffButton);
-  addAndMakeVisible(settingsButton);
   addAndMakeVisible(levelMeter);
 
   newRiffButton.setColour(juce::TextButton::buttonColourId,
@@ -30,6 +29,12 @@ MainComponent::MainComponent() {
     sessionManager.syncRiffToDisk(ref);
     sessionManager.saveManifest(riffHistory);
     riffEngine.playRiff(ref, true);
+
+    if (!isPlaying.load()) {
+      isPlaying.store(true);
+      playPauseButton.setToggleState(true, juce::dontSendNotification);
+      playPauseButton.setButtonText("PAUSE");
+    }
   };
 
   playPauseButton.setClickingTogglesState(true);
@@ -44,23 +49,7 @@ MainComponent::MainComponent() {
     playPauseButton.setButtonText(playing ? "PAUSE" : "PLAY");
   };
 
-  settingsButton.setColour(juce::TextButton::buttonColourId,
-                           juce::Colour(0xFF2A2A4A).withAlpha(0.8f));
-  settingsButton.onClick = [this]() {
-    if (deviceSelector == nullptr) {
-      deviceSelector = std::make_unique<juce::AudioDeviceSelectorComponent>(
-          deviceManager, 1, 2, 2, 2, false, false, true, false);
-      deviceSelector->setSize(400, 400);
-      juce::DialogWindow::LaunchOptions options;
-      options.content.setOwned(deviceSelector.release());
-      options.dialogTitle = "AUDIO SETTINGS";
-      options.dialogBackgroundColour = juce::Colours::black;
-      options.escapeKeyTriggersCloseButton = true;
-      options.resizable = false;
-      options.useNativeTitleBar = true;
-      options.launchAsync();
-    }
-  };
+  // Settings functionality moved to Mixer Tab
 
   // --- Main Framework & Tab Panels ---
   addAndMakeVisible(framework);
@@ -226,14 +215,6 @@ void MainComponent::setupModeTabLogic() {
     LOG_ACTION("Mic", on ? "Monitor ON" : "Monitor OFF");
   };
 
-  auto &bypassBtn = modeBottom.getBypassButton();
-  bypassBtn.onClick = [this, &bypassBtn]() {
-    bool bypassed = bypassBtn.getToggleState();
-    micReverbBypassed.store(bypassed);
-    bypassBtn.setButtonText(bypassed ? "BYPASS: ON" : "BYPASS: OFF");
-    LOG_ACTION("Mic", bypassed ? "Reverb Bypass ON" : "Reverb Bypass OFF");
-  };
-
   // Reverb
   auto &sizeSlider = modeBottom.getReverbSizeSlider();
   sizeSlider.setRange(0.0, 1.0, 0.01);
@@ -283,7 +264,19 @@ void MainComponent::setupMixerTabLogic() {
 
   mixerTop.onMoreClicked = [this]() {
     LOG_ACTION("Mixer", "Settings Clicked");
-    // Can link this to settingsButton in the future or open a new dialog
+    if (deviceSelector == nullptr) {
+      deviceSelector = std::make_unique<juce::AudioDeviceSelectorComponent>(
+          deviceManager, 1, 2, 2, 2, false, false, true, false);
+      deviceSelector->setSize(400, 400);
+      juce::DialogWindow::LaunchOptions options;
+      options.content.setOwned(deviceSelector.release());
+      options.dialogTitle = "AUDIO SETTINGS";
+      options.dialogBackgroundColour = juce::Colours::black;
+      options.escapeKeyTriggersCloseButton = true;
+      options.resizable = false;
+      options.useNativeTitleBar = true;
+      options.launchAsync();
+    }
   };
 
   mixerBottom.onChannelMute = [this](int idx, bool muted) {
@@ -492,6 +485,7 @@ void MainComponent::getNextAudioBlock(
       samplesSinceLastBeat += beatsPerSample;
       if (samplesSinceLastBeat >= 1.0) {
         samplesSinceLastBeat -= 1.0;
+        metronomeBeatCount = (metronomeBeatCount + 1) % 4;
         metronomeSamplesRemaining =
             static_cast<int>(currentSampleRate * 0.05); // 50ms click
         metronomePhase = 0.0;
@@ -500,11 +494,15 @@ void MainComponent::getNextAudioBlock(
       float click = 0.0f;
       if (metronomeSamplesRemaining > 0) {
         metronomeSamplesRemaining--;
-        metronomePhase += (1000.0 * 2.0 * 3.14159265359) / currentSampleRate;
+        // Whole step higher for the downbeat (x 1.12246)
+        double pitchFreq = (metronomeBeatCount == 0) ? 1122.46 : 1000.0;
+        double vol = (metronomeBeatCount == 0) ? 0.5f : 0.25f;
+
+        metronomePhase += (pitchFreq * 2.0 * 3.14159265359) / currentSampleRate;
         if (metronomePhase > 2.0 * 3.14159265359)
           metronomePhase -= 2.0 * 3.14159265359;
 
-        click = std::sin(metronomePhase) * 0.5f;
+        click = std::sin(metronomePhase) * vol;
 
         if (metronomeSamplesRemaining < 100)
           click *= (metronomeSamplesRemaining / 100.0f);
@@ -537,7 +535,6 @@ void MainComponent::resized() {
 
   // 1. Header (Static layout for now)
   auto headerArea = area.removeFromTop(40);
-  settingsButton.setBounds(headerArea.removeFromLeft(100).reduced(5, 5));
   newRiffButton.setBounds(headerArea.removeFromRight(40).reduced(2, 5));
   playPauseButton.setBounds(headerArea.removeFromRight(80).reduced(2, 5));
   bpmDisplay.setBounds(headerArea.removeFromRight(100));
@@ -578,16 +575,31 @@ void MainComponent::timerCallback() {
 
   if (currentSampleRate > 0.0) {
     const double bpm = currentBpm.load();
-    const int panelW = std::max(waveformPanel.getWidth(), 1);
-    const int framesPerBar =
-        static_cast<int>(currentSampleRate * (60.0 / bpm) * 4.0);
-    const int sectionW = std::max(panelW / 4, 1);
-    const int bars[] = {8, 4, 2, 1};
+    const auto &lengths = waveformPanel.getActiveLengths();
+    int numSections = static_cast<int>(lengths.size());
 
-    for (int i = 0; i < 4; ++i) {
-      const int numFrames = static_cast<int>(framesPerBar * bars[i]);
-      auto sectionData = retroBuffer.getWaveformData(numFrames, sectionW);
-      waveformPanel.setSectionData(i, sectionData);
+    if (numSections > 0) {
+      const int panelW = std::max(waveformPanel.getWidth(), 1);
+      const int framesPerBar =
+          static_cast<int>(currentSampleRate * (60.0 / bpm) * 4.0);
+      const int sectionW = std::max(panelW / numSections, 1);
+      int framesWritten = retroBuffer.getTotalFramesWritten();
+
+      for (int i = 0; i < numSections; ++i) {
+        const int numFrames = static_cast<int>(framesPerBar * lengths[i]);
+
+        int framesThreshold = 0;
+        if (i + 1 < numSections) {
+          framesThreshold = static_cast<int>(framesPerBar * lengths[i + 1]);
+        }
+
+        if (framesWritten >= framesThreshold) {
+          auto sectionData = retroBuffer.getWaveformData(numFrames, sectionW);
+          waveformPanel.setSectionData(i, sectionData);
+        } else {
+          waveformPanel.setSectionData(i, {});
+        }
+      }
     }
   }
 
@@ -607,9 +619,22 @@ void MainComponent::timerCallback() {
     }
     fxBottom.getLayerGrid().setEnabledMask(enabledMask);
   } else if (activeTab == MiddleMenuPanel::Tab::Mixer) {
+    auto playingId = riffEngine.getCurrentlyPlayingRiffId();
+    int numLayers = 0;
+
+    if (!playingId.isNull()) {
+      for (const auto &riff : riffHistory.getHistory()) {
+        if (riff.id == playingId) {
+          numLayers = riff.layers;
+          break;
+        }
+      }
+    }
+
     for (int i = 0; i < 8; ++i) {
       float peak = riffEngine.consumeLayerPeak(i);
       mixerBottom.setChannelLevel(i, peak);
+      mixerBottom.setLayerActive(i, i < numLayers);
     }
   }
 }
@@ -623,21 +648,14 @@ void MainComponent::updateBpm(double newBpm) {
 }
 
 bool MainComponent::keyPressed(const juce::KeyPress &key) {
-  if (key.getKeyCode() == '1') {
-    waveformPanel.triggerSection(3); // 1 bar
-    return true;
-  }
-  if (key.getKeyCode() == '2') {
-    waveformPanel.triggerSection(2); // 2 bars
-    return true;
-  }
-  if (key.getKeyCode() == '3') {
-    waveformPanel.triggerSection(1); // 4 bars
-    return true;
-  }
-  if (key.getKeyCode() == '4' || key.getKeyCode() == '5') {
-    waveformPanel.triggerSection(0); // 8 bars
-    return true;
+  int k = key.getKeyCode() - '0';
+  if (k >= 1 && k <= 9) {
+    const auto &lengths = waveformPanel.getActiveLengths();
+    int size = static_cast<int>(lengths.size());
+    if (k <= size) {
+      waveformPanel.triggerSection(size - k);
+      return true;
+    }
   }
   return false;
 }

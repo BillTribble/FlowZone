@@ -249,6 +249,21 @@ void RiffHistoryPanel::ContentComponent::paint(juce::Graphics &g) {
 }
 
 void RiffHistoryPanel::ContentComponent::mouseDown(const juce::MouseEvent &e) {
+  dragStartX = e.getScreenX();
+  dragStartScrollX = owner.viewport.getViewPositionX();
+}
+
+void RiffHistoryPanel::ContentComponent::mouseDrag(const juce::MouseEvent &e) {
+  int delta = dragStartX - e.getScreenX();
+  int maxScroll = std::max(0, getWidth() - owner.viewport.getWidth());
+  int newScroll = std::clamp(dragStartScrollX + delta, 0, maxScroll);
+  owner.viewport.setViewPosition(newScroll, 0);
+}
+
+void RiffHistoryPanel::ContentComponent::mouseUp(const juce::MouseEvent &e) {
+  if (e.mouseWasDraggedSinceMouseDown())
+    return;
+
   for (const auto &item : items) {
     if (item.currentBounds.contains(e.position.toFloat())) {
       owner.selectedRiffId = item.riffId;

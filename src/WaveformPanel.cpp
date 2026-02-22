@@ -9,10 +9,21 @@ WaveformPanel::WaveformPanel() { setOpaque(true); }
 //==============================================================================
 void WaveformPanel::setSectionData(int sectionIndex,
                                    const std::vector<float> &data) {
-  if (sectionIndex >= 0 && sectionIndex < 4) {
+  if (sectionIndex >= 0 && sectionIndex < sectionData.size()) {
     sectionData[static_cast<size_t>(sectionIndex)] = data;
     repaint();
   }
+}
+
+void WaveformPanel::setActiveLengths(std::vector<float> lengths) {
+  if (lengths.empty())
+    lengths = {8.0f, 4.0f, 2.0f, 1.0f};
+  std::sort(lengths.rbegin(), lengths.rend()); // Longest first (leftmost)
+  activeLengths = lengths;
+  sectionData.resize(activeLengths.size());
+  for (auto &vec : sectionData)
+    vec.clear();
+  repaint();
 }
 
 void WaveformPanel::setBPM(double bpm) {
@@ -27,7 +38,7 @@ void WaveformPanel::setSampleRate(double sampleRate) {
 
 //==============================================================================
 void WaveformPanel::triggerSection(int section) {
-  if (section < 0 || section > 3)
+  if (section < 0 || section >= activeLengths.size())
     return;
 
   highlightedSection = section;
@@ -35,17 +46,17 @@ void WaveformPanel::triggerSection(int section) {
   repaint();
 
   if (onLoopTriggered) {
-    constexpr int bars[] = {8, 4, 2, 1};
-    onLoopTriggered(bars[section]);
+    onLoopTriggered(activeLengths[section]);
   }
 }
 
 void WaveformPanel::mouseDown(const juce::MouseEvent &e) {
-  if (getWidth() <= 0)
+  if (getWidth() <= 0 || activeLengths.empty())
     return;
 
-  int section = e.x / (getWidth() / 4);
-  section = std::clamp(section, 0, 3);
+  int numSections = static_cast<int>(activeLengths.size());
+  int section = e.x / (getWidth() / numSections);
+  section = std::clamp(section, 0, numSections - 1);
   triggerSection(section);
 }
 
@@ -77,14 +88,15 @@ void WaveformPanel::paint(juce::Graphics &g) {
   if (w < 40.0f)
     return;
 
-  const float sectionW = w / 4.0f;
+  int numSections = static_cast<int>(activeLengths.size());
+  if (numSections == 0)
+    return;
+
+  const float sectionW = w / static_cast<float>(numSections);
   const float midY = h * 0.5f;
   const float scaleY = (h * 0.45f);
 
-  // Labels for the 4 sections: 8, 4, 2, 1 bars
-  constexpr std::array<int, 4> sectionBars{8, 4, 2, 1};
-
-  for (int i = 0; i < 4; ++i) {
+  for (int i = 0; i < numSections; ++i) {
     const float sectionX = i * sectionW;
     const auto sectionRect = juce::Rectangle<float>(sectionX, 0, sectionW, h);
 
@@ -96,9 +108,19 @@ void WaveformPanel::paint(juce::Graphics &g) {
     }
 
     // --- Label ---
-    g.setColour(juce::Colours::white.withAlpha(0.45f));
+    float length = activeLengths[static_cast<size_t>(i)];
+    juce::String labelStr = juce::String(length, 1).replace(".0", "");
+
+    // Dim label if section data is empty
+    const auto &data = sectionData[static_cast<size_t>(i)];
+    if (data.empty()) {
+      g.setColour(juce::Colours::white.withAlpha(0.15f));
+    } else {
+      g.setColour(juce::Colours::white.withAlpha(0.7f));
+    }
+
     g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-    g.drawText(juce::String(sectionBars[i]), sectionX, 4, sectionW, 14,
+    g.drawText(labelStr, sectionX, 4, sectionW, 14,
                juce::Justification::centred, false);
 
     // --- Highlight (if active) ---
@@ -108,7 +130,6 @@ void WaveformPanel::paint(juce::Graphics &g) {
     }
 
     // --- Waveform ---
-    const auto &data = sectionData[static_cast<size_t>(i)];
     if (data.empty())
       continue;
 

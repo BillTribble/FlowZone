@@ -14,11 +14,13 @@ public:
   ~WaveformPanel() override = default;
 
   /// Callback called when a section is clicked. Passes the number of bars.
-  std::function<void(int)> onLoopTriggered;
+  std::function<void(float)> onLoopTriggered;
 
   /// Called from the message-thread timer. Stores a snapshot for a section.
-  /// Index 0 = leftmost (8 bars), 3 = rightmost (1 bar).
   void setSectionData(int sectionIndex, const std::vector<float> &data);
+
+  void setActiveLengths(std::vector<float> lengths);
+  std::vector<float> getActiveLengths() const { return activeLengths; }
 
   void setPPQ(double ppq);
 
@@ -40,8 +42,9 @@ public:
 
 private:
   void timerCallback() override;
-  std::array<std::vector<float>, 4> sectionData; // 4 vertical strips
-  int highlightedSection{-1};                    // -1 if none
+  std::vector<std::vector<float>> sectionData;
+  std::vector<float> activeLengths{1.0f, 2.0f, 4.0f, 8.0f};
+  int highlightedSection{-1}; // -1 if none
   double currentBPM{120.0};
   double currentSampleRate{44100.0};
   double currentPPQ{0.0};

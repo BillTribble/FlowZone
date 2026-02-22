@@ -47,10 +47,15 @@ public:
   /// Total capacity of the ring buffer in frames.
   [[nodiscard]] int capacityFrames() const noexcept { return bufferCapacity; }
 
+  [[nodiscard]] int getTotalFramesWritten() const noexcept {
+    return totalFramesWritten.load();
+  }
+
 private:
   juce::AudioBuffer<float> ringBuffer; // pre-allocated, stereo
   int bufferCapacity{0};               // total frames in buffer
   std::atomic<int> writeIndex{0};      // next write position (audio thread)
+  std::atomic<int> totalFramesWritten{0};
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(RetrospectiveBuffer)
 };

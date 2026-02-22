@@ -64,7 +64,6 @@ private:
   };
 
   // UI components
-  juce::TextButton settingsButton{"SETTINGS"};
   juce::TextButton newRiffButton{"+"};
   juce::TextButton playPauseButton{"PAUSE"};
   BpmDisplay bpmDisplay{*this};
@@ -110,6 +109,7 @@ private:
   double metronomePhase{0.0};
   int metronomeSamplesRemaining{0};
   double samplesSinceLastBeat{0.0};
+  int metronomeBeatCount{0};
 
   // --- Mic Reverb (Separate from Master FX) ---
   juce::Reverb micReverb;

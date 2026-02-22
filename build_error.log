@@ -1,0 +1,289 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -project Samsara.xcodeproj build -configuration Debug -parallelizeTargets -hideShellScriptEnvironment -target ALL_BUILD
+
+ComputePackagePrebuildTargetDependencyGraph
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (3 targets)
+    Target 'ALL_BUILD' in project 'Samsara'
+        ➜ Explicit dependency on target 'ZERO_CHECK' in project 'Samsara'
+        ➜ Explicit dependency on target 'Samsara' in project 'Samsara'
+    Target 'Samsara' in project 'Samsara'
+        ➜ Explicit dependency on target 'ZERO_CHECK' in project 'Samsara'
+    Target 'ZERO_CHECK' in project 'Samsara' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk -x c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk -x objective-c++ -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk -x c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk -x c++ -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld -version_details
+
+Build description signature: 057b3fd549a9228af44b26065af6f933
+Build description path: /Users/billt/Sites/Samsara/build/build/XCBuildData/057b3fd549a9228af44b26065af6f933.xcbuilddata
+ClangStatCache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk /var/folders/gw/yz51cdgx7t59rpj9zrclmxc00000gp/C/com.apple.DeveloperTools/26.2-17C52/Xcode/SDKStatCaches.noindex/macosx26.2-25C57-00fa09913b459cbbc988d1f6730289ae.sdkstatcache
+    cd /Users/billt/Sites/Samsara/build/Samsara.xcodeproj
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk -o /var/folders/gw/yz51cdgx7t59rpj9zrclmxc00000gp/C/com.apple.DeveloperTools/26.2-17C52/Xcode/SDKStatCaches.noindex/macosx26.2-25C57-00fa09913b459cbbc988d1f6730289ae.sdkstatcache
+
+PhaseScriptExecution Generate\ CMakeFiles/ZERO_CHECK /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/ZERO_CHECK.build/Script-C19F9A2DD14BCD699DE97433.sh (in target 'ZERO_CHECK' from project 'Samsara')
+    cd /Users/billt/Sites/Samsara
+    /bin/sh -c /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/ZERO_CHECK.build/Script-C19F9A2DD14BCD699DE97433.sh
+/opt/homebrew/bin/cmake -P /Users/billt/Sites/Samsara/build/CMakeFiles/VerifyGlobs.cmake
+
+note: Run script build phase 'CMake PostBuild Rules' will be run during every build because the option to run the script phase "Based on dependency analysis" is unchecked. (in target 'Samsara' from project 'Samsara')
+CompileC /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/juce_gui_basics.o /Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_gui_basics/juce_gui_basics.mm normal arm64 objective-c++ com.apple.compilers.llvm.clang.1_0.compiler (in target 'Samsara' from project 'Samsara')
+    cd /Users/billt/Sites/Samsara
+    
+    Using response file: /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/af3fcb34312c57c0f52879cdce924b91-common-args.resp
+    
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -x objective-c++ -ivfsstatcache /var/folders/gw/yz51cdgx7t59rpj9zrclmxc00000gp/C/com.apple.DeveloperTools/26.2-17C52/Xcode/SDKStatCaches.noindex/macosx26.2-25C57-00fa09913b459cbbc988d1f6730289ae.sdkstatcache -fmessage-length\=0 -fdiagnostics-show-note-include-stack -fmacro-backtrace-limit\=0 -fno-color-diagnostics -Wno-trigraphs -Wno-missing-field-initializers -Wno-missing-prototypes -Wno-return-type -Wno-implicit-atomic-properties -Wno-objc-interface-ivars -Wno-arc-repeated-use-of-weak -Wno-non-virtual-dtor -Wno-overloaded-virtual -Wno-exit-time-destructors -Wno-missing-braces -Wparentheses -Wswitch -Wno-unused-function -Wno-unused-label -Wno-unused-parameter -Wno-unused-variable -Wunused-value -Wno-empty-body -Wno-uninitialized -Wno-unknown-pragmas -Wno-shadow -Wno-four-char-constants -Wno-conversion -Wno-constant-conversion -Wno-int-conversion -Wno-bool-conversion -Wno-enum-conversion -Wno-float-conversion -Wno-non-literal-null-conversion -Wno-objc-literal-conversion -Wshorten-64-to-32 -Wno-newline-eof -Wno-selector -Wno-strict-selector-match -Wno-undeclared-selector -Wno-deprecated-implementations -Wno-c++11-extensions -Wno-implicit-fallthrough -fstrict-aliasing -Wprotocol -Wdeprecated-declarations -Winvalid-offsetof -Wno-sign-conversion -Wno-infinite-recursion -Wno-move -Wno-comma -Wno-block-capture-autoreleasing -Wno-strict-prototypes -Wno-range-loop-analysis -Wno-semicolon-before-method-body -Wall -Wshadow-all -Wshorten-64-to-32 -Wstrict-aliasing -Wuninitialized -Wunused-parameter -Wconversion -Wsign-compare -Wint-conversion -Wconditional-uninitialized -Wconstant-conversion -Wsign-conversion -Wbool-conversion -Wextra-semi -Wunreachable-code -Wcast-align -Wshift-sign-overflow -Wmissing-prototypes -Wnullable-to-nonnull-conversion -Wno-ignored-qualifiers -Wswitch-enum -Wpedantic -Wdeprecated -Wfloat-equal -Wmissing-field-initializers -Wzero-as-null-pointer-constant -Wunused-private-field -Woverloaded-virtual -Wreorder -Winconsistent-missing-destructor-override @/Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/af3fcb34312c57c0f52879cdce924b91-common-args.resp -MMD -MT dependencies -MF /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/juce_gui_basics.d --serialize-diagnostics /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/juce_gui_basics.dia -c /Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_gui_basics/juce_gui_basics.mm -o /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/juce_gui_basics.o
+
+CompileC /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/juce_graphics.o /Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_graphics/juce_graphics.mm normal arm64 objective-c++ com.apple.compilers.llvm.clang.1_0.compiler (in target 'Samsara' from project 'Samsara')
+    cd /Users/billt/Sites/Samsara
+    
+    Using response file: /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/af3fcb34312c57c0f52879cdce924b91-common-args.resp
+    
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -x objective-c++ -ivfsstatcache /var/folders/gw/yz51cdgx7t59rpj9zrclmxc00000gp/C/com.apple.DeveloperTools/26.2-17C52/Xcode/SDKStatCaches.noindex/macosx26.2-25C57-00fa09913b459cbbc988d1f6730289ae.sdkstatcache -fmessage-length\=0 -fdiagnostics-show-note-include-stack -fmacro-backtrace-limit\=0 -fno-color-diagnostics -Wno-trigraphs -Wno-missing-field-initializers -Wno-missing-prototypes -Wno-return-type -Wno-implicit-atomic-properties -Wno-objc-interface-ivars -Wno-arc-repeated-use-of-weak -Wno-non-virtual-dtor -Wno-overloaded-virtual -Wno-exit-time-destructors -Wno-missing-braces -Wparentheses -Wswitch -Wno-unused-function -Wno-unused-label -Wno-unused-parameter -Wno-unused-variable -Wunused-value -Wno-empty-body -Wno-uninitialized -Wno-unknown-pragmas -Wno-shadow -Wno-four-char-constants -Wno-conversion -Wno-constant-conversion -Wno-int-conversion -Wno-bool-conversion -Wno-enum-conversion -Wno-float-conversion -Wno-non-literal-null-conversion -Wno-objc-literal-conversion -Wshorten-64-to-32 -Wno-newline-eof -Wno-selector -Wno-strict-selector-match -Wno-undeclared-selector -Wno-deprecated-implementations -Wno-c++11-extensions -Wno-implicit-fallthrough -fstrict-aliasing -Wprotocol -Wdeprecated-declarations -Winvalid-offsetof -Wno-sign-conversion -Wno-infinite-recursion -Wno-move -Wno-comma -Wno-block-capture-autoreleasing -Wno-strict-prototypes -Wno-range-loop-analysis -Wno-semicolon-before-method-body -Wall -Wshadow-all -Wshorten-64-to-32 -Wstrict-aliasing -Wuninitialized -Wunused-parameter -Wconversion -Wsign-compare -Wint-conversion -Wconditional-uninitialized -Wconstant-conversion -Wsign-conversion -Wbool-conversion -Wextra-semi -Wunreachable-code -Wcast-align -Wshift-sign-overflow -Wmissing-prototypes -Wnullable-to-nonnull-conversion -Wno-ignored-qualifiers -Wswitch-enum -Wpedantic -Wdeprecated -Wfloat-equal -Wmissing-field-initializers -Wzero-as-null-pointer-constant -Wunused-private-field -Woverloaded-virtual -Wreorder -Winconsistent-missing-destructor-override @/Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/af3fcb34312c57c0f52879cdce924b91-common-args.resp -MMD -MT dependencies -MF /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/juce_graphics.d --serialize-diagnostics /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/juce_graphics.dia -c /Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_graphics/juce_graphics.mm -o /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/juce_graphics.o
+
+CompileC /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/juce_dsp.o /Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_dsp/juce_dsp.mm normal arm64 objective-c++ com.apple.compilers.llvm.clang.1_0.compiler (in target 'Samsara' from project 'Samsara')
+    cd /Users/billt/Sites/Samsara
+    
+    Using response file: /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/af3fcb34312c57c0f52879cdce924b91-common-args.resp
+    
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -x objective-c++ -ivfsstatcache /var/folders/gw/yz51cdgx7t59rpj9zrclmxc00000gp/C/com.apple.DeveloperTools/26.2-17C52/Xcode/SDKStatCaches.noindex/macosx26.2-25C57-00fa09913b459cbbc988d1f6730289ae.sdkstatcache -fmessage-length\=0 -fdiagnostics-show-note-include-stack -fmacro-backtrace-limit\=0 -fno-color-diagnostics -Wno-trigraphs -Wno-missing-field-initializers -Wno-missing-prototypes -Wno-return-type -Wno-implicit-atomic-properties -Wno-objc-interface-ivars -Wno-arc-repeated-use-of-weak -Wno-non-virtual-dtor -Wno-overloaded-virtual -Wno-exit-time-destructors -Wno-missing-braces -Wparentheses -Wswitch -Wno-unused-function -Wno-unused-label -Wno-unused-parameter -Wno-unused-variable -Wunused-value -Wno-empty-body -Wno-uninitialized -Wno-unknown-pragmas -Wno-shadow -Wno-four-char-constants -Wno-conversion -Wno-constant-conversion -Wno-int-conversion -Wno-bool-conversion -Wno-enum-conversion -Wno-float-conversion -Wno-non-literal-null-conversion -Wno-objc-literal-conversion -Wshorten-64-to-32 -Wno-newline-eof -Wno-selector -Wno-strict-selector-match -Wno-undeclared-selector -Wno-deprecated-implementations -Wno-c++11-extensions -Wno-implicit-fallthrough -fstrict-aliasing -Wprotocol -Wdeprecated-declarations -Winvalid-offsetof -Wno-sign-conversion -Wno-infinite-recursion -Wno-move -Wno-comma -Wno-block-capture-autoreleasing -Wno-strict-prototypes -Wno-range-loop-analysis -Wno-semicolon-before-method-body -Wall -Wshadow-all -Wshorten-64-to-32 -Wstrict-aliasing -Wuninitialized -Wunused-parameter -Wconversion -Wsign-compare -Wint-conversion -Wconditional-uninitialized -Wconstant-conversion -Wsign-conversion -Wbool-conversion -Wextra-semi -Wunreachable-code -Wcast-align -Wshift-sign-overflow -Wmissing-prototypes -Wnullable-to-nonnull-conversion -Wno-ignored-qualifiers -Wswitch-enum -Wpedantic -Wdeprecated -Wfloat-equal -Wmissing-field-initializers -Wzero-as-null-pointer-constant -Wunused-private-field -Woverloaded-virtual -Wreorder -Winconsistent-missing-destructor-override @/Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/af3fcb34312c57c0f52879cdce924b91-common-args.resp -MMD -MT dependencies -MF /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/juce_dsp.d --serialize-diagnostics /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/juce_dsp.dia -c /Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_dsp/juce_dsp.mm -o /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/juce_dsp.o
+
+CompileC /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/juce_core.o /Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_core/juce_core.mm normal arm64 objective-c++ com.apple.compilers.llvm.clang.1_0.compiler (in target 'Samsara' from project 'Samsara')
+    cd /Users/billt/Sites/Samsara
+    
+    Using response file: /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/af3fcb34312c57c0f52879cdce924b91-common-args.resp
+    
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -x objective-c++ -ivfsstatcache /var/folders/gw/yz51cdgx7t59rpj9zrclmxc00000gp/C/com.apple.DeveloperTools/26.2-17C52/Xcode/SDKStatCaches.noindex/macosx26.2-25C57-00fa09913b459cbbc988d1f6730289ae.sdkstatcache -fmessage-length\=0 -fdiagnostics-show-note-include-stack -fmacro-backtrace-limit\=0 -fno-color-diagnostics -Wno-trigraphs -Wno-missing-field-initializers -Wno-missing-prototypes -Wno-return-type -Wno-implicit-atomic-properties -Wno-objc-interface-ivars -Wno-arc-repeated-use-of-weak -Wno-non-virtual-dtor -Wno-overloaded-virtual -Wno-exit-time-destructors -Wno-missing-braces -Wparentheses -Wswitch -Wno-unused-function -Wno-unused-label -Wno-unused-parameter -Wno-unused-variable -Wunused-value -Wno-empty-body -Wno-uninitialized -Wno-unknown-pragmas -Wno-shadow -Wno-four-char-constants -Wno-conversion -Wno-constant-conversion -Wno-int-conversion -Wno-bool-conversion -Wno-enum-conversion -Wno-float-conversion -Wno-non-literal-null-conversion -Wno-objc-literal-conversion -Wshorten-64-to-32 -Wno-newline-eof -Wno-selector -Wno-strict-selector-match -Wno-undeclared-selector -Wno-deprecated-implementations -Wno-c++11-extensions -Wno-implicit-fallthrough -fstrict-aliasing -Wprotocol -Wdeprecated-declarations -Winvalid-offsetof -Wno-sign-conversion -Wno-infinite-recursion -Wno-move -Wno-comma -Wno-block-capture-autoreleasing -Wno-strict-prototypes -Wno-range-loop-analysis -Wno-semicolon-before-method-body -Wall -Wshadow-all -Wshorten-64-to-32 -Wstrict-aliasing -Wuninitialized -Wunused-parameter -Wconversion -Wsign-compare -Wint-conversion -Wconditional-uninitialized -Wconstant-conversion -Wsign-conversion -Wbool-conversion -Wextra-semi -Wunreachable-code -Wcast-align -Wshift-sign-overflow -Wmissing-prototypes -Wnullable-to-nonnull-conversion -Wno-ignored-qualifiers -Wswitch-enum -Wpedantic -Wdeprecated -Wfloat-equal -Wmissing-field-initializers -Wzero-as-null-pointer-constant -Wunused-private-field -Woverloaded-virtual -Wreorder -Winconsistent-missing-destructor-override @/Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/af3fcb34312c57c0f52879cdce924b91-common-args.resp -MMD -MT dependencies -MF /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/juce_core.d --serialize-diagnostics /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/juce_core.dia -c /Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_core/juce_core.mm -o /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/juce_core.o
+
+CompileC /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/WaveformPanel.o /Users/billt/Sites/Samsara/src/WaveformPanel.cpp normal arm64 c++ com.apple.compilers.llvm.clang.1_0.compiler (in target 'Samsara' from project 'Samsara')
+    cd /Users/billt/Sites/Samsara
+    
+    Using response file: /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/82b82416624d2658e5098eb0a28c15c5-common-args.resp
+    
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -x c++ -ivfsstatcache /var/folders/gw/yz51cdgx7t59rpj9zrclmxc00000gp/C/com.apple.DeveloperTools/26.2-17C52/Xcode/SDKStatCaches.noindex/macosx26.2-25C57-00fa09913b459cbbc988d1f6730289ae.sdkstatcache -fmessage-length\=0 -fdiagnostics-show-note-include-stack -fmacro-backtrace-limit\=0 -fno-color-diagnostics -Wno-trigraphs -Wno-missing-field-initializers -Wno-missing-prototypes -Wno-return-type -Wno-non-virtual-dtor -Wno-overloaded-virtual -Wno-exit-time-destructors -Wno-missing-braces -Wparentheses -Wswitch -Wno-unused-function -Wno-unused-label -Wno-unused-parameter -Wno-unused-variable -Wunused-value -Wno-empty-body -Wno-uninitialized -Wno-unknown-pragmas -Wno-shadow -Wno-four-char-constants -Wno-conversion -Wno-constant-conversion -Wno-int-conversion -Wno-bool-conversion -Wno-enum-conversion -Wno-float-conversion -Wno-non-literal-null-conversion -Wno-objc-literal-conversion -Wshorten-64-to-32 -Wno-newline-eof -Wno-c++11-extensions -Wno-implicit-fallthrough -fstrict-aliasing -Wdeprecated-declarations -Winvalid-offsetof -Wno-sign-conversion -Wno-infinite-recursion -Wno-move -Wno-comma -Wno-block-capture-autoreleasing -Wno-strict-prototypes -Wno-range-loop-analysis -Wno-semicolon-before-method-body -Wall -Wshadow-all -Wshorten-64-to-32 -Wstrict-aliasing -Wuninitialized -Wunused-parameter -Wconversion -Wsign-compare -Wint-conversion -Wconditional-uninitialized -Wconstant-conversion -Wsign-conversion -Wbool-conversion -Wextra-semi -Wunreachable-code -Wcast-align -Wshift-sign-overflow -Wmissing-prototypes -Wnullable-to-nonnull-conversion -Wno-ignored-qualifiers -Wswitch-enum -Wpedantic -Wdeprecated -Wfloat-equal -Wmissing-field-initializers -Wzero-as-null-pointer-constant -Wunused-private-field -Woverloaded-virtual -Wreorder -Winconsistent-missing-destructor-override @/Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/82b82416624d2658e5098eb0a28c15c5-common-args.resp -MMD -MT dependencies -MF /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/WaveformPanel.d --serialize-diagnostics /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/WaveformPanel.dia -c /Users/billt/Sites/Samsara/src/WaveformPanel.cpp -o /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/WaveformPanel.o
+/Users/billt/Sites/Samsara/src/WaveformPanel.cpp:12:41: warning: comparison of integers of different signs: 'int' and 'size_type' (aka 'unsigned long') [-Wsign-compare]
+   12 |   if (sectionIndex >= 0 && sectionIndex < sectionData.size()) {
+      |                            ~~~~~~~~~~~~ ^ ~~~~~~~~~~~~~~~~~~
+/Users/billt/Sites/Samsara/src/WaveformPanel.cpp:49:35: warning: implicit conversion changes signedness: 'int' to 'size_type' (aka 'unsigned long') [-Wsign-conversion]
+   49 |     onLoopTriggered(activeLengths[section]);
+      |                     ~~~~~~~~~~~~~ ^~~~~~~
+/Users/billt/Sites/Samsara/src/WaveformPanel.cpp:41:30: warning: comparison of integers of different signs: 'int' and 'size_type' (aka 'unsigned long') [-Wsign-compare]
+   41 |   if (section < 0 || section >= activeLengths.size())
+      |                      ~~~~~~~ ^  ~~~~~~~~~~~~~~~~~~~~
+/Users/billt/Sites/Samsara/src/WaveformPanel.cpp:123:39: warning: implicit conversion turns floating-point number into integer: 'const float' to 'int' [-Wfloat-conversion]
+  123 |     g.drawText(labelStr, sectionX, 4, sectionW, 14,
+      |       ~~~~~~~~                        ^~~~~~~~
+/Users/billt/Sites/Samsara/src/WaveformPanel.cpp:123:26: warning: implicit conversion turns floating-point number into integer: 'const float' to 'int' [-Wfloat-conversion]
+  123 |     g.drawText(labelStr, sectionX, 4, sectionW, 14,
+      |       ~~~~~~~~           ^~~~~~~~
+/Users/billt/Sites/Samsara/src/WaveformPanel.cpp:133:17: error: redefinition of 'data'
+  133 |     const auto &data = sectionData[static_cast<size_t>(i)];
+      |                 ^
+/Users/billt/Sites/Samsara/src/WaveformPanel.cpp:115:17: note: previous definition is here
+  115 |     const auto &data = sectionData[static_cast<size_t>(i)];
+      |                 ^
+5 warnings and 1 error generated.
+
+CompileC /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/RiffHistoryPanel.o /Users/billt/Sites/Samsara/src/RiffHistoryPanel.cpp normal arm64 c++ com.apple.compilers.llvm.clang.1_0.compiler (in target 'Samsara' from project 'Samsara')
+    cd /Users/billt/Sites/Samsara
+    
+    Using response file: /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/82b82416624d2658e5098eb0a28c15c5-common-args.resp
+    
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -x c++ -ivfsstatcache /var/folders/gw/yz51cdgx7t59rpj9zrclmxc00000gp/C/com.apple.DeveloperTools/26.2-17C52/Xcode/SDKStatCaches.noindex/macosx26.2-25C57-00fa09913b459cbbc988d1f6730289ae.sdkstatcache -fmessage-length\=0 -fdiagnostics-show-note-include-stack -fmacro-backtrace-limit\=0 -fno-color-diagnostics -Wno-trigraphs -Wno-missing-field-initializers -Wno-missing-prototypes -Wno-return-type -Wno-non-virtual-dtor -Wno-overloaded-virtual -Wno-exit-time-destructors -Wno-missing-braces -Wparentheses -Wswitch -Wno-unused-function -Wno-unused-label -Wno-unused-parameter -Wno-unused-variable -Wunused-value -Wno-empty-body -Wno-uninitialized -Wno-unknown-pragmas -Wno-shadow -Wno-four-char-constants -Wno-conversion -Wno-constant-conversion -Wno-int-conversion -Wno-bool-conversion -Wno-enum-conversion -Wno-float-conversion -Wno-non-literal-null-conversion -Wno-objc-literal-conversion -Wshorten-64-to-32 -Wno-newline-eof -Wno-c++11-extensions -Wno-implicit-fallthrough -fstrict-aliasing -Wdeprecated-declarations -Winvalid-offsetof -Wno-sign-conversion -Wno-infinite-recursion -Wno-move -Wno-comma -Wno-block-capture-autoreleasing -Wno-strict-prototypes -Wno-range-loop-analysis -Wno-semicolon-before-method-body -Wall -Wshadow-all -Wshorten-64-to-32 -Wstrict-aliasing -Wuninitialized -Wunused-parameter -Wconversion -Wsign-compare -Wint-conversion -Wconditional-uninitialized -Wconstant-conversion -Wsign-conversion -Wbool-conversion -Wextra-semi -Wunreachable-code -Wcast-align -Wshift-sign-overflow -Wmissing-prototypes -Wnullable-to-nonnull-conversion -Wno-ignored-qualifiers -Wswitch-enum -Wpedantic -Wdeprecated -Wfloat-equal -Wmissing-field-initializers -Wzero-as-null-pointer-constant -Wunused-private-field -Woverloaded-virtual -Wreorder -Winconsistent-missing-destructor-override @/Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/82b82416624d2658e5098eb0a28c15c5-common-args.resp -MMD -MT dependencies -MF /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/RiffHistoryPanel.d --serialize-diagnostics /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/RiffHistoryPanel.dia -c /Users/billt/Sites/Samsara/src/RiffHistoryPanel.cpp -o /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/RiffHistoryPanel.o
+In file included from /Users/billt/Sites/Samsara/src/RiffHistoryPanel.cpp:1:
+In file included from /Users/billt/Sites/Samsara/src/RiffHistoryPanel.h:2:
+/Users/billt/Sites/Samsara/src/Riff.h:200:52: warning: implicit conversion changes signedness: 'int' to 'size_type' (aka 'unsigned long') [-Wsign-conversion]
+  200 |         newLayers.push_back(std::move(layerBuffers[i]));
+      |                                       ~~~~~~~~~~~~ ^
+/Users/billt/Sites/Samsara/src/Riff.h:201:39: warning: implicit conversion changes signedness: 'int' to 'size_type' (aka 'unsigned long') [-Wsign-conversion]
+  201 |         newGains.push_back(layerGains[i]);
+      |                            ~~~~~~~~~~ ^
+/Users/billt/Sites/Samsara/src/Riff.h:202:46: warning: implicit conversion changes signedness: 'int' to 'size_type' (aka 'unsigned long') [-Wsign-conversion]
+  202 |         newLayerBarsList.push_back(layerBars[i]);
+      |                                    ~~~~~~~~~ ^
+
+CompileC /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/MiddleMenuPanel.o /Users/billt/Sites/Samsara/src/MiddleMenuPanel.cpp normal arm64 c++ com.apple.compilers.llvm.clang.1_0.compiler (in target 'Samsara' from project 'Samsara')
+    cd /Users/billt/Sites/Samsara
+    
+    Using response file: /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/82b82416624d2658e5098eb0a28c15c5-common-args.resp
+    
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -x c++ -ivfsstatcache /var/folders/gw/yz51cdgx7t59rpj9zrclmxc00000gp/C/com.apple.DeveloperTools/26.2-17C52/Xcode/SDKStatCaches.noindex/macosx26.2-25C57-00fa09913b459cbbc988d1f6730289ae.sdkstatcache -fmessage-length\=0 -fdiagnostics-show-note-include-stack -fmacro-backtrace-limit\=0 -fno-color-diagnostics -Wno-trigraphs -Wno-missing-field-initializers -Wno-missing-prototypes -Wno-return-type -Wno-non-virtual-dtor -Wno-overloaded-virtual -Wno-exit-time-destructors -Wno-missing-braces -Wparentheses -Wswitch -Wno-unused-function -Wno-unused-label -Wno-unused-parameter -Wno-unused-variable -Wunused-value -Wno-empty-body -Wno-uninitialized -Wno-unknown-pragmas -Wno-shadow -Wno-four-char-constants -Wno-conversion -Wno-constant-conversion -Wno-int-conversion -Wno-bool-conversion -Wno-enum-conversion -Wno-float-conversion -Wno-non-literal-null-conversion -Wno-objc-literal-conversion -Wshorten-64-to-32 -Wno-newline-eof -Wno-c++11-extensions -Wno-implicit-fallthrough -fstrict-aliasing -Wdeprecated-declarations -Winvalid-offsetof -Wno-sign-conversion -Wno-infinite-recursion -Wno-move -Wno-comma -Wno-block-capture-autoreleasing -Wno-strict-prototypes -Wno-range-loop-analysis -Wno-semicolon-before-method-body -Wall -Wshadow-all -Wshorten-64-to-32 -Wstrict-aliasing -Wuninitialized -Wunused-parameter -Wconversion -Wsign-compare -Wint-conversion -Wconditional-uninitialized -Wconstant-conversion -Wsign-conversion -Wbool-conversion -Wextra-semi -Wunreachable-code -Wcast-align -Wshift-sign-overflow -Wmissing-prototypes -Wnullable-to-nonnull-conversion -Wno-ignored-qualifiers -Wswitch-enum -Wpedantic -Wdeprecated -Wfloat-equal -Wmissing-field-initializers -Wzero-as-null-pointer-constant -Wunused-private-field -Woverloaded-virtual -Wreorder -Winconsistent-missing-destructor-override @/Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/82b82416624d2658e5098eb0a28c15c5-common-args.resp -MMD -MT dependencies -MF /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/MiddleMenuPanel.d --serialize-diagnostics /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/MiddleMenuPanel.dia -c /Users/billt/Sites/Samsara/src/MiddleMenuPanel.cpp -o /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/MiddleMenuPanel.o
+/Users/billt/Sites/Samsara/src/MiddleMenuPanel.cpp:34:34: warning: 'Font' is deprecated: Use the constructor that takes a FontOptions argument [-Wdeprecated-declarations]
+   34 |   micReverbRoomSizeLabel.setFont(juce::Font(12.0f, juce::Font::bold));
+      |                                  ^
+In file included from /Users/billt/Sites/Samsara/src/MiddleMenuPanel.cpp:1:
+In file included from /Users/billt/Sites/Samsara/src/MiddleMenuPanel.h:1:
+In file included from /Users/billt/Sites/Samsara/src/LabeledKnob.h:2:
+In file included from /Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_gui_basics/juce_gui_basics.h:68:
+In file included from /Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_graphics/juce_graphics.h:141:
+/Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_graphics/fonts/juce_Font.h:76:7: note: 'Font' has been explicitly marked deprecated here
+   76 |     [[deprecated ("Use the constructor that takes a FontOptions argument")]]
+      |       ^
+/Users/billt/Sites/Samsara/src/MiddleMenuPanel.cpp:34:34: warning: 'Font' is deprecated: Use the constructor that takes a FontOptions argument [-Wdeprecated-declarations]
+   34 |   micReverbRoomSizeLabel.setFont(juce::Font(12.0f, juce::Font::bold));
+      |                                  ^
+In file included from /Users/billt/Sites/Samsara/src/MiddleMenuPanel.cpp:1:
+In file included from /Users/billt/Sites/Samsara/src/MiddleMenuPanel.h:1:
+In file included from /Users/billt/Sites/Samsara/src/LabeledKnob.h:2:
+In file included from /Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_gui_basics/juce_gui_basics.h:68:
+In file included from /Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_graphics/juce_graphics.h:141:
+/Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_graphics/fonts/juce_Font.h:76:7: note: 'Font' has been explicitly marked deprecated here
+   76 |     [[deprecated ("Use the constructor that takes a FontOptions argument")]]
+      |       ^
+/Users/billt/Sites/Samsara/src/MiddleMenuPanel.cpp:39:34: warning: 'Font' is deprecated: Use the constructor that takes a FontOptions argument [-Wdeprecated-declarations]
+   39 |   micReverbWetLevelLabel.setFont(juce::Font(12.0f, juce::Font::bold));
+      |                                  ^
+In file included from /Users/billt/Sites/Samsara/src/MiddleMenuPanel.cpp:1:
+In file included from /Users/billt/Sites/Samsara/src/MiddleMenuPanel.h:1:
+In file included from /Users/billt/Sites/Samsara/src/LabeledKnob.h:2:
+In file included from /Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_gui_basics/juce_gui_basics.h:68:
+In file included from /Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_graphics/juce_graphics.h:141:
+/Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_graphics/fonts/juce_Font.h:76:7: note: 'Font' has been explicitly marked deprecated here
+   76 |     [[deprecated ("Use the constructor that takes a FontOptions argument")]]
+      |       ^
+/Users/billt/Sites/Samsara/src/MiddleMenuPanel.cpp:39:34: warning: 'Font' is deprecated: Use the constructor that takes a FontOptions argument [-Wdeprecated-declarations]
+   39 |   micReverbWetLevelLabel.setFont(juce::Font(12.0f, juce::Font::bold));
+      |                                  ^
+In file included from /Users/billt/Sites/Samsara/src/MiddleMenuPanel.cpp:1:
+In file included from /Users/billt/Sites/Samsara/src/MiddleMenuPanel.h:1:
+In file included from /Users/billt/Sites/Samsara/src/LabeledKnob.h:2:
+In file included from /Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_gui_basics/juce_gui_basics.h:68:
+In file included from /Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_graphics/juce_graphics.h:141:
+/Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_graphics/fonts/juce_Font.h:76:7: note: 'Font' has been explicitly marked deprecated here
+   76 |     [[deprecated ("Use the constructor that takes a FontOptions argument")]]
+      |       ^
+
+CompileC /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/MainComponent.o /Users/billt/Sites/Samsara/src/MainComponent.cpp normal arm64 c++ com.apple.compilers.llvm.clang.1_0.compiler (in target 'Samsara' from project 'Samsara')
+    cd /Users/billt/Sites/Samsara
+    
+    Using response file: /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/82b82416624d2658e5098eb0a28c15c5-common-args.resp
+    
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -x c++ -ivfsstatcache /var/folders/gw/yz51cdgx7t59rpj9zrclmxc00000gp/C/com.apple.DeveloperTools/26.2-17C52/Xcode/SDKStatCaches.noindex/macosx26.2-25C57-00fa09913b459cbbc988d1f6730289ae.sdkstatcache -fmessage-length\=0 -fdiagnostics-show-note-include-stack -fmacro-backtrace-limit\=0 -fno-color-diagnostics -Wno-trigraphs -Wno-missing-field-initializers -Wno-missing-prototypes -Wno-return-type -Wno-non-virtual-dtor -Wno-overloaded-virtual -Wno-exit-time-destructors -Wno-missing-braces -Wparentheses -Wswitch -Wno-unused-function -Wno-unused-label -Wno-unused-parameter -Wno-unused-variable -Wunused-value -Wno-empty-body -Wno-uninitialized -Wno-unknown-pragmas -Wno-shadow -Wno-four-char-constants -Wno-conversion -Wno-constant-conversion -Wno-int-conversion -Wno-bool-conversion -Wno-enum-conversion -Wno-float-conversion -Wno-non-literal-null-conversion -Wno-objc-literal-conversion -Wshorten-64-to-32 -Wno-newline-eof -Wno-c++11-extensions -Wno-implicit-fallthrough -fstrict-aliasing -Wdeprecated-declarations -Winvalid-offsetof -Wno-sign-conversion -Wno-infinite-recursion -Wno-move -Wno-comma -Wno-block-capture-autoreleasing -Wno-strict-prototypes -Wno-range-loop-analysis -Wno-semicolon-before-method-body -Wall -Wshadow-all -Wshorten-64-to-32 -Wstrict-aliasing -Wuninitialized -Wunused-parameter -Wconversion -Wsign-compare -Wint-conversion -Wconditional-uninitialized -Wconstant-conversion -Wsign-conversion -Wbool-conversion -Wextra-semi -Wunreachable-code -Wcast-align -Wshift-sign-overflow -Wmissing-prototypes -Wnullable-to-nonnull-conversion -Wno-ignored-qualifiers -Wswitch-enum -Wpedantic -Wdeprecated -Wfloat-equal -Wmissing-field-initializers -Wzero-as-null-pointer-constant -Wunused-private-field -Woverloaded-virtual -Wreorder -Winconsistent-missing-destructor-override @/Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/82b82416624d2658e5098eb0a28c15c5-common-args.resp -MMD -MT dependencies -MF /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/MainComponent.d --serialize-diagnostics /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/MainComponent.dia -c /Users/billt/Sites/Samsara/src/MainComponent.cpp -o /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/MainComponent.o
+In file included from /Users/billt/Sites/Samsara/src/MainComponent.cpp:1:
+In file included from /Users/billt/Sites/Samsara/src/MainComponent.h:5:
+/Users/billt/Sites/Samsara/src/MixerTabComponents.h:57:34: warning: implicit conversion changes signedness: 'int' to 'size_type' (aka 'unsigned long') [-Wsign-conversion]
+   57 |         active.push_back(lengths[i]);
+      |                          ~~~~~~~ ^
+/Users/billt/Sites/Samsara/src/MixerTabComponents.h:121:9: warning: unused variable 'h' [-Wunused-variable]
+  121 |     int h = bounds.getHeight();
+      |         ^
+In file included from /Users/billt/Sites/Samsara/src/MainComponent.cpp:1:
+In file included from /Users/billt/Sites/Samsara/src/MainComponent.h:7:
+/Users/billt/Sites/Samsara/src/ModeTabTop.h:8:30: warning: 'Font' is deprecated: Use the constructor that takes a FontOptions argument [-Wdeprecated-declarations]
+    8 |     micModeIndicator.setFont(juce::Font(24.0f, juce::Font::bold));
+      |                              ^
+In file included from /Users/billt/Sites/Samsara/src/MainComponent.cpp:1:
+In file included from /Users/billt/Sites/Samsara/src/MainComponent.h:2:
+In file included from /Users/billt/Sites/Samsara/src/FXTabBottom.h:2:
+In file included from /Users/billt/Sites/Samsara/src/XYPad.h:2:
+In file included from /Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_gui_basics/juce_gui_basics.h:68:
+In file included from /Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_graphics/juce_graphics.h:141:
+/Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_graphics/fonts/juce_Font.h:76:7: note: 'Font' has been explicitly marked deprecated here
+   76 |     [[deprecated ("Use the constructor that takes a FontOptions argument")]]
+      |       ^
+In file included from /Users/billt/Sites/Samsara/src/MainComponent.cpp:1:
+In file included from /Users/billt/Sites/Samsara/src/MainComponent.h:7:
+/Users/billt/Sites/Samsara/src/ModeTabTop.h:8:30: warning: 'Font' is deprecated: Use the constructor that takes a FontOptions argument [-Wdeprecated-declarations]
+    8 |     micModeIndicator.setFont(juce::Font(24.0f, juce::Font::bold));
+      |                              ^
+In file included from /Users/billt/Sites/Samsara/src/MainComponent.cpp:1:
+In file included from /Users/billt/Sites/Samsara/src/MainComponent.h:2:
+In file included from /Users/billt/Sites/Samsara/src/FXTabBottom.h:2:
+In file included from /Users/billt/Sites/Samsara/src/XYPad.h:2:
+In file included from /Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_gui_basics/juce_gui_basics.h:68:
+In file included from /Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_graphics/juce_graphics.h:141:
+/Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_graphics/fonts/juce_Font.h:76:7: note: 'Font' has been explicitly marked deprecated here
+   76 |     [[deprecated ("Use the constructor that takes a FontOptions argument")]]
+      |       ^
+In file included from /Users/billt/Sites/Samsara/src/MainComponent.cpp:1:
+In file included from /Users/billt/Sites/Samsara/src/MainComponent.h:9:
+/Users/billt/Sites/Samsara/src/Riff.h:200:52: warning: implicit conversion changes signedness: 'int' to 'size_type' (aka 'unsigned long') [-Wsign-conversion]
+  200 |         newLayers.push_back(std::move(layerBuffers[i]));
+      |                                       ~~~~~~~~~~~~ ^
+/Users/billt/Sites/Samsara/src/Riff.h:201:39: warning: implicit conversion changes signedness: 'int' to 'size_type' (aka 'unsigned long') [-Wsign-conversion]
+  201 |         newGains.push_back(layerGains[i]);
+      |                            ~~~~~~~~~~ ^
+/Users/billt/Sites/Samsara/src/Riff.h:202:46: warning: implicit conversion changes signedness: 'int' to 'size_type' (aka 'unsigned long') [-Wsign-conversion]
+  202 |         newLayerBarsList.push_back(layerBars[i]);
+      |                                    ~~~~~~~~~ ^
+
+CompileC /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/Main.o /Users/billt/Sites/Samsara/src/Main.cpp normal arm64 c++ com.apple.compilers.llvm.clang.1_0.compiler (in target 'Samsara' from project 'Samsara')
+    cd /Users/billt/Sites/Samsara
+    
+    Using response file: /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/82b82416624d2658e5098eb0a28c15c5-common-args.resp
+    
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -x c++ -ivfsstatcache /var/folders/gw/yz51cdgx7t59rpj9zrclmxc00000gp/C/com.apple.DeveloperTools/26.2-17C52/Xcode/SDKStatCaches.noindex/macosx26.2-25C57-00fa09913b459cbbc988d1f6730289ae.sdkstatcache -fmessage-length\=0 -fdiagnostics-show-note-include-stack -fmacro-backtrace-limit\=0 -fno-color-diagnostics -Wno-trigraphs -Wno-missing-field-initializers -Wno-missing-prototypes -Wno-return-type -Wno-non-virtual-dtor -Wno-overloaded-virtual -Wno-exit-time-destructors -Wno-missing-braces -Wparentheses -Wswitch -Wno-unused-function -Wno-unused-label -Wno-unused-parameter -Wno-unused-variable -Wunused-value -Wno-empty-body -Wno-uninitialized -Wno-unknown-pragmas -Wno-shadow -Wno-four-char-constants -Wno-conversion -Wno-constant-conversion -Wno-int-conversion -Wno-bool-conversion -Wno-enum-conversion -Wno-float-conversion -Wno-non-literal-null-conversion -Wno-objc-literal-conversion -Wshorten-64-to-32 -Wno-newline-eof -Wno-c++11-extensions -Wno-implicit-fallthrough -fstrict-aliasing -Wdeprecated-declarations -Winvalid-offsetof -Wno-sign-conversion -Wno-infinite-recursion -Wno-move -Wno-comma -Wno-block-capture-autoreleasing -Wno-strict-prototypes -Wno-range-loop-analysis -Wno-semicolon-before-method-body -Wall -Wshadow-all -Wshorten-64-to-32 -Wstrict-aliasing -Wuninitialized -Wunused-parameter -Wconversion -Wsign-compare -Wint-conversion -Wconditional-uninitialized -Wconstant-conversion -Wsign-conversion -Wbool-conversion -Wextra-semi -Wunreachable-code -Wcast-align -Wshift-sign-overflow -Wmissing-prototypes -Wnullable-to-nonnull-conversion -Wno-ignored-qualifiers -Wswitch-enum -Wpedantic -Wdeprecated -Wfloat-equal -Wmissing-field-initializers -Wzero-as-null-pointer-constant -Wunused-private-field -Woverloaded-virtual -Wreorder -Winconsistent-missing-destructor-override @/Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/82b82416624d2658e5098eb0a28c15c5-common-args.resp -MMD -MT dependencies -MF /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/Main.d --serialize-diagnostics /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/Main.dia -c /Users/billt/Sites/Samsara/src/Main.cpp -o /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/Main.o
+In file included from /Users/billt/Sites/Samsara/src/Main.cpp:1:
+In file included from /Users/billt/Sites/Samsara/src/MainComponent.h:5:
+/Users/billt/Sites/Samsara/src/MixerTabComponents.h:57:34: warning: implicit conversion changes signedness: 'int' to 'size_type' (aka 'unsigned long') [-Wsign-conversion]
+   57 |         active.push_back(lengths[i]);
+      |                          ~~~~~~~ ^
+/Users/billt/Sites/Samsara/src/MixerTabComponents.h:121:9: warning: unused variable 'h' [-Wunused-variable]
+  121 |     int h = bounds.getHeight();
+      |         ^
+In file included from /Users/billt/Sites/Samsara/src/Main.cpp:1:
+In file included from /Users/billt/Sites/Samsara/src/MainComponent.h:7:
+/Users/billt/Sites/Samsara/src/ModeTabTop.h:8:30: warning: 'Font' is deprecated: Use the constructor that takes a FontOptions argument [-Wdeprecated-declarations]
+    8 |     micModeIndicator.setFont(juce::Font(24.0f, juce::Font::bold));
+      |                              ^
+In file included from /Users/billt/Sites/Samsara/src/Main.cpp:1:
+In file included from /Users/billt/Sites/Samsara/src/MainComponent.h:2:
+In file included from /Users/billt/Sites/Samsara/src/FXTabBottom.h:2:
+In file included from /Users/billt/Sites/Samsara/src/XYPad.h:2:
+In file included from /Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_gui_basics/juce_gui_basics.h:68:
+In file included from /Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_graphics/juce_graphics.h:141:
+/Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_graphics/fonts/juce_Font.h:76:7: note: 'Font' has been explicitly marked deprecated here
+   76 |     [[deprecated ("Use the constructor that takes a FontOptions argument")]]
+      |       ^
+In file included from /Users/billt/Sites/Samsara/src/Main.cpp:1:
+In file included from /Users/billt/Sites/Samsara/src/MainComponent.h:7:
+/Users/billt/Sites/Samsara/src/ModeTabTop.h:8:30: warning: 'Font' is deprecated: Use the constructor that takes a FontOptions argument [-Wdeprecated-declarations]
+    8 |     micModeIndicator.setFont(juce::Font(24.0f, juce::Font::bold));
+      |                              ^
+In file included from /Users/billt/Sites/Samsara/src/Main.cpp:1:
+In file included from /Users/billt/Sites/Samsara/src/MainComponent.h:2:
+In file included from /Users/billt/Sites/Samsara/src/FXTabBottom.h:2:
+In file included from /Users/billt/Sites/Samsara/src/XYPad.h:2:
+In file included from /Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_gui_basics/juce_gui_basics.h:68:
+In file included from /Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_graphics/juce_graphics.h:141:
+/Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_graphics/fonts/juce_Font.h:76:7: note: 'Font' has been explicitly marked deprecated here
+   76 |     [[deprecated ("Use the constructor that takes a FontOptions argument")]]
+      |       ^
+
+CompileC /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/juce_graphics_Harfbuzz.o /Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_graphics/juce_graphics_Harfbuzz.cpp normal arm64 c++ com.apple.compilers.llvm.clang.1_0.compiler (in target 'Samsara' from project 'Samsara')
+    cd /Users/billt/Sites/Samsara
+    
+    Using response file: /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/82b82416624d2658e5098eb0a28c15c5-common-args.resp
+    
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -x c++ -ivfsstatcache /var/folders/gw/yz51cdgx7t59rpj9zrclmxc00000gp/C/com.apple.DeveloperTools/26.2-17C52/Xcode/SDKStatCaches.noindex/macosx26.2-25C57-00fa09913b459cbbc988d1f6730289ae.sdkstatcache -fmessage-length\=0 -fdiagnostics-show-note-include-stack -fmacro-backtrace-limit\=0 -fno-color-diagnostics -Wno-trigraphs -Wno-missing-field-initializers -Wno-missing-prototypes -Wno-return-type -Wno-non-virtual-dtor -Wno-overloaded-virtual -Wno-exit-time-destructors -Wno-missing-braces -Wparentheses -Wswitch -Wno-unused-function -Wno-unused-label -Wno-unused-parameter -Wno-unused-variable -Wunused-value -Wno-empty-body -Wno-uninitialized -Wno-unknown-pragmas -Wno-shadow -Wno-four-char-constants -Wno-conversion -Wno-constant-conversion -Wno-int-conversion -Wno-bool-conversion -Wno-enum-conversion -Wno-float-conversion -Wno-non-literal-null-conversion -Wno-objc-literal-conversion -Wshorten-64-to-32 -Wno-newline-eof -Wno-c++11-extensions -Wno-implicit-fallthrough -fstrict-aliasing -Wdeprecated-declarations -Winvalid-offsetof -Wno-sign-conversion -Wno-infinite-recursion -Wno-move -Wno-comma -Wno-block-capture-autoreleasing -Wno-strict-prototypes -Wno-range-loop-analysis -Wno-semicolon-before-method-body -Wall -Wshadow-all -Wshorten-64-to-32 -Wstrict-aliasing -Wuninitialized -Wunused-parameter -Wconversion -Wsign-compare -Wint-conversion -Wconditional-uninitialized -Wconstant-conversion -Wsign-conversion -Wbool-conversion -Wextra-semi -Wunreachable-code -Wcast-align -Wshift-sign-overflow -Wmissing-prototypes -Wnullable-to-nonnull-conversion -Wno-ignored-qualifiers -Wswitch-enum -Wpedantic -Wdeprecated -Wfloat-equal -Wmissing-field-initializers -Wzero-as-null-pointer-constant -Wunused-private-field -Woverloaded-virtual -Wreorder -Winconsistent-missing-destructor-override @/Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/82b82416624d2658e5098eb0a28c15c5-common-args.resp -MMD -MT dependencies -MF /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/juce_graphics_Harfbuzz.d --serialize-diagnostics /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/juce_graphics_Harfbuzz.dia -c /Users/billt/Sites/Samsara/libs/juce-binary/JUCE/modules/juce_graphics/juce_graphics_Harfbuzz.cpp -o /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/juce_graphics_Harfbuzz.o
+
+ProcessInfoPlistFile /Users/billt/Sites/Samsara/build/Samsara_artefacts/Debug/Samsara.app/Contents/Info.plist /Users/billt/Sites/Samsara/build/CMakeFiles/Samsara.dir/Info.plist (in target 'Samsara' from project 'Samsara')
+    cd /Users/billt/Sites/Samsara
+    builtin-infoPlistUtility /Users/billt/Sites/Samsara/build/CMakeFiles/Samsara.dir/Info.plist -producttype com.apple.product-type.application -genpkginfo /Users/billt/Sites/Samsara/build/Samsara_artefacts/Debug/Samsara.app/Contents/PkgInfo -expandbuildsettings -platform macosx -o /Users/billt/Sites/Samsara/build/Samsara_artefacts/Debug/Samsara.app/Contents/Info.plist
+
+note: Run script build phase 'Generate CMakeFiles/ALL_BUILD' will be run during every build because the option to run the script phase "Based on dependency analysis" is unchecked. (in target 'ALL_BUILD' from project 'Samsara')
+note: Run script build phase 'Generate CMakeFiles/ZERO_CHECK' will be run during every build because the option to run the script phase "Based on dependency analysis" is unchecked. (in target 'ZERO_CHECK' from project 'Samsara')
+** BUILD FAILED **
+
+
+The following build commands failed:
+	CompileC /Users/billt/Sites/Samsara/build/build/Samsara.build/Debug/Objects-normal/arm64/WaveformPanel.o /Users/billt/Sites/Samsara/src/WaveformPanel.cpp normal arm64 c++ com.apple.compilers.llvm.clang.1_0.compiler (in target 'Samsara' from project 'Samsara')
+(1 failure)

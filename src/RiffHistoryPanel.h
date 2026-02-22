@@ -39,12 +39,16 @@ private:
     ContentComponent(RiffHistoryPanel &p) : owner(p) {}
     void paint(juce::Graphics &g) override;
     void mouseDown(const juce::MouseEvent &e) override;
+    void mouseDrag(const juce::MouseEvent &e) override;
+    void mouseUp(const juce::MouseEvent &e) override;
     void updateItems();
 
   private:
     void timerCallback() override;
 
     std::vector<RiffItem> items;
+    int dragStartX{0};
+    int dragStartScrollX{0};
 
   private:
     RiffHistoryPanel &owner;

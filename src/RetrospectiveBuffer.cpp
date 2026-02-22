@@ -10,6 +10,7 @@ void RetrospectiveBuffer::prepare(double sampleRate, int maxSeconds) {
                      /*clearExtraSpace=*/true, /*avoidReallocating=*/false);
   ringBuffer.clear();
   writeIndex.store(0);
+  totalFramesWritten.store(0);
 }
 
 //==============================================================================
@@ -35,6 +36,7 @@ void RetrospectiveBuffer::pushBlock(const float *const *channelData,
   // value.
   wi = (wi + numSamples) % bufferCapacity;
   writeIndex.store(wi, std::memory_order_release);
+  totalFramesWritten.fetch_add(numSamples, std::memory_order_relaxed);
 }
 
 //==============================================================================
