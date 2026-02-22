@@ -13,10 +13,10 @@ struct Riff {
   std::vector<juce::AudioBuffer<float>> layerBuffers;
   std::vector<float> layerGains;
   double bpm{120.0};
-  int bars{1};
+  float bars{1.0f};
   juce::Time captureTime;
   int layers{1};
-  std::vector<int> layerBars;
+  std::vector<float> layerBars;
   double sourceSampleRate{44100.0};
   juce::String source{"Microphone"};
 
@@ -79,21 +79,21 @@ struct Riff {
   }
 
   /** Merges new audio into this riff (layering). */
-  void merge(const juce::AudioBuffer<float> &newAudio, int barsToMerge) {
-    if (layers >= 8)
-      return;
+  void merge(const juce::AudioBuffer<float> &newAudio, float barsToMerge) {
+    if (layerBuffers.size() >= 8)
+      return; // Max 8 layers
 
     if (barsToMerge > bars)
       bars = barsToMerge;
 
-    juce::AudioBuffer<float> layerCopy;
-    layerCopy.makeCopyOf(newAudio);
-    layerBuffers.push_back(std::move(layerCopy));
-    layerGains.push_back(0.8f);
+    layerBuffers.push_back(newAudio);
+    layerGains.push_back(1.0f); // Default full volume
     layerBars.push_back(barsToMerge);
     layers = static_cast<int>(layerBuffers.size());
-  }
+    captureTime = juce::Time::getCurrentTime();
 
+    // The single layer summation happens elsewhere if needed
+  }
   /** Gets a summed version of ONLY selected layers. */
   void getSelectedLayerComposite(juce::AudioBuffer<float> &output,
                                  uint8_t mask) const {
@@ -172,50 +172,33 @@ struct Riff {
    * Replaces the selected layers with a single processed buffer.
    * This is used for the "FX Commit" logic.
    */
-  void commitFX(const juce::AudioBuffer<float> &processedAudio,
-                uint8_t selectionMask) {
-    if (layerBuffers.empty())
+  void commitFX(const juce::AudioBuffer<float> &wetAudio, uint8_t mask) {
+    if (mask == 0)
       return;
 
-    std::vector<juce::AudioBuffer<float>> newLayers;
-    std::vector<float> newGains;
-    std::vector<int> newLayerBarsList;
+    std::vector<juce::AudioBuffer<float>> newLayerBuffers;
+    std::vector<float> newLayerGains;
+    std::vector<float> newLayerBarsList;
 
-    bool addedProcessed = false;
-
-    for (int i = 0; i < (int)layerBuffers.size(); ++i) {
-      if (selectionMask & (1 << i)) {
-        if (!addedProcessed) {
-          juce::AudioBuffer<float> copy;
-          copy.makeCopyOf(processedAudio);
-          newLayers.push_back(std::move(copy));
-          newGains.push_back(1.0f);
-          newLayerBarsList.push_back(bars);
-          addedProcessed = true;
-        }
-        // If it's in the mask and we already added the processed result,
-        // we just don't add the original layer (effectively deleting it).
-      } else {
-        // Keep unselected layers as they were
-        newLayers.push_back(std::move(layerBuffers[i]));
-        newGains.push_back(layerGains[i]);
+    // 1) Keep unselected layers unchanged
+    for (size_t i = 0; i < layerBuffers.size(); ++i) {
+      if ((mask & (1 << i)) == 0) {
+        newLayerBuffers.push_back(layerBuffers[i]);
+        newLayerGains.push_back(layerGains[i]);
         newLayerBarsList.push_back(layerBars[i]);
       }
     }
 
-    // If for some reason the mask was non-zero but nothing was added
-    // (shouldn't happen), we ensure at least one layer if processedAudio is
-    // provided.
-    if (!addedProcessed && selectionMask != 0) {
-      juce::AudioBuffer<float> copy;
-      copy.makeCopyOf(processedAudio);
-      newLayers.push_back(std::move(copy));
-      newGains.push_back(1.0f);
+    // 2) Append the new consolidated wet layer
+    if (newLayerBuffers.size() < 8) { // check limit just in case
+      newLayerBuffers.push_back(wetAudio);
+      newLayerGains.push_back(1.0f); // Default full volume for new bounce
       newLayerBarsList.push_back(bars);
     }
 
-    layerBuffers = std::move(newLayers);
-    layerGains = std::move(newGains);
+    // 3) Replace existing layers with the new list
+    layerBuffers = std::move(newLayerBuffers);
+    layerGains = std::move(newLayerGains);
     layerBars = std::move(newLayerBarsList);
     layers = static_cast<int>(layerBuffers.size());
   }

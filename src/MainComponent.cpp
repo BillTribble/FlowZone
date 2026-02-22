@@ -80,7 +80,7 @@ MainComponent::MainComponent() {
   };
 
   waveformPanel.setBPM(120.0);
-  waveformPanel.onLoopTriggered = [this](int bars) {
+  waveformPanel.onLoopTriggered = [this](float bars) {
     if (currentSampleRate <= 0.0)
       return;
 
@@ -89,7 +89,8 @@ MainComponent::MainComponent() {
 
     // --- WYSIWYG Capture ---
     const int offsetSamples = 0;
-    const int numFrames = static_cast<int>(framesPerBar * bars);
+    const int numFrames =
+        static_cast<int>(framesPerBar * static_cast<double>(bars));
 
     Riff newRiff;
     juce::AudioBuffer<float> capturedAudio;
