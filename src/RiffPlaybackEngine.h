@@ -1,6 +1,8 @@
 #pragma once
 #include "Riff.h"
+#include <atomic>
 #include <juce_audio_basics/juce_audio_basics.h>
+#include <memory>
 #include <vector>
 
 /**
@@ -26,7 +28,21 @@ public:
   bool isRiffPlaying(const juce::Uuid &id) const;
   juce::Uuid getCurrentlyPlayingRiffId() const;
 
+  void setMixerLayerMute(int index, bool muted);
+  void setMixerLayerVolume(int index, float volume);
+  float consumeLayerPeak(int index);
+
+  bool getMixerLayerMute(int index) const {
+    return index >= 0 && index < 8 ? layerMutes[index] : false;
+  }
+  float getMixerLayerVolume(int index) const {
+    return index >= 0 && index < 8 ? layerVolumes[index] : 1.0f;
+  }
+
 private:
+  float layerVolumes[8] = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
+  bool layerMutes[8] = {false, false, false, false, false, false, false, false};
+  std::atomic<float> layerPeaks[8] = {0.0f};
   struct PlayingRiff {
     juce::Uuid riffId;
     std::vector<juce::AudioBuffer<float>> layers;

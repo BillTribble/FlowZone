@@ -38,6 +38,7 @@ private:
   void timerCallback() override;
   void setupModeTabLogic();
   void setupFXTabLogic();
+  void setupMixerTabLogic();
 
   // --- Dynamic Layout Helpers ---
   void updateBpm(double newBpm);
@@ -97,6 +98,13 @@ private:
   std::atomic<double> playbackPosition{0.0};
   std::atomic<double> currentBpm{120.0};
   MiddleMenuPanel::Tab activeTab{MiddleMenuPanel::Tab::Mode};
+
+  // --- Metronome ---
+  std::atomic<bool> metronomeActive{false};
+  std::atomic<bool> quantizeActive{false};
+  double metronomePhase{0.0};
+  int metronomeSamplesRemaining{0};
+  double samplesSinceLastBeat{0.0};
 
   // --- Mic Reverb (Separate from Master FX) ---
   juce::Reverb micReverb;

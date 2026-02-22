@@ -1,6 +1,7 @@
 #include "MiddleMenuPanel.h"
 
 MiddleMenuPanel::MiddleMenuPanel() {
+  setBufferedToImage(true);
   auto setupTabButton = [this](juce::TextButton &b, const juce::String &name) {
     b.setButtonText(name);
     b.setClickingTogglesState(true);

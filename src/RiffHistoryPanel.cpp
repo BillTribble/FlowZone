@@ -3,6 +3,7 @@
 
 RiffHistoryPanel::RiffHistoryPanel() : content(*this) {
   setOpaque(true);
+  setBufferedToImage(true);
   addAndMakeVisible(viewport);
   viewport.setViewedComponent(&content);
   viewport.setScrollBarsShown(false, false, false,

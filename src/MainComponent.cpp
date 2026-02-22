@@ -1,4 +1,5 @@
 #include "MainComponent.h"
+#include <cmath>
 #include <juce_core/juce_core.h>
 
 //==============================================================================
@@ -54,6 +55,7 @@ MainComponent::MainComponent() {
   // --- Setup Tab-Specific Logic ---
   setupModeTabLogic();
   setupFXTabLogic();
+  setupMixerTabLogic();
 
   // --- Riff History Panel ---
   riffHistoryPanel.setHistory(&riffHistory);
@@ -77,7 +79,6 @@ MainComponent::MainComponent() {
     const double framesPerBar = currentSampleRate * (60.0 / bpm) * 4.0;
 
     // --- WYSIWYG Capture ---
-    // Revert to visual sync directly to solve missing audio chunks.
     const int offsetSamples = 0;
     const int numFrames = static_cast<int>(framesPerBar * bars);
 
@@ -93,6 +94,35 @@ MainComponent::MainComponent() {
     }
 
     retroBuffer.getAudioRegion(capturedAudio, numFrames, offsetSamples);
+
+    // --- Phase Alignment / Shift ---
+    // The master playback phase is continuous (e.g. 13.5 beats).
+    // The captured buffer of length `bars` ends at this exact phase.
+    // To ensure it plays back synchronously starting at phase 0.0, we shift the
+    // buffer left. This perfectly aligns the "0.0" beat of the captured audio
+    // to index 0.
+    double currentBeat = playbackPosition.load();
+    double loopBeats = static_cast<double>(bars) * 4.0;
+    double wrappedBeat = std::fmod(currentBeat, loopBeats);
+    double shiftBeats = loopBeats - wrappedBeat;
+
+    int shiftSamples =
+        static_cast<int>((shiftBeats / loopBeats) * numFrames) % numFrames;
+
+    if (shiftSamples > 0 && shiftSamples < numFrames &&
+        capturedAudio.getNumSamples() == numFrames) {
+      juce::AudioBuffer<float> shifted(capturedAudio.getNumChannels(),
+                                       numFrames);
+      for (int ch = 0; ch < capturedAudio.getNumChannels(); ++ch) {
+        // Copy tail to head
+        shifted.copyFrom(ch, 0, capturedAudio, ch, shiftSamples,
+                         numFrames - shiftSamples);
+        // Copy head to tail
+        shifted.copyFrom(ch, numFrames - shiftSamples, capturedAudio, ch, 0,
+                         shiftSamples);
+      }
+      capturedAudio = std::move(shifted);
+    }
 
     bool isFxTab = (activeTab == MiddleMenuPanel::Tab::FX);
     uint8_t mask = selectedLayers.load();
@@ -194,8 +224,9 @@ void MainComponent::setupModeTabLogic() {
 }
 
 void MainComponent::setupFXTabLogic() {
-  fxTop.getFXGrid().onSelectionChanged = [this](int idx) {
+  fxTop.onFXSelected = [this](int idx) {
     LOG_ACTION("FX", "Mode Changed to: " + juce::String(idx));
+    fxEngine.setActiveFX(idx);
   };
 
   fxBottom.getLayerGrid().onSelectionChanged = [this](uint8_t mask) {
@@ -204,12 +235,92 @@ void MainComponent::setupFXTabLogic() {
   selectedLayers.store(0xFF);
 
   auto &pad = fxBottom.getXYPad();
-  pad.onXYChange = [this](float x, float y) {
-    fxEngine.setDelayParams(x * 2.0f, y * 0.8f);
-    fxEngine.setReverbParams(x, y * 0.5f);
-  };
+  pad.onXYChange = [this](float x, float y) { fxEngine.setXY(x, y); };
 
   pad.onRelease = [this, &pad]() { LOG_ACTION("FX", "XY Pad Released"); };
+}
+
+void MainComponent::setupMixerTabLogic() {
+  mixerTop.onQuantizeToggled = [this](bool state) {
+    quantizeActive.store(state);
+    LOG_ACTION("Mixer", state ? "Quantize ON" : "Quantize OFF");
+  };
+
+  mixerTop.onMetronomeToggled = [this](bool state) {
+    metronomeActive.store(state);
+    // Reset samples to ensure it ticks on time when turned on
+    if (state)
+      samplesSinceLastBeat = 0.0;
+    LOG_ACTION("Mixer", state ? "Metronome ON" : "Metronome OFF");
+  };
+
+  mixerTop.onMoreClicked = [this]() {
+    LOG_ACTION("Mixer", "Settings Clicked");
+    // Can link this to settingsButton in the future or open a new dialog
+  };
+
+  mixerBottom.onChannelMute = [this](int idx, bool muted) {
+    LOG_ACTION("Mixer",
+               "Ch " + juce::String(idx + 1) + (muted ? " Muted" : " Unmuted"));
+    riffEngine.setMixerLayerMute(idx, muted);
+  };
+
+  mixerBottom.onChannelVolume = [this](int idx, float vol) {
+    riffEngine.setMixerLayerVolume(idx, vol);
+  };
+
+  mixerBottom.onCommit = [this]() {
+    LOG_ACTION("Mixer", "Commit Mix");
+
+    juce::Uuid playingId = riffEngine.getCurrentlyPlayingRiffId();
+    if (playingId.isNull())
+      return;
+
+    const Riff *currentRiff = nullptr;
+    for (const auto &r : riffHistory.getHistory()) {
+      if (r.id == playingId) {
+        currentRiff = &r;
+        break;
+      }
+    }
+
+    if (currentRiff) {
+      Riff newRiff;
+      newRiff.id = juce::Uuid();
+      newRiff.name = currentRiff->name + " (Mixed)";
+      newRiff.bpm = currentRiff->bpm;
+      newRiff.bars = currentRiff->bars;
+      newRiff.sourceSampleRate = currentRiff->sourceSampleRate;
+      newRiff.captureTime = juce::Time::getCurrentTime();
+      newRiff.layers = currentRiff->layers;
+      newRiff.source = "Mixer Commit";
+
+      newRiff.layerGains = currentRiff->layerGains;
+      newRiff.layerBars = currentRiff->layerBars;
+      for (const auto &buf : currentRiff->layerBuffers) {
+        juce::AudioBuffer<float> copy;
+        copy.makeCopyOf(buf);
+        newRiff.layerBuffers.push_back(std::move(copy));
+      }
+
+      for (int i = 0; i < newRiff.layers && i < 8; ++i) {
+        bool muted = riffEngine.getMixerLayerMute(i);
+        float vol = riffEngine.getMixerLayerVolume(i);
+        if (muted)
+          newRiff.layerGains[i] = 0.0f;
+        else
+          newRiff.layerGains[i] *= vol;
+      }
+
+      const auto &ref = riffHistory.addRiff(std::move(newRiff));
+      riffEngine.playRiff(ref, true);
+
+      for (int i = 0; i < 8; ++i) {
+        riffEngine.setMixerLayerMute(i, false);
+        riffEngine.setMixerLayerVolume(i, 1.0f);
+      }
+    }
+  };
 }
 
 void MainComponent::prepareToPlay(int samplesPerBlockExpected,
@@ -345,6 +456,39 @@ void MainComponent::getNextAudioBlock(
         peakLevel.store(peak);
     }
   }
+
+  // --- 6. Metronome Click Track ---
+  if (metronomeActive.load() && isPlaying.load()) {
+    double beatsPerSample = (bpm / 60.0) / currentSampleRate;
+    for (int i = 0; i < numSamples; ++i) {
+      samplesSinceLastBeat += beatsPerSample;
+      if (samplesSinceLastBeat >= 1.0) {
+        samplesSinceLastBeat -= 1.0;
+        metronomeSamplesRemaining =
+            static_cast<int>(currentSampleRate * 0.05); // 50ms click
+        metronomePhase = 0.0;
+      }
+
+      float click = 0.0f;
+      if (metronomeSamplesRemaining > 0) {
+        metronomeSamplesRemaining--;
+        metronomePhase += (1000.0 * 2.0 * 3.14159265359) / currentSampleRate;
+        if (metronomePhase > 2.0 * 3.14159265359)
+          metronomePhase -= 2.0 * 3.14159265359;
+
+        click = std::sin(metronomePhase) * 0.5f;
+
+        if (metronomeSamplesRemaining < 100)
+          click *= (metronomeSamplesRemaining / 100.0f);
+      }
+
+      if (click != 0.0f) {
+        for (int ch = 0; ch < numChannels; ++ch) {
+          buffer->addSample(ch, i, click);
+        }
+      }
+    }
+  }
 }
 
 void MainComponent::releaseResources() {}
@@ -433,6 +577,11 @@ void MainComponent::timerCallback() {
       }
     }
     fxBottom.getLayerGrid().setEnabledMask(enabledMask);
+  } else if (activeTab == MiddleMenuPanel::Tab::Mixer) {
+    for (int i = 0; i < 8; ++i) {
+      float peak = riffEngine.consumeLayerPeak(i);
+      mixerBottom.setChannelLevel(i, peak);
+    }
   }
 }
 

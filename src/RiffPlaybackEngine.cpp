@@ -6,6 +6,25 @@ void RiffPlaybackEngine::prepare(double sampleRate, int /*samplesPerBlock*/) {
   // The process logic handles arbitrary sample rates properly.
 }
 
+void RiffPlaybackEngine::setMixerLayerMute(int index, bool muted) {
+  if (index >= 0 && index < 8)
+    layerMutes[index] = muted;
+}
+
+void RiffPlaybackEngine::setMixerLayerVolume(int index, float volume) {
+  if (index >= 0 && index < 8)
+    layerVolumes[index] = volume;
+}
+
+float RiffPlaybackEngine::consumeLayerPeak(int index) {
+  if (index >= 0 && index < 8) {
+    float peak = layerPeaks[index].load();
+    layerPeaks[index].store(0.0f);
+    return peak;
+  }
+  return 0.0f;
+}
+
 void RiffPlaybackEngine::processNextBlock(juce::AudioBuffer<float> &dryBuffer,
                                           juce::AudioBuffer<float> &wetBuffer,
                                           double targetBpm,
@@ -59,7 +78,14 @@ void RiffPlaybackEngine::processNextBlock(juce::AudioBuffer<float> &dryBuffer,
 
         const auto &layerBuf = riff->layers[layerIdx];
         const int layerChannels = layerBuf.getNumChannels();
-        const float gain = riff->layerGains[layerIdx];
+        float originalGain = riff->layerGains.size() > layerIdx
+                                 ? riff->layerGains[layerIdx]
+                                 : 1.0f;
+        float mixerGain =
+            (layerIdx < 8)
+                ? (layerMutes[layerIdx] ? 0.0f : layerVolumes[layerIdx])
+                : 1.0f;
+        const float gain = originalGain * mixerGain;
 
         for (int outCh = 0; outCh < outChannels; ++outCh) {
           int inCh = (layerChannels == 1) ? 0 : outCh;
@@ -70,6 +96,13 @@ void RiffPlaybackEngine::processNextBlock(juce::AudioBuffer<float> &dryBuffer,
             float interp = (s0 + (s1 - s0) * fraction) * gain;
 
             targetBuffer.addFrom(outCh, i, &interp, 1);
+
+            // Track peak for level meters
+            if (layerIdx < 8) {
+              float absVal = std::abs(interp);
+              if (absVal > layerPeaks[layerIdx].load())
+                layerPeaks[layerIdx].store(absVal);
+            }
           }
         }
       }
