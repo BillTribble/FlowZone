@@ -64,7 +64,7 @@ public:
 
       juce::Array<juce::var> barsArray;
       for (auto b : r.layerBars)
-        barsArray.add(juce::var((int)b));
+        barsArray.add(juce::var((double)b));
       rObj->setProperty("layerBars", barsArray);
 
       riffArray.add(rVar);
@@ -148,7 +148,7 @@ public:
         juce::Array<juce::var> *barsArray =
             rObj->getProperty("layerBars").getArray();
         for (auto &bVar : *barsArray)
-          r.layerBars.push_back((int)bVar);
+          r.layerBars.push_back((float)(double)bVar);
       }
 
       r.layers = (int)r.layerBuffers.size();

@@ -19,8 +19,8 @@ MainComponent::MainComponent() {
     Riff blankRiff;
     blankRiff.name = "Riff " + juce::String(riffHistory.size() + 1);
     blankRiff.bpm = currentBpm.load();
-    blankRiff.bars = 1;
-    blankRiff.layers = 0; // Truly blank
+    blankRiff.bars = 1.0f; // Changed from 1 to 1.0f
+    blankRiff.layers = 0;  // Truly blank
     blankRiff.sourceSampleRate = currentSampleRate;
     blankRiff.captureTime = juce::Time::getCurrentTime();
     blankRiff.source = "Blank Canvas";
@@ -586,8 +586,7 @@ void MainComponent::timerCallback() {
 
     if (numSections > 0) {
       const int panelW = std::max(waveformPanel.getWidth(), 1);
-      const int framesPerBar =
-          static_cast<int>(currentSampleRate * (60.0 / bpm) * 4.0);
+      const double framesPerBar = currentSampleRate * (60.0 / bpm) * 4.0;
       const int sectionW = std::max(panelW / numSections, 1);
       int framesWritten = retroBuffer.getTotalFramesWritten();
 
@@ -595,17 +594,12 @@ void MainComponent::timerCallback() {
         // Find how many bars this section represents in total
         float currentLengthBars = lengths[i];
 
-        // Find how many bars are already covered by panels to the right (which
-        // are earlier in the array since sorted 8,4,2,1)
+        // Find how many bars are already covered by panels to the right
         float previousLengthBars = 0.0f;
         if (i + 1 < numSections) {
-          // Because lengths are sorted descending (e.g. 8, 4, 2, 1), the panel
-          // to the right is i+1.
           previousLengthBars = lengths[i + 1];
         }
 
-        // We only want the audio *between* previousLengthBars and
-        // currentLengthBars
         float displayLengthBars = currentLengthBars - previousLengthBars;
         if (displayLengthBars <= 0.0f)
           displayLengthBars = 0.0f;

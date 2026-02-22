@@ -52,7 +52,7 @@ private:
     double sourceSampleRate{44100.0};
     bool looping{false};
     bool finished{false};
-    int totalBars{1};
+    float totalBars{1.0f};
   };
 
   std::vector<std::unique_ptr<PlayingRiff>> playingRiffs;
