@@ -43,7 +43,7 @@ public:
 private:
   void timerCallback() override;
   std::vector<std::vector<float>> sectionData;
-  std::vector<float> activeLengths{1.0f, 2.0f, 4.0f, 8.0f};
+  std::vector<float> activeLengths{8.0f, 4.0f, 2.0f, 1.0f};
   int highlightedSection{-1}; // -1 if none
   double currentBPM{120.0};
   double currentSampleRate{44100.0};
