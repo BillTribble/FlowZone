@@ -11,22 +11,28 @@ public:
     numCols = cols;
 
     for (int i = 0; i < rows * cols; ++i) {
-      auto *b = buttons.add(new juce::TextButton(
-          i < labels.size() ? labels[i] : juce::String(i + 1)));
+      juce::String labelText = i < labels.size() ? labels[i] : juce::String();
+      auto *b = buttons.add(new juce::TextButton(labelText));
 
-      b->setRadioGroupId(1234); // Mutually exclusive
-      b->setClickingTogglesState(true);
-      b->setColour(juce::TextButton::buttonColourId, juce::Colour(0xFF1A1A2E));
-      b->setColour(juce::TextButton::buttonOnColourId,
-                   juce::Colour(0xFF00CC66));
-      b->setColour(juce::TextButton::textColourOffId,
-                   juce::Colours::white.withAlpha(0.7f));
-      b->setColour(juce::TextButton::textColourOnId, juce::Colours::black);
+      if (labelText.isEmpty()) {
+        b->setVisible(false);
+        b->setEnabled(false);
+      } else {
+        b->setRadioGroupId(1234); // Mutually exclusive
+        b->setClickingTogglesState(true);
+        b->setColour(juce::TextButton::buttonColourId,
+                     juce::Colour(0xFF1A1A2E));
+        b->setColour(juce::TextButton::buttonOnColourId,
+                     juce::Colour(0xFF00CC66));
+        b->setColour(juce::TextButton::textColourOffId,
+                     juce::Colours::white.withAlpha(0.7f));
+        b->setColour(juce::TextButton::textColourOnId, juce::Colours::black);
 
-      b->onClick = [this, i] {
-        if (onSelectionChanged)
-          onSelectionChanged(i);
-      };
+        b->onClick = [this, i] {
+          if (onSelectionChanged)
+            onSelectionChanged(i);
+        };
+      }
       addAndMakeVisible(b);
     }
 

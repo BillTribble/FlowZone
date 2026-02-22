@@ -21,7 +21,6 @@ public:
 
     reverb.prepare(spec);
     filter.prepare(spec);
-    compressor.prepare(spec);
     phaser.prepare(spec);
     chorus.prepare(spec);
     osc.prepare(spec);
@@ -60,16 +59,15 @@ public:
       processStutterGate(context, true);
       break;
     case 4:  // Buzz
-    case 14: // Ringmod
-    case 17: // Pitchmod (Approximation)
+    case 13: // Ringmod
+    case 16: // Pitchmod (Approximation)
       processRingMod(context);
       break;
     case 12: // Keymasher
-    case 19: // Freezer
+    case 18: // Freezer
       processStutter(context);
       break;
-    case 6: // Saturator
-    case 9: // Distortion
+    case 6: // Distort
     {
       float driveFactor =
           juce::Decibels::decibelsToGain(juce::jmap(fxX, 0.0f, 40.0f));
@@ -80,27 +78,22 @@ public:
       outBlock.multiplyBy(outGain);
     } break;
     case 7:  // Delay
-    case 20: // Zap Delay
-    case 21: // Dub Delay
+    case 19: // Zap Delay
+    case 20: // Dub Delay
       processDelay(context);
       break;
     case 8:  // Comb
-    case 18: // Multicomb
+    case 17: // Multicomb
       processComb(context);
       break;
-    case 10: // Smudge
-    case 11: // Channel
+    case 9: // Smudge
       chorus.process(context);
       break;
-    case 13: // Ripper
-    case 15: // Bitcrush
-    case 16: // Degrader
+    case 14: // Bitcrush
+    case 15: // Degrader
       processBitcrush(context);
       break;
-    case 22: // Compressor
-      compressor.process(context);
-      break;
-    case 23: // Trance Gate
+    case 21: // Trance Gate
       processTranceGate(context);
       break;
     default:
@@ -113,7 +106,6 @@ public:
     delayLine.reset();
     reverb.reset();
     filter.reset();
-    compressor.reset();
     phaser.reset();
     chorus.reset();
     osc.reset();
@@ -147,17 +139,12 @@ private:
       // No standard JUCE params to update for Gate FX, it's hand-rolled
       break;
     case 4:
-    case 14: // Ringmod
+    case 13: // Ringmod
       osc.setFrequency(juce::jmap(fxX, 20.0f, 2000.0f));
       break;
-    case 10:
-    case 11: // Chorus
+    case 9: // Smudge
       chorus.setMix(fxX);
       chorus.setDepth(fxY);
-      break;
-    case 22: // Compressor
-      compressor.setThreshold(juce::jmap(fxX, -60.0f, 0.0f));
-      compressor.setRatio(juce::jmap(fxY, 1.0f, 20.0f));
       break;
     }
   }
@@ -167,11 +154,11 @@ private:
     float timeSecs = juce::jmap(fxX, 0.01f, 2.0f);
     float feedback = juce::jmap(fxY, 0.0f, 0.95f);
 
-    if (activeFxType == 20) {
+    if (activeFxType == 19) {
       timeSecs = juce::jmap(fxX, 0.001f, 0.1f);
       feedback = juce::jmap(fxY, 0.5f, 1.2f);
     } // Zap Delay
-    if (activeFxType == 21) {
+    if (activeFxType == 20) {
       timeSecs = juce::jmap(fxX, 0.1f, 4.0f);
       feedback = fxY;
     } // Dub Delay
@@ -267,21 +254,55 @@ private:
 
   void processTranceGate(juce::dsp::ProcessContextReplacing<float> &context) {
     auto &outBlock = context.getOutputBlock();
+
+    // 16-step patterns. 1 is audio pass, 0 is audio cut.
+    uint16_t patterns[16] = {
+        0xFFFF, // 0: All on
+        0xAAAA, // 1: 1010101010101010 (every other)
+        0xCCCC, // 2: 1100110011001100 (pairs)
+        0xF0F0, // 3: 1111000011110000 (fours)
+        0xEEEE, // 4: 1110111011101110 (off beat cut)
+        0x8888, // 5: 1000100010001000 (on beats)
+        0x2222, // 6: 0010001000100010 (off beats)
+        0xBA98, // 7: 1011101010011000 (syncopated 1)
+        0xE38E, // 8: 1110001110001110 (poly 3 over 4)
+        0xFE7F, // 9: 1111111001111111 (snare skip)
+        0xA5A5, // 10: 1010010110100101
+        0xFF00, // 11: 1111111100000000 (half bar)
+        0xC3C3, // 12: 1100001111000011
+        0x9249, // 13: 1001001001001001 (triplet feel)
+        0x5555, // 14: 0101010101010101
+        0x1111  // 15: 0001000100010001
+    };
+
+    int patternIdx = juce::jlimit(0, 15, static_cast<int>(fxX * 16.0f));
+    if (patternIdx == 16)
+      patternIdx = 15;
+
+    uint16_t currentPattern = patterns[patternIdx];
     float depth = fxY;
-    float rate = juce::jmap(fxX, 1.0f, 16.0f);
-    double samplesPerBeat = sampleRate / rate;
+
+    double samplesPerBeat = sampleRate / (currentBpm / 60.0);
+    double samplesPerStep = samplesPerBeat / 4.0;
 
     for (size_t i = 0; i < outBlock.getNumSamples(); ++i) {
       trancePhase += 1.0;
-      if (trancePhase > samplesPerBeat)
-        trancePhase -= samplesPerBeat;
+      if (trancePhase >= samplesPerStep * 16.0)
+        trancePhase -= samplesPerStep * 16.0;
 
-      float gateVal = (trancePhase < samplesPerBeat * 0.5) ? 1.0f : 0.0f;
-      gateVal = 1.0f - (depth * (1.0f - gateVal));
+      int currentStep = static_cast<int>(trancePhase / samplesPerStep);
+      currentStep = juce::jlimit(0, 15, currentStep);
+
+      bool bitOn = (currentPattern & (1 << (15 - currentStep))) != 0;
+
+      float targetGate = bitOn ? 1.0f : 0.0f;
+      targetGate = 1.0f - (depth * (1.0f - targetGate));
+
+      gateSmooth = 0.95f * gateSmooth + 0.05f * targetGate;
 
       for (size_t ch = 0; ch < outBlock.getNumChannels(); ++ch) {
         outBlock.setSample(ch, (int)i,
-                           outBlock.getSample(ch, (int)i) * gateVal);
+                           outBlock.getSample(ch, (int)i) * gateSmooth);
       }
     }
   }
@@ -324,7 +345,6 @@ private:
   juce::dsp::DelayLine<float> delayLine;
   juce::dsp::Reverb reverb;
   juce::dsp::StateVariableTPTFilter<float> filter;
-  juce::dsp::Compressor<float> compressor;
   juce::dsp::Phaser<float> phaser;
   juce::dsp::Chorus<float> chorus;
   juce::dsp::Oscillator<float> osc;
