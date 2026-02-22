@@ -33,6 +33,7 @@ public:
   void paint(juce::Graphics &g) override;
   void resized() override;
   void updateLayoutForTab(MiddleMenuPanel::Tab tab);
+  bool keyPressed(const juce::KeyPress &key) override;
 
 private:
   void timerCallback() override;

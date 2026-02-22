@@ -5,6 +5,7 @@
 //==============================================================================
 MainComponent::MainComponent() {
   LOG_STARTUP();
+  setWantsKeyboardFocus(true);
 
   // --- Header UI ---
   addAndMakeVisible(bpmDisplay);
@@ -331,6 +332,7 @@ void MainComponent::prepareToPlay(int samplesPerBlockExpected,
   waveformPanel.setSampleRate(sampleRate);
   micReverb.setSampleRate(sampleRate);
   fxEngine.prepare({sampleRate, (juce::uint32)samplesPerBlockExpected, 2});
+  fxEngine.setBpm(currentBpm.load());
 
   inputCopyBuffer.setSize(2, samplesPerBlockExpected);
   looperMixBuffer.setSize(2, samplesPerBlockExpected);
@@ -589,5 +591,26 @@ void MainComponent::updateBpm(double newBpm) {
   newBpm = std::clamp(newBpm, 40.0, 240.0);
   currentBpm.store(newBpm);
   waveformPanel.setBPM(newBpm);
+  fxEngine.setBpm(newBpm);
   bpmDisplay.repaint();
+}
+
+bool MainComponent::keyPressed(const juce::KeyPress &key) {
+  if (key.getKeyCode() == '1') {
+    waveformPanel.triggerSection(3); // 1 bar
+    return true;
+  }
+  if (key.getKeyCode() == '2') {
+    waveformPanel.triggerSection(2); // 2 bars
+    return true;
+  }
+  if (key.getKeyCode() == '3') {
+    waveformPanel.triggerSection(1); // 4 bars
+    return true;
+  }
+  if (key.getKeyCode() == '4' || key.getKeyCode() == '5') {
+    waveformPanel.triggerSection(0); // 8 bars
+    return true;
+  }
+  return false;
 }

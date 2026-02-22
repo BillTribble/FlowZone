@@ -26,12 +26,9 @@ void WaveformPanel::setSampleRate(double sampleRate) {
 }
 
 //==============================================================================
-void WaveformPanel::mouseDown(const juce::MouseEvent &e) {
-  if (getWidth() <= 0)
+void WaveformPanel::triggerSection(int section) {
+  if (section < 0 || section > 3)
     return;
-
-  int section = e.x / (getWidth() / 4);
-  section = std::clamp(section, 0, 3);
 
   highlightedSection = section;
   startTimer(150); // Flash for 150ms
@@ -41,6 +38,15 @@ void WaveformPanel::mouseDown(const juce::MouseEvent &e) {
     constexpr int bars[] = {8, 4, 2, 1};
     onLoopTriggered(bars[section]);
   }
+}
+
+void WaveformPanel::mouseDown(const juce::MouseEvent &e) {
+  if (getWidth() <= 0)
+    return;
+
+  int section = e.x / (getWidth() / 4);
+  section = std::clamp(section, 0, 3);
+  triggerSection(section);
 }
 
 void WaveformPanel::timerCallback() {

@@ -54,14 +54,16 @@ public:
       reverb.process(context);
       break;
     case 3: // Gate
-      gate.process(context);
+      processStutterGate(context, false);
+      break;
+    case 5: // Gate Trip
+      processStutterGate(context, true);
       break;
     case 4:  // Buzz
     case 14: // Ringmod
     case 17: // Pitchmod (Approximation)
       processRingMod(context);
       break;
-    case 5:  // GoTo
     case 12: // Keymasher
     case 19: // Freezer
       processStutter(context);
@@ -126,12 +128,12 @@ private:
     switch (activeFxType) {
     case 0: // Lowpass
       filter.setType(juce::dsp::StateVariableTPTFilterType::lowpass);
-      filter.setCutoffFrequency(juce::jmap(fxX, 20.0f, 20000.0f));
+      filter.setCutoffFrequency(20.0f * std::pow(1000.0f, fxX));
       filter.setResonance(juce::jmap(fxY, 0.1f, 10.0f));
       break;
     case 1: // Highpass
       filter.setType(juce::dsp::StateVariableTPTFilterType::highpass);
-      filter.setCutoffFrequency(juce::jmap(fxX, 20.0f, 20000.0f));
+      filter.setCutoffFrequency(20.0f * std::pow(1000.0f, fxX));
       filter.setResonance(juce::jmap(fxY, 0.1f, 10.0f));
       break;
     case 2: { // Reverb
@@ -142,8 +144,7 @@ private:
       reverb.setParameters(p);
     } break;
     case 3: // Gate
-      gate.setThreshold(juce::jmap(fxX, -60.0f, 0.0f));
-      gate.setRelease(juce::jmap(fxY, 10.0f, 1000.0f));
+      // No standard JUCE params to update for Gate FX, it's hand-rolled
       break;
     case 4:
     case 14: // Ringmod
@@ -285,6 +286,40 @@ private:
     }
   }
 
+  void processStutterGate(juce::dsp::ProcessContextReplacing<float> &context,
+                          bool isTriplet) {
+    auto &outBlock = context.getOutputBlock();
+
+    double divisionsNormal[] = {4.0, 8.0, 16.0, 32.0};
+    double divisionsTriplet[] = {6.0, 12.0, 24.0,
+                                 48.0}; // 1/4T, 1/8T, 1/16T, 1/32T
+
+    int step = juce::jlimit(0, 3, static_cast<int>(fxX * 4.0f));
+    if (step == 4)
+      step = 3;
+
+    double rate = isTriplet ? divisionsTriplet[step] : divisionsNormal[step];
+    double samplesPerBeat = sampleRate / (currentBpm / 60.0);
+    double samplesPerGate = samplesPerBeat * (4.0 / rate);
+
+    float dutyCycle = juce::jmap(fxY, 0.9f, 0.1f);
+
+    for (size_t i = 0; i < outBlock.getNumSamples(); ++i) {
+      stutterPhase += 1.0;
+      if (stutterPhase >= samplesPerGate)
+        stutterPhase -= samplesPerGate;
+
+      float gateVal = (stutterPhase < samplesPerGate * dutyCycle) ? 1.0f : 0.0f;
+      gateSmooth =
+          0.9f * gateSmooth + 0.1f * gateVal; // smoothing to prevent clicking
+
+      for (size_t ch = 0; ch < outBlock.getNumChannels(); ++ch) {
+        outBlock.setSample(ch, (int)i,
+                           outBlock.getSample(ch, (int)i) * gateSmooth);
+      }
+    }
+  }
+
   // --- Processors ---
   juce::dsp::DelayLine<float> delayLine;
   juce::dsp::Reverb reverb;
@@ -301,7 +336,13 @@ private:
   float fxX = 0.5f;
   float fxY = 0.5f;
   double sampleRate = 44100.0;
+  double currentBpm = 120.0;
   double trancePhase = 0.0;
+  double stutterPhase = 0.0;
+  float gateSmooth = 0.0f;
+
+public:
+  void setBpm(double newBpm) { currentBpm = newBpm; }
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(StandaloneFXEngine)
 };

@@ -25,6 +25,10 @@ public:
   /// Update BPM for bar-line positioning. Default 120.
   void setBPM(double bpm);
 
+  /// Triggers a section programmatically (0=8 bars, 3=1 bar), visually and
+  /// functionally.
+  void triggerSection(int section);
+
   /// Must be called from prepareToPlay so bar widths in pixels are correct.
   void setSampleRate(double sampleRate);
 

@@ -6,7 +6,7 @@ class FXTabTop : public juce::Component {
 public:
   FXTabTop() {
     juce::StringArray coreFX = {
-        "Lowpass",   "Highpass", "Reverb", "Gate",       "Buzz",   "GoTo",
+        "Lowpass",   "Highpass", "Reverb", "Gate",       "Buzz",   "Gate Trip",
         "Saturator", "Delay",    "Comb",   "Distortion", "Smudge", "Channel"};
     juce::StringArray infFX = {"Keymasher", "Ripper",   "Ringmod",   "Bitcrush",
                                "Degrader",  "Pitchmod", "Multicomb", "Freezer",
