@@ -119,15 +119,20 @@ public:
   void resized() override {
     auto bounds = getLocalBounds().reduced(10);
     int h = bounds.getHeight();
-    quantizeBtn.setBounds(
-        bounds.removeFromLeft(120).withSizeKeepingCentre(120, 30));
-    bounds.removeFromLeft(10);
-    metronomeBtn.setBounds(
-        bounds.removeFromLeft(120).withSizeKeepingCentre(120, 30));
-    bounds.removeFromLeft(10);
-    moreBtn.setBounds(bounds.removeFromLeft(80).withSizeKeepingCentre(80, 30));
 
-    bounds.removeFromLeft(20);
+    // Split into top row (buttons) and bottom row (loop selector)
+    auto topRow = bounds.removeFromTop(30);
+    bounds.removeFromTop(10); // spacing
+
+    quantizeBtn.setBounds(
+        topRow.removeFromLeft(120).withSizeKeepingCentre(120, 30));
+    topRow.removeFromLeft(10);
+    metronomeBtn.setBounds(
+        topRow.removeFromLeft(120).withSizeKeepingCentre(120, 30));
+    topRow.removeFromLeft(10);
+    moreBtn.setBounds(topRow.removeFromLeft(80).withSizeKeepingCentre(80, 30));
+
+    // loopSelector takes the rest of the bottom bounds
     loopSelector.setBounds(bounds);
   }
 
