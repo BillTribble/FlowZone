@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(FlowZone VERSION 2.0.0 LANGUAGES CXX)
+project(Samsara VERSION 2.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -7,17 +7,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # JUCE lives in libs/juce-binary/JUCE
 add_subdirectory(libs/juce-binary/JUCE)
 
-juce_add_gui_app(FlowZone
-    PRODUCT_NAME "FlowZone"
-    COMPANY_NAME "FlowZone"
-    BUNDLE_ID "com.flowzone.prototype"
+juce_add_gui_app(Samsara
+    PRODUCT_NAME "Samsara"
+    COMPANY_NAME "Samsara"
+    BUNDLE_ID "com.samsara.prototype"
     NEEDS_MIDI_INPUT FALSE
     NEEDS_MIDI_OUTPUT FALSE
     MICROPHONE_PERMISSION_ENABLED TRUE
-    MICROPHONE_PERMISSION_TEXT "FlowZone needs microphone access for audio input processing."
+    MICROPHONE_PERMISSION_TEXT "Samsara needs microphone access for audio input processing."
 )
 
-target_sources(FlowZone PRIVATE
+target_sources(Samsara PRIVATE
     src/Main.cpp
     src/MainComponent.cpp
     src/LevelMeter.cpp
@@ -32,18 +32,18 @@ target_sources(FlowZone PRIVATE
     src/ZigzagLayerGrid.h
     src/SelectionGrid.h
     src/TopContentPanel.h
-    src/FlowZoneLogger.h
+    src/SamsaraLogger.h
 )
 
-target_compile_definitions(FlowZone PRIVATE
+target_compile_definitions(Samsara PRIVATE
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
-    JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:FlowZone,JUCE_PRODUCT_NAME>"
-    JUCE_APPLICATION_VERSION_STRING="$<TARGET_PROPERTY:FlowZone,JUCE_VERSION>"
+    JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:Samsara,JUCE_PRODUCT_NAME>"
+    JUCE_APPLICATION_VERSION_STRING="$<TARGET_PROPERTY:Samsara,JUCE_VERSION>"
     JUCE_STRICT_REFCOUNTEDPOINTER=1
 )
 
-target_link_libraries(FlowZone PRIVATE
+target_link_libraries(Samsara PRIVATE
     juce::juce_core
     juce::juce_audio_basics
     juce::juce_audio_devices

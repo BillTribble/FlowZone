@@ -1,4 +1,5 @@
 #pragma once
+#include "signalsmith-stretch.h"
 #include <juce_dsp/juce_dsp.h>
 
 /**
@@ -24,8 +25,9 @@ public:
     gate.prepare(spec);
     shaper.prepare(spec);
 
-    grainDelayLine.prepare(spec);
-    grainDelayLine.setMaximumDelayInSamples((int)spec.sampleRate);
+    shaper.prepare(spec);
+
+    stretchEngine.presetDefault((int)spec.numChannels, spec.sampleRate);
 
     reset();
   }
@@ -113,6 +115,7 @@ public:
     osc.reset();
     gate.reset();
     shaper.reset();
+    stretchEngine.reset();
   }
 
   void setSampleRate(double newSampleRate) { sampleRate = newSampleRate; }
@@ -306,76 +309,26 @@ private:
 
     float totalSemitones = fineShift + coarseShift;
     pitchRatio = std::pow(2.0f, totalSemitones / 12.0f);
+    stretchEngine.setTransposeSemitones(totalSemitones);
   }
 
   void processPitchmod(juce::dsp::ProcessContextReplacing<float> &context) {
     auto &outBlock = context.getOutputBlock();
+    int numChannels = (int)outBlock.getNumChannels();
+    int numSamples = (int)outBlock.getNumSamples();
 
-    // Constant grain size for time preservation
-    float grainSizeMs = 60.0f;
-    float grainSizeSamples = (grainSizeMs / 1000.0f) * sampleRate;
-
-    // Calculate phase increment to read through the delay line
-    // When pitchRatio = 1, increment = 1
-    // When pitchRatio = 2 (octave up), increment = 2 (reads twice as fast)
-
-    for (size_t i = 0; i < outBlock.getNumSamples(); ++i) {
-      // 1. Advance the write head
-      grainPhaseWrite += 1.0f;
-      if (grainPhaseWrite >= grainSizeSamples)
-        grainPhaseWrite -= grainSizeSamples;
-
-      // 2. Advance the read heads
-      grainPhaseRead1 += pitchRatio;
-      if (grainPhaseRead1 >= grainSizeSamples)
-        grainPhaseRead1 -= grainSizeSamples;
-
-      grainPhaseRead2 = grainPhaseRead1 + (grainSizeSamples * 0.5f);
-      if (grainPhaseRead2 >= grainSizeSamples)
-        grainPhaseRead2 -= grainSizeSamples;
-
-      // 3. Process each channel
-      for (size_t ch = 0; ch < outBlock.getNumChannels(); ++ch) {
-        float input = outBlock.getSample(ch, (int)i);
-
-        // Push current sample into the dedicated granular delay line
-        // NOTE: we use pushSample but it pushes at the front of the line,
-        // meaning delay = 0 is now. We really want to read at a relative
-        // backward delay.
-        grainDelayLine.pushSample((int)ch, input);
-
-        // Calculate delays. grainPhaseWrite is conceptually "0".
-        float delay1 = grainPhaseWrite - grainPhaseRead1;
-        if (delay1 < 0)
-          delay1 += grainSizeSamples;
-
-        float delay2 = grainPhaseWrite - grainPhaseRead2;
-        if (delay2 < 0)
-          delay2 += grainSizeSamples;
-
-        float read1 = grainDelayLine.popSample((int)ch, delay1);
-        float read2 = grainDelayLine.popSample((int)ch, delay2);
-
-        // Hann windowing based on position in the grain
-        float w1 =
-            0.5f * (1.0f - std::cos(juce::MathConstants<float>::twoPi *
-                                    (grainPhaseRead1 / grainSizeSamples)));
-        float w2 =
-            0.5f * (1.0f - std::cos(juce::MathConstants<float>::twoPi *
-                                    (grainPhaseRead2 / grainSizeSamples)));
-
-        // Output sum
-        float output = (read1 * w1) + (read2 * w2);
-
-        // Anti-click 0 crossing for total zero shift (skip granular engine
-        // completely to avoid phasing)
-        if (std::abs(pitchRatio - 1.0f) < 0.01f) {
-          outBlock.setSample(ch, (int)i, input);
-        } else {
-          outBlock.setSample(ch, (int)i, output);
-        }
-      }
+    // Anti-click 0 crossing for total zero shift
+    if (std::abs(pitchRatio - 1.0f) < 0.01f) {
+      return;
     }
+
+    float *channelPointers[16];
+    for (int ch = 0; ch < numChannels && ch < 16; ++ch) {
+      channelPointers[ch] = outBlock.getChannelPointer((size_t)ch);
+    }
+
+    stretchEngine.process(channelPointers, numSamples, channelPointers,
+                          numSamples);
   }
 
   void processTranceGate(juce::dsp::ProcessContextReplacing<float> &context) {
@@ -469,7 +422,7 @@ private:
 
   // --- Processors ---
   juce::dsp::DelayLine<float> delayLine;
-  juce::dsp::DelayLine<float> grainDelayLine;
+  signalsmith::stretch::SignalsmithStretch<float> stretchEngine;
   juce::dsp::Reverb reverb;
   juce::dsp::StateVariableTPTFilter<float> filter;
   juce::dsp::Phaser<float> phaser;
@@ -488,9 +441,6 @@ private:
   double stutterPhase = 0.0;
   float gateSmooth = 0.0f;
   float pitchRatio = 1.0f;
-  float grainPhaseWrite = 0.0f;
-  float grainPhaseRead1 = 0.0f;
-  float grainPhaseRead2 = 0.0f;
 
 public:
   void setBpm(double newBpm) { currentBpm = newBpm; }

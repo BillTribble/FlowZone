@@ -2,10 +2,10 @@
 #include <juce_core/juce_core.h>
 
 /**
- * Dedicated logger for FlowZone V9 audit logging.
- * Logs user actions and audio performance stats to ~/FlowZone_Log.txt.
+ * Dedicated logger for Samsara V9 audit logging.
+ * Logs user actions and audio performance stats to ~/Samsara_Log.txt.
  */
-class FlowZoneLogger {
+class SamsaraLogger {
 public:
   static void logStartup() { log("SYSTEM", "Application Startup"); }
 
@@ -34,7 +34,7 @@ private:
 };
 
 // Macros for easier usage
-#define LOG_STARTUP() FlowZoneLogger::logStartup()
-#define LOG_ACTION(tag, data) FlowZoneLogger::logAction(tag, data)
+#define LOG_STARTUP() SamsaraLogger::logStartup()
+#define LOG_ACTION(tag, data) SamsaraLogger::logAction(tag, data)
 #define LOG_AUDIO_STATS(peak, clipped)                                         \
-  FlowZoneLogger::logAudioStats(peak, clipped)
+  SamsaraLogger::logAudioStats(peak, clipped)

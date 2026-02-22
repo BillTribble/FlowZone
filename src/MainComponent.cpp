@@ -10,8 +10,27 @@ MainComponent::MainComponent() {
   // --- Header UI ---
   addAndMakeVisible(bpmDisplay);
   addAndMakeVisible(playPauseButton);
+  addAndMakeVisible(newRiffButton);
   addAndMakeVisible(settingsButton);
   addAndMakeVisible(levelMeter);
+
+  newRiffButton.setColour(juce::TextButton::buttonColourId,
+                          juce::Colour(0xFF2A2A4A).withAlpha(0.8f));
+  newRiffButton.onClick = [this]() {
+    Riff blankRiff;
+    blankRiff.name = "Riff " + juce::String(riffHistory.size() + 1);
+    blankRiff.bpm = currentBpm.load();
+    blankRiff.bars = 1;
+    blankRiff.layers = 0; // Truly blank
+    blankRiff.sourceSampleRate = currentSampleRate;
+    blankRiff.captureTime = juce::Time::getCurrentTime();
+    blankRiff.source = "Blank Canvas";
+
+    const auto &ref = riffHistory.addRiff(std::move(blankRiff));
+    sessionManager.syncRiffToDisk(ref);
+    sessionManager.saveManifest(riffHistory);
+    riffEngine.playRiff(ref, true);
+  };
 
   playPauseButton.setClickingTogglesState(true);
   playPauseButton.setToggleState(true, juce::dontSendNotification);
@@ -154,17 +173,24 @@ MainComponent::MainComponent() {
     newRiff.source = isFxTab ? "FX Bounce" : "Microphone";
 
     const auto &ref = riffHistory.addRiff(std::move(newRiff));
+    sessionManager.syncRiffToDisk(ref);
+    sessionManager.saveManifest(riffHistory);
     riffEngine.playRiff(ref, true);
   };
 
   // --- File Logger ---
   auto logFile = juce::File::getSpecialLocation(juce::File::userHomeDirectory)
-                     .getChildFile("FlowZone_Log.txt");
+                     .getChildFile("Samsara_Log.txt");
   juce::Logger::setCurrentLogger(
-      new juce::FileLogger(logFile, "FlowZone Log started"));
+      new juce::FileLogger(logFile, "Samsara Log started"));
 
   // Set default tab
   updateLayoutForTab(MiddleMenuPanel::Tab::Mode);
+
+  // Initialize Session
+  juce::String currentJam = SessionManager::getGlobalJamPointer();
+  sessionManager.setJamName(currentJam);
+  sessionManager.loadFromManifest(riffHistory);
 
   setAudioChannels(2, 2);
 
@@ -512,6 +538,7 @@ void MainComponent::resized() {
   // 1. Header (Static layout for now)
   auto headerArea = area.removeFromTop(40);
   settingsButton.setBounds(headerArea.removeFromLeft(100).reduced(5, 5));
+  newRiffButton.setBounds(headerArea.removeFromRight(40).reduced(2, 5));
   playPauseButton.setBounds(headerArea.removeFromRight(80).reduced(2, 5));
   bpmDisplay.setBounds(headerArea.removeFromRight(100));
   levelMeter.setHorizontal(true);

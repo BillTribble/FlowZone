@@ -1,7 +1,6 @@
 #pragma once
 #include "FXTabBottom.h"
 #include "FXTabTop.h"
-#include "FlowZoneLogger.h"
 #include "LevelMeter.h"
 #include "MixerTabComponents.h"
 #include "ModeTabBottom.h"
@@ -10,7 +9,9 @@
 #include "Riff.h"
 #include "RiffHistoryPanel.h"
 #include "RiffPlaybackEngine.h"
+#include "SamsaraLogger.h"
 #include "SandwichFramework.h"
+#include "SessionManager.h"
 #include "StandaloneFXEngine.h"
 #include "WaveformPanel.h"
 #include <juce_audio_utils/juce_audio_utils.h>
@@ -64,6 +65,7 @@ private:
 
   // UI components
   juce::TextButton settingsButton{"SETTINGS"};
+  juce::TextButton newRiffButton{"+"};
   juce::TextButton playPauseButton{"PAUSE"};
   BpmDisplay bpmDisplay{*this};
   LevelMeter levelMeter;
@@ -99,6 +101,8 @@ private:
   std::atomic<double> playbackPosition{0.0};
   std::atomic<double> currentBpm{120.0};
   MiddleMenuPanel::Tab activeTab{MiddleMenuPanel::Tab::Mode};
+
+  SessionManager sessionManager;
 
   // --- Metronome ---
   std::atomic<bool> metronomeActive{false};

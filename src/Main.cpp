@@ -1,11 +1,11 @@
 #include "MainComponent.h"
 
 //==============================================================================
-class FlowZoneApplication : public juce::JUCEApplication {
+class SamsaraApplication : public juce::JUCEApplication {
 public:
-  FlowZoneApplication() {}
+  SamsaraApplication() {}
 
-  const juce::String getApplicationName() override { return "FlowZone"; }
+  const juce::String getApplicationName() override { return "Samsara"; }
   const juce::String getApplicationVersion() override { return "2.0.0"; }
   bool moreThanOneInstanceAllowed() override { return false; }
 
@@ -43,4 +43,4 @@ private:
 };
 
 //==============================================================================
-START_JUCE_APPLICATION(FlowZoneApplication)
+START_JUCE_APPLICATION(SamsaraApplication)
