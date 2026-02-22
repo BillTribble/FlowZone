@@ -16,9 +16,6 @@ public:
     sampleRate = spec.sampleRate;
 
     delayLine.prepare(spec);
-    delayLine.setMaximumDelayInSamples(
-        static_cast<int>(spec.sampleRate * 4.0)); // 4 sec max
-
     reverb.prepare(spec);
     filter.prepare(spec);
     phaser.prepare(spec);
@@ -26,6 +23,9 @@ public:
     osc.prepare(spec);
     gate.prepare(spec);
     shaper.prepare(spec);
+
+    grainDelayLine.prepare(spec);
+    grainDelayLine.setMaximumDelayInSamples((int)spec.sampleRate);
 
     reset();
   }
@@ -58,13 +58,8 @@ public:
     case 5: // Gate Trip
       processStutterGate(context, true);
       break;
-    case 4:  // Buzz
-    case 13: // Ringmod
-    case 16: // Pitchmod (Approximation)
-      processRingMod(context);
-      break;
-    case 12: // Keymasher
-    case 18: // Freezer
+    case 4:  // Keymasher
+    case 17: // Freezer
       processStutter(context);
       break;
     case 6: // Distort
@@ -78,22 +73,29 @@ public:
       outBlock.multiplyBy(outGain);
     } break;
     case 7:  // Delay
-    case 19: // Zap Delay
-    case 20: // Dub Delay
+    case 18: // Zap Delay
+    case 11: // Dub Delay
       processDelay(context);
       break;
     case 8:  // Comb
-    case 17: // Multicomb
+    case 16: // Multicomb
       processComb(context);
       break;
-    case 9: // Smudge
+    case 9: // Pitchmod
+      processPitchmod(context);
+      break;
+    case 10: // Smudge
       chorus.process(context);
+      break;
+    case 12: // Buzz
+    case 13: // Ringmod
+      processRingMod(context);
       break;
     case 14: // Bitcrush
     case 15: // Degrader
       processBitcrush(context);
       break;
-    case 21: // Trance Gate
+    case 19: // Trance Gate
       processTranceGate(context);
       break;
     default:
@@ -135,14 +137,17 @@ private:
       p.dryLevel = 1.0f - fxY;
       reverb.setParameters(p);
     } break;
-    case 3: // Gate
-      // No standard JUCE params to update for Gate FX, it's hand-rolled
+    case 4: // Keymasher
+      // Handled in process
       break;
-    case 4:
+    case 12: // Buzz
     case 13: // Ringmod
       osc.setFrequency(juce::jmap(fxX, 20.0f, 2000.0f));
       break;
-    case 9: // Smudge
+    case 9: // Pitchmod
+      updatePitchmodParams();
+      break;
+    case 10: // Smudge
       chorus.setMix(fxX);
       chorus.setDepth(fxY);
       break;
@@ -154,11 +159,11 @@ private:
     float timeSecs = juce::jmap(fxX, 0.01f, 2.0f);
     float feedback = juce::jmap(fxY, 0.0f, 0.95f);
 
-    if (activeFxType == 19) {
+    if (activeFxType == 18) {
       timeSecs = juce::jmap(fxX, 0.001f, 0.1f);
       feedback = juce::jmap(fxY, 0.5f, 1.2f);
     } // Zap Delay
-    if (activeFxType == 20) {
+    if (activeFxType == 11) {
       timeSecs = juce::jmap(fxX, 0.1f, 4.0f);
       feedback = fxY;
     } // Dub Delay
@@ -248,6 +253,127 @@ private:
           heldSample = std::round(input * levels) / levels;
         }
         samples[i] = heldSample;
+      }
+    }
+  }
+
+  void updatePitchmodParams() {
+    // X Axis: Fine Tune (-12 to +12 semitones)
+    float fineShift = 0.0f;
+    if (fxX < 0.45f) {
+      fineShift = juce::jmap(fxX, 0.0f, 0.45f, -12.0f, 0.0f);
+    } else if (fxX > 0.55f) {
+      fineShift = juce::jmap(fxX, 0.55f, 1.0f, 0.0f, 12.0f);
+    } // Deadzone in middle 10%
+
+    // Y Axis: Coarse intervals
+    float coarseShift = 0.0f;
+    if (fxY < 0.40f) {
+      float steps = juce::jmap(fxY, 0.0f, 0.40f, 6.0f, 0.0f);
+      int stepIdx = (int)steps;
+      if (stepIdx == 0)
+        coarseShift = 0.0f;
+      else if (stepIdx == 1)
+        coarseShift = -5.0f; // -p4
+      else if (stepIdx == 2)
+        coarseShift = -7.0f; // -p5
+      else if (stepIdx == 3)
+        coarseShift = -12.0f; // -8va
+      else if (stepIdx == 4)
+        coarseShift = -17.0f; // -8va + p4
+      else if (stepIdx == 5)
+        coarseShift = -19.0f; // -8va + p5
+      else
+        coarseShift = -24.0f; // -15ma
+    } else if (fxY > 0.60f) {
+      float steps = juce::jmap(fxY, 0.60f, 1.0f, 0.0f, 6.0f);
+      int stepIdx = (int)steps;
+      if (stepIdx == 0)
+        coarseShift = 0.0f;
+      else if (stepIdx == 1)
+        coarseShift = 5.0f; // +p4
+      else if (stepIdx == 2)
+        coarseShift = 7.0f; // +p5
+      else if (stepIdx == 3)
+        coarseShift = 12.0f; // +8va
+      else if (stepIdx == 4)
+        coarseShift = 17.0f; // +8va + p4
+      else if (stepIdx == 5)
+        coarseShift = 19.0f; // +8va + p5
+      else
+        coarseShift = 24.0f; // +15ma
+    } // Deadzone in middle 20%
+
+    float totalSemitones = fineShift + coarseShift;
+    pitchRatio = std::pow(2.0f, totalSemitones / 12.0f);
+  }
+
+  void processPitchmod(juce::dsp::ProcessContextReplacing<float> &context) {
+    auto &outBlock = context.getOutputBlock();
+
+    // Constant grain size for time preservation
+    float grainSizeMs = 60.0f;
+    float grainSizeSamples = (grainSizeMs / 1000.0f) * sampleRate;
+
+    // Calculate phase increment to read through the delay line
+    // When pitchRatio = 1, increment = 1
+    // When pitchRatio = 2 (octave up), increment = 2 (reads twice as fast)
+
+    for (size_t i = 0; i < outBlock.getNumSamples(); ++i) {
+      // 1. Advance the write head
+      grainPhaseWrite += 1.0f;
+      if (grainPhaseWrite >= grainSizeSamples)
+        grainPhaseWrite -= grainSizeSamples;
+
+      // 2. Advance the read heads
+      grainPhaseRead1 += pitchRatio;
+      if (grainPhaseRead1 >= grainSizeSamples)
+        grainPhaseRead1 -= grainSizeSamples;
+
+      grainPhaseRead2 = grainPhaseRead1 + (grainSizeSamples * 0.5f);
+      if (grainPhaseRead2 >= grainSizeSamples)
+        grainPhaseRead2 -= grainSizeSamples;
+
+      // 3. Process each channel
+      for (size_t ch = 0; ch < outBlock.getNumChannels(); ++ch) {
+        float input = outBlock.getSample(ch, (int)i);
+
+        // Push current sample into the dedicated granular delay line
+        // NOTE: we use pushSample but it pushes at the front of the line,
+        // meaning delay = 0 is now. We really want to read at a relative
+        // backward delay.
+        grainDelayLine.pushSample((int)ch, input);
+
+        // Calculate delays. grainPhaseWrite is conceptually "0".
+        float delay1 = grainPhaseWrite - grainPhaseRead1;
+        if (delay1 < 0)
+          delay1 += grainSizeSamples;
+
+        float delay2 = grainPhaseWrite - grainPhaseRead2;
+        if (delay2 < 0)
+          delay2 += grainSizeSamples;
+
+        float read1 = grainDelayLine.popSample((int)ch, delay1);
+        float read2 = grainDelayLine.popSample((int)ch, delay2);
+
+        // Hann windowing based on position in the grain
+        float w1 =
+            0.5f * (1.0f - std::cos(juce::MathConstants<float>::twoPi *
+                                    (grainPhaseRead1 / grainSizeSamples)));
+        float w2 =
+            0.5f * (1.0f - std::cos(juce::MathConstants<float>::twoPi *
+                                    (grainPhaseRead2 / grainSizeSamples)));
+
+        // Output sum
+        float output = (read1 * w1) + (read2 * w2);
+
+        // Anti-click 0 crossing for total zero shift (skip granular engine
+        // completely to avoid phasing)
+        if (std::abs(pitchRatio - 1.0f) < 0.01f) {
+          outBlock.setSample(ch, (int)i, input);
+        } else {
+          outBlock.setSample(ch, (int)i, output);
+        }
       }
     }
   }
@@ -343,6 +469,7 @@ private:
 
   // --- Processors ---
   juce::dsp::DelayLine<float> delayLine;
+  juce::dsp::DelayLine<float> grainDelayLine;
   juce::dsp::Reverb reverb;
   juce::dsp::StateVariableTPTFilter<float> filter;
   juce::dsp::Phaser<float> phaser;
@@ -360,6 +487,10 @@ private:
   double trancePhase = 0.0;
   double stutterPhase = 0.0;
   float gateSmooth = 0.0f;
+  float pitchRatio = 1.0f;
+  float grainPhaseWrite = 0.0f;
+  float grainPhaseRead1 = 0.0f;
+  float grainPhaseRead2 = 0.0f;
 
 public:
   void setBpm(double newBpm) { currentBpm = newBpm; }

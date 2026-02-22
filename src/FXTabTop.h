@@ -5,12 +5,12 @@
 class FXTabTop : public juce::Component {
 public:
   FXTabTop() {
-    juce::StringArray coreFX = {"Lowpass", "Highpass",  "Reverb",  "Gate",
-                                "Buzz",    "Gate Trip", "Distort", "Delay",
-                                "Comb",    "Smudge",    "",        ""};
-    juce::StringArray infFX = {"Keymasher", "Ringmod",   "Bitcrush", "Degrader",
-                               "Pitchmod",  "Multicomb", "Freezer",  "Zap Dly",
-                               "Dub Dly",   "TrGate",    "",         ""};
+    juce::StringArray coreFX = {"Lowpass",   "Highpass",  "Reverb",  "Gate",
+                                "Keymasher", "Gate Trip", "Distort", "Delay",
+                                "Comb",      "Pitchmod",  "Smudge",  "Dub Dly"};
+    juce::StringArray infFX = {"Buzz",      "Ringmod", "Bitcrush", "Degrader",
+                               "Multicomb", "Freezer", "Zap Dly",  "TrGate",
+                               "",          "",        "",         ""};
 
     grid1 = std::make_unique<SelectionGrid>(3, 4, coreFX);
     grid2 = std::make_unique<SelectionGrid>(3, 4, infFX);
