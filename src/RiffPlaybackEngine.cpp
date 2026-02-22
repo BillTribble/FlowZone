@@ -65,11 +65,7 @@ void RiffPlaybackEngine::processNextBlock(juce::AudioBuffer<float> &dryBuffer,
       const double wrappedPpq = std::fmod(currentPpq, riffBeats);
 
       // Position in samples (slaved to global clock)
-      const double posSamples = wrappedPpq * nativeSamplesPerBeat;
-
-      const int posInt = static_cast<int>(posSamples);
-      const int nextPosInt = (posInt + 1) % riffSamples;
-      const float fraction = static_cast<float>(posSamples - posInt);
+      const double masterPosSamples = wrappedPpq * nativeSamplesPerBeat;
 
       for (int layerIdx = 0; layerIdx < numLayers; ++layerIdx) {
         bool isWet = (layerMask & (1 << layerIdx));
@@ -77,6 +73,18 @@ void RiffPlaybackEngine::processNextBlock(juce::AudioBuffer<float> &dryBuffer,
         const int outChannels = targetBuffer.getNumChannels();
 
         const auto &layerBuf = riff->layers[layerIdx];
+        const int layerSamples = layerBuf.getNumSamples();
+        if (layerSamples == 0)
+          continue;
+
+        const double layerSamplesD = static_cast<double>(layerSamples);
+        const double localPosSamples =
+            std::fmod(masterPosSamples, layerSamplesD);
+
+        const int posInt = static_cast<int>(localPosSamples);
+        const int nextPosInt = (posInt + 1) % layerSamples;
+        const float fraction = static_cast<float>(localPosSamples - posInt);
+
         const int layerChannels = layerBuf.getNumChannels();
         float originalGain = riff->layerGains.size() > layerIdx
                                  ? riff->layerGains[layerIdx]
