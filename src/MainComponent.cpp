@@ -262,6 +262,11 @@ void MainComponent::setupMixerTabLogic() {
     LOG_ACTION("Mixer", state ? "Metronome ON" : "Metronome OFF");
   };
 
+  mixerTop.onLengthsChanged = [this](std::vector<float> lengths) {
+    waveformPanel.setActiveLengths(lengths);
+    LOG_ACTION("Mixer", "Loop Lengths Updated");
+  };
+
   mixerTop.onMoreClicked = [this]() {
     LOG_ACTION("Mixer", "Settings Clicked");
     if (deviceSelector == nullptr) {
@@ -586,15 +591,35 @@ void MainComponent::timerCallback() {
       int framesWritten = retroBuffer.getTotalFramesWritten();
 
       for (int i = 0; i < numSections; ++i) {
-        const int numFrames = static_cast<int>(framesPerBar * lengths[i]);
+        // Find how many bars this section represents in total
+        float currentLengthBars = lengths[i];
 
-        int framesThreshold = 0;
+        // Find how many bars are already covered by panels to the right (which
+        // are earlier in the array since sorted 8,4,2,1)
+        float previousLengthBars = 0.0f;
         if (i + 1 < numSections) {
-          framesThreshold = static_cast<int>(framesPerBar * lengths[i + 1]);
+          // Because lengths are sorted descending (e.g. 8, 4, 2, 1), the panel
+          // to the right is i+1.
+          previousLengthBars = lengths[i + 1];
         }
 
-        if (framesWritten >= framesThreshold) {
-          auto sectionData = retroBuffer.getWaveformData(numFrames, sectionW);
+        // We only want the audio *between* previousLengthBars and
+        // currentLengthBars
+        float displayLengthBars = currentLengthBars - previousLengthBars;
+        if (displayLengthBars <= 0.0f)
+          displayLengthBars = 0.0f;
+
+        const int numFrames =
+            static_cast<int>(framesPerBar * displayLengthBars);
+        const int offsetFrames =
+            static_cast<int>(framesPerBar * previousLengthBars);
+
+        int framesThreshold =
+            static_cast<int>(framesPerBar * currentLengthBars);
+
+        if (framesWritten >= offsetFrames + numFrames && numFrames > 0) {
+          auto sectionData =
+              retroBuffer.getWaveformData(numFrames, sectionW, offsetFrames);
           waveformPanel.setSectionData(i, sectionData);
         } else {
           waveformPanel.setSectionData(i, {});

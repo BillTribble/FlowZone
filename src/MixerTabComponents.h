@@ -48,7 +48,7 @@ public:
     }
   }
 
-  std::vector<float> getActiveLengths() const {
+  std::vector<float> getActiveLengths() {
     std::vector<float> active;
     const std::vector<float> lengths = {0.5f, 1.0f, 2.0f, 3.0f, 4.0f,
                                         5.0f, 6.0f, 7.0f, 8.0f, 9.0f};
@@ -56,6 +56,12 @@ public:
       if (btns[i]->getToggleState())
         active.push_back(lengths[i]);
     }
+
+    if (active.empty()) {
+      btns[1]->setToggleState(true, juce::dontSendNotification);
+      active.push_back(1.0f);
+    }
+
     return active;
   }
 
