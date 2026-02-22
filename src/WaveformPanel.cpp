@@ -4,7 +4,10 @@
 #include <cmath>
 
 //==============================================================================
-WaveformPanel::WaveformPanel() { setOpaque(true); }
+WaveformPanel::WaveformPanel() {
+  setOpaque(true);
+  sectionData.resize(activeLengths.size());
+}
 
 //==============================================================================
 void WaveformPanel::setSectionData(int sectionIndex,
